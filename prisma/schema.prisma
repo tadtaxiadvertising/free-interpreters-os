@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Interpreter {
+  id               Int      @id @default(autoincrement())
+  externalId       String   @unique
+  name             String
+  campaign         String?
+  tariffPerMinute  Decimal  @db.Decimal(10, 2)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  productionLogs   ProductionLog[]
+  payrollRecords   PayrollRecord[]
+
+  @@map("interpreters")
+}
+
+model ProductionLog {
+  id                 Int      @id @default(autoincrement())
+  interpreterId      Int
+  date               DateTime
+  scheduledHours     String?
+  loginTime          DateTime?
+  logoutTime         DateTime?
+  connectedHours     Decimal? @db.Decimal(10, 2)
+  interpretedMinutes Int
+  callsAttended      Int
+  adherence          Decimal? @db.Decimal(5, 2)
+  qaScore            Decimal? @db.Decimal(5, 2)
+  status             String
+  notes              String?
+  createdAt          DateTime @default(now())
+
+  interpreter        Interpreter @relation(fields: [interpreterId], references: [id])
+
+  @@index([date])
+  @@index([interpreterId, date])
+  @@map("production_logs")
+}
+
+model PayrollRecord {
+  id                 String   @id @default(cuid())
+  periodStart        DateTime
+  periodEnd          DateTime
+  interpreterId      Int
+  totalMinutes       Int
+  grossTotal         Decimal  @db.Decimal(10, 2)
+  qualityBonus       Decimal  @default(0) @db.Decimal(10, 2)
+  penalidades        Decimal  @default(0) @db.Decimal(10, 2)
+  transferDeduction  Decimal  @default(0) @db.Decimal(10, 2)
+  netTotal           Decimal  @db.Decimal(10, 2)
+  status             String
+  paymentDate        DateTime?
+  createdAt          DateTime @default(now())
+
+  interpreter        Interpreter @relation(fields: [interpreterId], references: [id])
+
+  @@index([periodStart, periodEnd])
+  @@index([interpreterId])
+  @@map("payroll_records")
+}
