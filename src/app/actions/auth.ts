@@ -9,6 +9,7 @@ export async function login(formData: FormData): Promise<ActionResult> {
 
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
+  const requestedRole = formData.get('role') as string || 'interpreter';
 
   if (!email || !password) {
     return { success: false, error: 'Email and password are required', code: 'VALIDATION_ERROR' };
@@ -24,7 +25,7 @@ export async function login(formData: FormData): Promise<ActionResult> {
       options: {
         data: {
           display_name: email,
-          role: 'interpreter'
+          role: requestedRole
         }
       }
     });
@@ -53,6 +54,16 @@ export async function login(formData: FormData): Promise<ActionResult> {
     .select('role')
     .eq('id', user.id)
     .single();
+
+  if (profile?.role !== requestedRole) {
+    // Optional: Sign out immediately if they picked the wrong portal
+    await supabase.auth.signOut();
+    return { 
+      success: false, 
+      error: `Access denied. This account does not have ${requestedRole} privileges.`, 
+      code: 'UNAUTHORIZED' 
+    };
+  }
 
   const dest = profile?.role === 'admin' ? '/admin' : '/dashboard';
   redirect(dest);
