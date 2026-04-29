@@ -2,6 +2,20 @@
 // npm install --save-dev prisma dotenv
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
+import * as fs from "fs";
+import * as path from "path";
+
+// Cargar .env explícitamente
+const envPath = path.resolve(__dirname, ".env");
+const envContent = fs.readFileSync(envPath, "utf-8");
+const envVars: Record<string, string> = {};
+envContent.split("\n").forEach((line) => {
+  const [key, ...valueParts] = line.split("=");
+  const value = valueParts.join("=").trim().replace(/^["']|["']$/g, "");
+  if (key && !key.startsWith("#")) {
+    envVars[key.trim()] = value;
+  }
+});
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -9,6 +23,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: envVars["DIRECT_URL"] || process.env["DIRECT_URL"],
   },
 });

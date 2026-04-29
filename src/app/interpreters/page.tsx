@@ -5,23 +5,24 @@ import {
   Filter, 
   MoreVertical,
   Plus,
-  Mail,
-  MapPin
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import prisma from '@/lib/prisma';
 import { cn } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
 async function getInterpreters() {
-  const { data, error } = await supabase
-    .from('interpreters')
-    .select('*')
-    .order('name', { ascending: true });
-  
-  if (error) {
+  try {
+    const interpreters = await prisma.interpreter.findMany({
+      orderBy: {
+        name: 'asc'
+      }
+    });
+    return interpreters;
+  } catch (error) {
     console.error('Error fetching interpreters:', error);
     return [];
   }
-  return data;
 }
 
 export default async function InterpretersPage() {
@@ -81,7 +82,7 @@ export default async function InterpretersPage() {
                         {interpreter.name}
                       </p>
                       <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                        ID: {interpreter.external_id}
+                        ID: {interpreter.externalId}
                       </p>
                     </div>
                   </div>
@@ -89,21 +90,21 @@ export default async function InterpretersPage() {
                 <td className="py-6 px-4">
                   <span className={cn(
                     "px-3 py-1 rounded-full text-xs font-bold",
-                    interpreter.campaign === 'Activo' ? "bg-green-500/10 text-green-400" :
-                    interpreter.campaign === 'Probation' ? "bg-yellow-500/10 text-yellow-400" :
+                    interpreter.status === 'Activo' ? "bg-green-500/10 text-green-400" :
+                    interpreter.status === 'Probation' ? "bg-yellow-500/10 text-yellow-400" :
                     "bg-gray-500/10 text-gray-400"
                   )}>
-                    {interpreter.campaign || 'N/A'}
+                    {interpreter.status}
                   </span>
                 </td>
                 <td className="py-6 px-4 text-gray-300">
                   <span className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-blue-500/50" />
-                    Medical / Legal
+                    {interpreter.campaign || 'N/A'}
                   </span>
                 </td>
                 <td className="py-6 px-4 text-white font-mono font-bold">
-                  ${interpreter.tariff_per_minute}
+                  ${interpreter.tariffPerMinute.toString()}
                 </td>
                 <td className="py-6 px-4 text-right">
                   <button className="p-2 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors">

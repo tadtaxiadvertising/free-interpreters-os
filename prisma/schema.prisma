@@ -7,61 +7,141 @@ datasource db {
 }
 
 model Interpreter {
-  id               Int      @id @default(autoincrement())
-  externalId       String   @unique
-  name             String
-  campaign         String?
-  tariffPerMinute  Decimal  @db.Decimal(10, 2)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                 Int      @id @default(autoincrement())
+  externalId         String   @unique
+  name               String
+  status             String   @default("Activo") // Activo, Training, Inactivo, Probation
+  campaign           String?
+  languageA          String   @default("Español")
+  languageB          String   @default("Inglés")
+  emailCorporativo   String?
+  telefono           String?
+  pais               String?
+  metodoPago         String? // PayPal, Bank Transfer, Payoneer, USDT
+  cuentaPago         String?
+  documentosCompleto Boolean  @default(false)
+  notas              String?
+  tariffPerMinute    Decimal  @db.Decimal(10, 2)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  productionLogs   ProductionLog[]
-  payrollRecords   PayrollRecord[]
+  productionLogs ProductionLog[]
+  qaScores       QAScore[]
+  payrollRecords PayrollRecord[]
 
+  @@index([status])
+  @@index([pais])
+  @@index([createdAt])
   @@map("interpreters")
 }
 
 model ProductionLog {
-  id                 Int      @id @default(autoincrement())
+  id                 Int       @id @default(autoincrement())
   interpreterId      Int
-  date               DateTime
+  date               DateTime  @db.Date
+  campaign           String?
   scheduledHours     String?
   loginTime          DateTime?
   logoutTime         DateTime?
-  connectedHours     Decimal? @db.Decimal(10, 2)
-  interpretedMinutes Int
-  callsAttended      Int
-  adherence          Decimal? @db.Decimal(5, 2)
-  qaScore            Decimal? @db.Decimal(5, 2)
+  connectedHours     Decimal?  @db.Decimal(10, 2)
+  interpretedMinutes Int       @default(0)
+  callsAttended      Int       @default(0)
+  adherence          Decimal?  @db.Decimal(5, 2)
   status             String
-  notes              String?
-  createdAt          DateTime @default(now())
+  observaciones      String?
+  createdAt          DateTime  @default(now())
 
-  interpreter        Interpreter @relation(fields: [interpreterId], references: [id])
+  interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+  qaScore     QAScore?
 
   @@index([date])
   @@index([interpreterId, date])
+  @@index([status])
   @@map("production_logs")
 }
 
-model PayrollRecord {
-  id                 String   @id @default(cuid())
-  periodStart        DateTime
-  periodEnd          DateTime
-  interpreterId      Int
-  totalMinutes       Int
-  grossTotal         Decimal  @db.Decimal(10, 2)
-  qualityBonus       Decimal  @default(0) @db.Decimal(10, 2)
-  penalidades        Decimal  @default(0) @db.Decimal(10, 2)
-  transferDeduction  Decimal  @default(0) @db.Decimal(10, 2)
-  netTotal           Decimal  @db.Decimal(10, 2)
-  status             String
-  paymentDate        DateTime?
-  createdAt          DateTime @default(now())
+model QAScore {
+  id                  Int      @id @default(autoincrement())
+  productionLogId     Int      @unique
+  interpreterId       Int
+  auditDate           DateTime
+  auditor             String?
+  callDuration        Int? // minutos
+  callType            String? // Médica, Legal, etc
+  protocolScore       Decimal? @db.Decimal(5, 2) // 20%
+  interpretationScore Decimal? @db.Decimal(5, 2) // 40%
+  languageScore       Decimal? @db.Decimal(5, 2) // 20%
+  serviceScore        Decimal? @db.Decimal(5, 2) // 10%
+  technicalScore      Decimal? @db.Decimal(5, 2) // 10%
+  totalScore          Decimal? @db.Decimal(5, 2)
+  criticalError       Boolean  @default(false)
+  comentarios         String?
+  accionRequerida     String? // Ninguna, Coaching, Advertencia
+  createdAt           DateTime @default(now())
 
-  interpreter        Interpreter @relation(fields: [interpreterId], references: [id])
+  productionLog ProductionLog @relation(fields: [productionLogId], references: [id], onDelete: Cascade)
+  interpreter   Interpreter   @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+
+  @@index([auditDate])
+  @@index([interpreterId])
+  @@map("qa_scores")
+}
+
+model PayrollRecord {
+  id                String    @id @default(cuid())
+  periodStart       DateTime  @db.Date
+  periodEnd         DateTime  @db.Date
+  interpreterId     Int
+  totalMinutes      Int
+  grossTotal        Decimal   @db.Decimal(10, 2)
+  qualityBonus      Decimal   @default(0) @db.Decimal(10, 2)
+  penalidades       Decimal   @default(0) @db.Decimal(10, 2)
+  transferDeduction Decimal   @default(0) @db.Decimal(10, 2)
+  netTotal          Decimal   @db.Decimal(10, 2)
+  status            String    @default("Pendiente") // Pendiente, Procesando, Pagado
+  paymentDate       DateTime?
+  createdAt         DateTime  @default(now())
+
+  interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
 
   @@index([periodStart, periodEnd])
   @@index([interpreterId])
+  @@index([status])
   @@map("payroll_records")
+}
+
+model RecruitmentCandidate {
+  id               Int       @id @default(autoincrement())
+  name             String
+  email            String    @unique
+  telefono         String?
+  pais             String?
+  fuente           String? // LinkedIn, Facebook, Referido
+  englishLevel     String? // C1, C2, B2, etc
+  speedtestMbps    Int?
+  status           String    @default("Aplicante") // Aplicante, Entrevista Agendada, Rechazado, Contratado
+  fechaPostulacion DateTime
+  fechaEntrevista  DateTime?
+  resultRoleplay   Int? // 0-100
+  fechaOferta      DateTime?
+  fechaInicio      DateTime?
+  responsable      String?
+  notas            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([status])
+  @@index([fechaPostulacion])
+  @@map("recruitment_candidates")
+}
+
+model SystemConfig {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@map("system_configs")
 }
