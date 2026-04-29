@@ -68,7 +68,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    if (pathname.startsWith('/dashboard') && profile?.role !== 'interpreter') {
+    if (pathname.startsWith('/dashboard') && profile?.role === 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/admin';
       return NextResponse.redirect(url);

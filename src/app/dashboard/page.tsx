@@ -20,8 +20,21 @@ export default async function InterpreterDashboard() {
     .eq('id', user.id)
     .single();
 
-  if (!profile || profile.role !== 'interpreter') {
-    redirect('/login');
+  if (!profile) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="glass p-8 rounded-3xl text-center max-w-md">
+          <h2 className="text-2xl font-bold text-white mb-4">Profile Not Created</h2>
+          <p className="text-gray-400">
+            Your user profile could not be found in the system. Please contact an administrator.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (profile.role === 'admin') {
+    redirect('/admin');
   }
 
   if (!profile.interpreter_id) {
