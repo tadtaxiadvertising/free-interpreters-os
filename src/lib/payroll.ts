@@ -37,7 +37,7 @@ export async function calculatePayroll(
     throw new Error(`Interpreter ${interpreterId} not found`);
   }
 
-  // Obtener logs de producción en el período
+  // Obtener logs de producción en el período (Importados)
   const productionLogs = await prisma.productionLog.findMany({
     where: {
       interpreterId,
@@ -52,6 +52,16 @@ export async function calculatePayroll(
       adherence: true,
     },
   });
+
+  // Obtener logs de llamadas en tiempo real (call_sessions)
+  const callSessions: any[] = await prisma.$queryRaw`
+    SELECT duration_seconds, call_cost 
+    FROM public.call_sessions 
+    WHERE interpreter_id = ${interpreterId}
+    AND started_at >= ${periodStart} 
+    AND started_at <= ${periodEnd}
+    AND ended_at IS NOT NULL
+  `;
 
   // Obtener scores de QA
   const qaScores = await prisma.qAScore.findMany({
@@ -68,14 +78,22 @@ export async function calculatePayroll(
     },
   });
 
-  // Cálculos
-  const totalMinutes = productionLogs.reduce(
+  // Cálculos de minutos
+  const importedMinutes = productionLogs.reduce(
     (sum: number, log) => sum + log.interpretedMinutes,
     0
   );
+  const realtimeMinutes = Math.round(
+    callSessions.reduce((sum: number, call) => sum + (call.duration_seconds || 0), 0) / 60
+  );
+  
+  const totalMinutes = importedMinutes + realtimeMinutes;
 
-  const grossTotal =
-    totalMinutes * parseFloat(interpreter.tariffPerMinute.toString());
+  // Cálculos de costos
+  const importedCost = importedMinutes * parseFloat(interpreter.tariffPerMinute.toString());
+  const realtimeCost = callSessions.reduce((sum: number, call) => sum + parseFloat(call.call_cost || '0'), 0);
+  
+  const grossTotal = importedCost + realtimeCost;
 
   // Bonus de calidad: +5% si promedio QA >= 90%
   let qualityBonus = 0;
