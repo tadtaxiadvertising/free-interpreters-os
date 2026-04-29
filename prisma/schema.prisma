@@ -11,10 +11,11 @@ model Interpreter {
   externalId         String   @unique
   name               String
   status             String   @default("Activo") // Activo, Training, Inactivo, Probation
+  realtimeStatus     String   @default("Offline") @map("realtime_status") // Online, Offline, Busy
   campaign           String?
   languageA          String   @default("Español")
   languageB          String   @default("Inglés")
-  emailCorporativo   String?
+  emailCorporativo   String?  @unique
   telefono           String?
   pais               String?
   metodoPago         String? // PayPal, Bank Transfer, Payoneer, USDT
@@ -28,11 +29,43 @@ model Interpreter {
   productionLogs ProductionLog[]
   qaScores       QAScore[]
   payrollRecords PayrollRecord[]
+  accountRates   InterpreterAccountRate[]
+  auditLogs      PayrateAuditLog[]
+  callSessions   CallSession[]
+  userProfile    UserProfile?
 
   @@index([status])
   @@index([pais])
   @@index([createdAt])
   @@map("interpreters")
+}
+
+model Account {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  productionLogs   ProductionLog[]
+  interpreterRates InterpreterAccountRate[]
+
+  @@map("accounts")
+}
+
+model InterpreterAccountRate {
+  id            Int      @id @default(autoincrement())
+  interpreterId Int
+  accountId     Int
+  tariffPerHour Decimal  @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+  account     Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([interpreterId, accountId])
+  @@map("interpreter_account_rates")
 }
 
 model ProductionLog {
@@ -51,8 +84,10 @@ model ProductionLog {
   observaciones      String?
   createdAt          DateTime  @default(now())
 
-  interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
-  qaScore     QAScore?
+  interpreter   Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+  qaScore       QAScore?
+  accountId     Int?
+  account       Account?    @relation(fields: [accountId], references: [id])
 
   @@index([date])
   @@index([interpreterId, date])
@@ -145,3 +180,64 @@ model SystemConfig {
 
   @@map("system_configs")
 }
+
+model PayrateAuditLog {
+  id            Int      @id @default(autoincrement())
+  interpreterId Int
+  oldRate       Decimal  @db.Decimal(10, 2)
+  newRate       Decimal  @db.Decimal(10, 2)
+  changedBy     String
+  changedAt     DateTime @default(now())
+
+  interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+
+  @@map("payrate_audit_log")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   // Linked to auth.users ID
+  title     String
+  message   String
+  type      String   @default("info") // info, success, warning, error
+  isRead    Boolean  @default(false)
+  link      String?  // Optional link to action
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model UserProfile {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  displayName   String?  @map("display_name")
+  role          String   @default("interpreter")
+  interpreterId Int?     @map("interpreter_id") @unique
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  interpreter   Interpreter? @relation(fields: [interpreterId], references: [id])
+
+  @@map("user_profiles")
+}
+
+model CallSession {
+  id              Int       @id @default(autoincrement())
+  interpreterId   Int       @map("interpreter_id")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+  durationSeconds Int?      @map("duration_seconds")
+  tariffSnapshot  Decimal   @db.Decimal(10, 2) @map("tariff_snapshot")
+  callCost        Decimal?  @db.Decimal(10, 2) @map("call_cost")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+
+  @@index([interpreterId])
+  @@index([startedAt])
+  @@map("call_sessions")
+}
+
+

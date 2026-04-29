@@ -3,7 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 
 const prismaClientSingleton = () => {
-  const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
+  const connectionString = process.env.DATABASE_URL;
   
   if (!connectionString) {
     throw new Error('DATABASE_URL is not set');
@@ -11,8 +11,11 @@ const prismaClientSingleton = () => {
 
   const pool = new pg.Pool({ 
     connectionString,
+    max: 10, // Limit connections for PgBouncer
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
     ssl: {
-      rejectUnauthorized: false // Required for Supabase in many environments
+      rejectUnauthorized: false
     }
   });
   
@@ -20,12 +23,12 @@ const prismaClientSingleton = () => {
   
   return new PrismaClient({ 
     adapter,
-    log: ['query', 'info', 'warn', 'error'],
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
 };
 
 declare global {
-  var prisma: undefined | ReturnType<typeof prismaClientSingleton>;
+  var prisma: undefined | PrismaClient;
 }
 
 const prisma = globalThis.prisma ?? prismaClientSingleton();

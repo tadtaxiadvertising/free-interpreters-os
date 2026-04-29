@@ -34,9 +34,27 @@ export const ProductionLogSchema = z.object({
   adherence: z.number().min(0).max(100).optional().nullable(),
   status: z.string().default('OK'),
   observaciones: z.string().optional().nullable(),
+  accountId: z.number().positive().optional().nullable(),
 });
 
 export type ProductionLogInput = z.infer<typeof ProductionLogSchema>;
+
+// Account Validators
+export const AccountSchema = z.object({
+  name: z.string().min(1, 'Account name required'),
+  description: z.string().optional().nullable(),
+});
+
+export type AccountInput = z.infer<typeof AccountSchema>;
+
+// Interpreter Account Rate Validators
+export const InterpreterAccountRateSchema = z.object({
+  interpreterId: z.number().positive(),
+  accountId: z.number().positive(),
+  tariffPerHour: z.number().positive('Tariff must be positive'),
+});
+
+export type InterpreterAccountRateInput = z.infer<typeof InterpreterAccountRateSchema>;
 
 // QA Score Validators
 export const QAScoreSchema = z.object({

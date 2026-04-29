@@ -59,9 +59,9 @@ export default async function RecruitmentPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
           { label: 'Total Applicants', count: candidates.length, icon: Users, color: 'text-blue-400' },
-          { label: 'In Interview', count: candidates.filter(c => c.status === 'Entrevista').length, icon: Calendar, color: 'text-purple-400' },
+          { label: 'In Interview', count: candidates.filter(c => c.status === 'Entrevista Agendada').length, icon: Calendar, color: 'text-purple-400' },
           { label: 'Hired this Month', count: candidates.filter(c => c.status === 'Contratado').length, icon: CheckCircle2, color: 'text-green-400' },
-          { label: 'Rejection Rate', count: '12%', icon: XCircle, color: 'text-red-400' },
+          { label: 'Rejection Rate', count: candidates.length > 0 ? `${Math.round((candidates.filter(c => c.status === 'Rechazado').length / candidates.length) * 100)}%` : '0%', icon: XCircle, color: 'text-red-400' },
         ].map((stat, i) => (
           <div key={i} className="glass p-6 rounded-3xl border border-white/5">
             <div className="flex justify-between items-start">

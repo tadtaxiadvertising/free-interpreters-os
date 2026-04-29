@@ -11,41 +11,52 @@ import {
   ChevronRight,
   Clock,
   History,
+  ShieldCheck,
+  UserPlus,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LogoutButton } from './LogoutButton';
+import { NotificationBell } from './NotificationBell';
 import type { UserRole } from '@/lib/types';
 
 const adminMenu = [
   { icon: LayoutDashboard, label: 'Command Center', href: '/admin' },
   { icon: Users, label: 'Live Roster', href: '/admin' },
-  { icon: DollarSign, label: 'Payrates', href: '/admin/payrates' },
-  { icon: Phone, label: 'Call History', href: '/admin/calls' },
+  { icon: UserPlus, label: 'Recruitment', href: '/recruitment' },
+  { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
+  { icon: DollarSign, label: 'Payroll & Rates', href: '/payroll' },
+  { icon: Settings, label: 'System Settings', href: '/admin' },
 ];
 
 const interpreterMenu = [
   { icon: LayoutDashboard, label: 'My Dashboard', href: '/dashboard' },
-  { icon: Clock, label: 'Call Timer', href: '/dashboard' },
-  { icon: History, label: 'My Calls', href: '/dashboard' },
+  { icon: Clock, label: 'Active Session', href: '/dashboard' },
+  { icon: DollarSign, label: 'My Earnings', href: '/dashboard/earnings' },
+  { icon: Settings, label: 'Account Settings', href: '/dashboard/settings' },
 ];
 
 interface SidebarProps {
   role: UserRole;
+  notifications?: any[];
 }
 
-export function Sidebar({ role }: SidebarProps) {
+export function Sidebar({ role, notifications = [] }: SidebarProps) {
   const pathname = usePathname();
   const menuItems = role === 'admin' ? adminMenu : interpreterMenu;
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 glass border-r border-white/10 z-50 flex flex-col">
-      <div className="p-6">
-        <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
-          Free Interpreters OS
-        </h1>
-        <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">
-          {role === 'admin' ? 'Admin Panel' : 'Interpreter Portal'}
-        </p>
+      <div className="p-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
+            Free Interpreters
+          </h1>
+          <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-widest font-bold">
+            {role === 'admin' ? 'Admin OS' : 'Portal'}
+          </p>
+        </div>
+        <NotificationBell initialNotifications={notifications} />
       </div>
 
       <nav className="mt-6 px-4 space-y-2 flex-1">

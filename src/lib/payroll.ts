@@ -30,6 +30,12 @@ export async function calculatePayroll(
     select: {
       id: true,
       tariffPerMinute: true,
+      accountRates: {
+        select: {
+          accountId: true,
+          tariffPerHour: true,
+        },
+      },
     },
   });
 
@@ -50,6 +56,7 @@ export async function calculatePayroll(
       id: true,
       interpretedMinutes: true,
       adherence: true,
+      accountId: true,
     },
   });
 
@@ -90,9 +97,30 @@ export async function calculatePayroll(
   const totalMinutes = importedMinutes + realtimeMinutes;
 
   // Cálculos de costos
-  const importedCost = importedMinutes * parseFloat(interpreter.tariffPerMinute.toString());
-  const realtimeCost = callSessions.reduce((sum: number, call) => sum + parseFloat(call.call_cost || '0'), 0);
-  
+  let importedCost = 0;
+  const baseRatePerMinute = parseFloat(interpreter.tariffPerMinute.toString());
+
+  for (const log of productionLogs) {
+    let ratePerMinute = baseRatePerMinute;
+
+    if (log.accountId) {
+      const specificRate = interpreter.accountRates.find(
+        (r) => r.accountId === log.accountId
+      );
+      if (specificRate) {
+        // Convertir pago por hora a pago por minuto
+        ratePerMinute = parseFloat(specificRate.tariffPerHour.toString()) / 60;
+      }
+    }
+
+    importedCost += log.interpretedMinutes * ratePerMinute;
+  }
+
+  const realtimeCost = callSessions.reduce(
+    (sum: number, call) => sum + parseFloat(call.call_cost || '0'),
+    0
+  );
+
   const grossTotal = importedCost + realtimeCost;
 
   // Bonus de calidad: +5% si promedio QA >= 90%

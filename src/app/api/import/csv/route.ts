@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+const db = prisma as any;
 import { 
   InterpreterSchema, 
   ProductionLogSchema, 
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
             tariffPerMinute: parseFloat(row.Tariff || row.tariffPerMinute || '0.15'),
           });
 
-          await prisma.interpreter.upsert({
+          await db.interpreter.upsert({
             where: { externalId: validated.externalId },
             update: validated,
             create: validated,
@@ -62,10 +63,14 @@ export async function POST(req: NextRequest) {
         }
       }
     } else if (type === 'production') {
+      // Pre-fetch accounts for mapping
+      const accounts = await db.account.findMany();
+      const accountMap = new Map(accounts.map((a: any) => [a.name.toLowerCase(), a.id]));
+
       for (const row of results) {
         try {
           // Find interpreter by externalId or Name
-          const interpreter = await prisma.interpreter.findFirst({
+          const interpreter = await db.interpreter.findFirst({
             where: { 
               OR: [
                 { externalId: row.InterpreterID || row.ID },
@@ -74,18 +79,23 @@ export async function POST(req: NextRequest) {
             }
           });
 
-          if (!interpreter) throw new Error(`Interpreter not found: ${row.Interpreter}`);
+          if (!interpreter) throw new Error(`Interpreter not found: ${row.InterpreterID || row.Interpreter}`);
+
+          // Try to match account
+          const accountName = row.Account || row.account;
+          const accountId = accountName ? accountMap.get(accountName.toLowerCase()) : null;
 
           const validated = ProductionLogSchema.parse({
             interpreterId: interpreter.id,
-            date: new Date(row.Date),
+            date: new Date(row.Date || row.date),
             interpretedMinutes: parseInt(row.Minutes || row.interpretedMinutes || '0'),
-            callsAttended: parseInt(row.Calls || '0'),
-            adherence: parsePercentage(row.Adherence),
-            campaign: row.Campaign,
+            callsAttended: parseInt(row.Calls || row.callsAttended || '0'),
+            adherence: parsePercentage(row.Adherence || row.adherence),
+            campaign: row.Campaign || row.campaign,
+            accountId: accountId
           });
 
-          await prisma.productionLog.create({ data: validated });
+          await db.productionLog.create({ data: validated });
           successCount++;
         } catch (e: any) {
           errorCount++;
