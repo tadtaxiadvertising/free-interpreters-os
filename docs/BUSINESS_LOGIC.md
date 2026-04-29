@@ -16,8 +16,12 @@ If `criticalError == true`, the `totalScore` is overridden to `0.00`, and `accio
 
 The engine runs asynchronously and calculates pay based on minutes.
 
-**Base Calculation:**
-`grossTotal = SUM(production_logs.interpretedMinutes) * interpreter.tariffPerMinute`
+**Base Calculation (Consolidated):**
+`grossTotal = (SUM(production_logs.interpretedMinutes) + SUM(call_sessions.duration_seconds / 60)) * interpreter.tariffPerMinute`
+
+The engine actively merges two data sources:
+1. **Static Logs (`production_logs`)**: Historical records imported via CSV from external dialing platforms.
+2. **Dynamic Logs (`call_sessions`)**: Real-time tracked sessions captured natively within the Free Interpreters OS platform via the Command Center.
 
 **Adjustments:**
 

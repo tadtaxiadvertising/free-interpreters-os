@@ -31,60 +31,37 @@ All endpoints will be located under `/api/v1/` and executed as Next.js API Route
 
 ## 2. Production Logs Ingestion
 
-**Endpoint:** `POST /api/v1/logs/import`  
-**Purpose:** Bulk upsert daily production minutes from the telephony system.
+**Endpoint:** `POST /api/import/csv`  
+**Purpose:** Bulk upsert daily production minutes from the telephony system via CSV file upload.
 
-**Request Body (JSON Array):**
-
-```json
-{
-  "records": [
-    {
-      "interpreterExternalId": "INT-001",
-      "date": "2026-04-28",
-      "interpretedMinutes": 240,
-      "callsAttended": 45,
-      "status": "Completed"
-    }
-  ]
-}
-```
+**Request Body (FormData):**
+- `file`: CSV file containing columns for `name`, `minutes`, `date`, `externalId`.
 
 **Response (200 OK):**
 
 ```json
 {
   "success": true,
-  "importedCount": 1,
+  "importedCount": 42,
   "errors": []
 }
 ```
 
 ## 3. Payroll Execution Engine
 
-**Endpoint:** `POST /api/v1/payroll/calculate`  
-**Purpose:** Calculates the payroll for a given period for all active interpreters.
+**Implementation:** `Server Action` (`src/app/actions/payroll.ts -> generatePayrollAction`)  
+**Purpose:** Calculates the payroll for a given period for all active interpreters, merging historical CSV logs and live `call_sessions`.
 
-**Request Body (JSON):**
+**Function Signature (TypeScript):**
 
-```json
-{
-  "periodStart": "2026-04-01",
-  "periodEnd": "2026-04-15"
-}
+```typescript
+export async function generatePayrollAction(
+  periodStart: Date, 
+  periodEnd: Date
+): Promise<{ success: boolean; recordsCreated?: number; error?: string }>
 ```
 
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "recordsCreated": 150,
-  "totalPayoutUsd": 45000.50
-}
-```
-
-*(Note: Requires Admin Bearer Token)*
+*(Note: Automatically protected by Supabase Auth and Admin Role checks)*
 
 ---
 
