@@ -4,6 +4,36 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import type { ActionResult, UserProfile } from '@/lib/types';
 
+export async function signup(formData: FormData): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const email = formData.get('email') as string;
+  const password = formData.get('password') as string;
+  const displayName = formData.get('displayName') as string;
+  const role = formData.get('role') as string || 'interpreter';
+
+  if (!email || !password || !displayName) {
+    return { success: false, error: 'All fields are required', code: 'VALIDATION_ERROR' };
+  }
+
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        display_name: displayName,
+        role: role
+      }
+    }
+  });
+
+  if (error) {
+    return { success: false, error: error.message, code: 'INTERNAL_ERROR' };
+  }
+
+  return { success: true };
+}
+
 export async function login(formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
 

@@ -1,33 +1,142 @@
-# Architecture Specification
+# Architecture Specification — Free Interpreters CRM v2
+
+> **Migration**: Supabase → Neon.tech + Clerk Auth  
+> **Runtime**: Vercel Hobby Plan ($0) + Edge Runtime  
+> **Last Updated**: 2026-04-29
+
+---
 
 ## 1. Technology Stack
 
-- **Frontend/Backend:** Next.js 16.x (App Router API Routes)
-- **Database:** PostgreSQL (Hosted on Supabase)
-- **ORM:** Prisma Client (v7.x)
-- **Styling:** Tailwind CSS v4, Lucide React
-- **Deployment Target:** Vercel (Hobby Plan)
+| Layer           | Technology                            | Rationale                                       |
+| :-------------- | :------------------------------------ | :---------------------------------------------- |
+| Framework       | Next.js 16 (App Router)               | SSR/SSG + Server Actions + Edge Runtime         |
+| Auth            | Clerk                                 | Free tier (10K MAU), RBAC, webhook sync         |
+| Database        | Neon.tech PostgreSQL (Free)           | Serverless auto-scaling, HTTP driver, branching |
+| ORM             | Prisma 7 + `@neondatabase/serverless` | Type-safe queries, connection pooling           |
+| Validation      | Zod v4                                | Runtime + compile-time type safety              |
+| Styling         | Tailwind CSS v4 + Lucide Icons        | Utility-first, tree-shakeable                   |
+| Deployment      | Vercel Hobby Plan                     | Zero-cost, Edge Functions, automatic CI/CD      |
 
-## 2. Serverless Constraints & Optimizations (Vercel Hobby Plan)
+## 2. Vercel Hobby Plan Constraints
 
-To ensure reliability under the Vercel Hobby Plan, the architecture is designed around the following constraints:
+| Constraint         | Limit    | Mitigation Strategy                              |
+| :----------------- | :------- | :----------------------------------------------- |
+| Serverless Timeout | 10s      | DB-side aggregation via `fn_aggregate_payroll()` |
+| Edge Timeout       | 25s      | Use Edge Runtime for auth middleware             |
+| Bandwidth          | 100GB/mo | ISR + static pages for dashboards                |
+| Builds             | 100/day  | Feature branches only deploy on merge            |
+| Function Size      | 50MB     | Tree-shake Prisma, no heavy deps                 |
 
-- **Execution Timeout:** Max 10 seconds per Serverless Function request.
-- **Cold Starts:** APIs must initialize efficiently. Large external dependencies will be kept to a minimum.
-- **Stateless Execution:** No in-memory cache between requests; all state resides in the Supabase database.
+## 3. Database Architecture (Neon.tech)
 
-## 3. Database Connection Pooling
+### Connection Strategy
 
-Since Serverless functions spin up and down constantly, direct connections to PostgreSQL can rapidly exhaust the database connection limit.
+```text
+┌─────────────┐     HTTPS (Neon HTTP Driver)     ┌──────────────┐
+│  Edge Func   │ ─────────────────────────────── → │   Neon.tech   │
+│  (Middleware) │                                  │  PostgreSQL   │
+└─────────────┘                                   │  (Serverless) │
+                                                  └──────────────┘
+┌─────────────┐     WebSocket (Pooled, max=10)    ┌──────────────┐
+│  Server      │ ─────────────────────────────── → │   Neon Pooler │
+│  Actions     │    pgBouncer Transaction Mode     │  :5432        │
+└─────────────┘                                   └──────────────┘
+```
 
-- **Strategy:** We use **Supabase Connection Pooling** (Supavisor/PgBouncer) in `Transaction` mode.
-- **Implementation:** The Prisma connection string must use the pooler URL with `?pgbouncer=true`.
-- **Query Optimization:** Transactions must be atomic and extremely short-lived to free up the pool immediately.
+- **Edge Functions** (middleware, auth checks): Use `@neondatabase/serverless` HTTP driver — zero TCP overhead.
+- **Server Actions** (CRUD, payroll): Use Prisma with pooled connection (`max: 10`, `idleTimeout: 30s`).
+- **Payroll Aggregation**: Runs as PostgreSQL function `fn_aggregate_payroll()` — all math in DB, only result set returned to serverless function.
 
-## 4. Map of Services
+### Entity-Relationship Diagram
 
-1. **Recruitment Engine:** Receives applicant data (e.g., via webhooks from forms), scores roleplays, and tracks the hiring pipeline.
-2. **Interpreter Hub:** Master roster managing active, inactive, and in-training interpreters.
-3. **Production Telemetry:** Ingests daily connection metrics (minutes interpreted, calls attended).
-4. **QA Service:** Evaluates performance against standard weights.
-5. **Payroll Engine:** Cross-references `Production Telemetry`, `Interpreter Hub` (tariffs), and `QA Service` (bonuses/penalties) to generate `PayrollRecords`.
+```text
+┌──────────────────┐       1:N       ┌───────────────────┐
+│  user_profiles    │───────────────→│   notifications    │
+│  (Clerk RBAC)     │                └───────────────────┘
+│                   │
+│  clerk_id (UK)    │       1:1
+│  role (ENUM)      │───────────────→┌───────────────────┐
+│  interpreter_id?──│───────────────→│   interpreters     │
+└──────────────────┘                 │   (Master Roster)  │
+                                     │                    │
+                         ┌───────────│   tariff_per_min   │───────────┐
+                         │           └────────┬───────────┘           │
+                         │ 1:N               │ 1:N                   │ 1:N
+                         ▼                   ▼                       ▼
+              ┌──────────────────┐  ┌────────────────┐   ┌───────────────────┐
+              │ interpreter_     │  │ production_    │   │ call_sessions     │
+              │ account_rates    │  │ logs           │   │ (Real-time)       │
+              │                  │  │                │   │                   │
+              │ tariff_per_hour  │  │ interpreted_   │   │ duration_seconds  │
+              │ effective_from   │  │ minutes        │   │ tariff_snapshot   │
+              │ effective_to     │  │ adherence      │   │ call_cost         │
+              └──────────────────┘  └──────┬─────────┘   └───────────────────┘
+                         │                 │ 1:1
+                         │                 ▼
+                         │        ┌────────────────┐
+                         │        │ qa_scores      │
+                         │        │                │
+                         │        │ total_score    │
+                         │        │ critical_error │
+                         │        └────────────────┘
+                         │
+                         └──────→ ┌────────────────┐
+                                  │ accounts       │
+                                  │ (Clients)      │
+                                  └────────────────┘
+
+              ┌──────────────────┐        ┌──────────────────┐
+              │ payroll_records  │        │ payrate_audit_log │
+              │                  │        │                   │
+              │ gross_total      │        │ old_rate          │
+              │ quality_bonus    │        │ new_rate          │
+              │ net_total        │        │ changed_by        │
+              │ approved_by      │        └──────────────────┘
+              └──────────────────┘
+
+              ┌──────────────────┐        ┌──────────────────┐
+              │ recruitment_     │        │ system_configs    │
+              │ candidates       │        │ (Key-Value)       │
+              └──────────────────┘        └──────────────────┘
+```
+
+## 4. Authentication & Authorization (Clerk RBAC)
+
+### Roles
+
+| Role              | Permissions                                           |
+| :---------------- | :---------------------------------------------------- |
+| `admin`           | Full CRUD on all modules + payroll approval           |
+| `qa_auditor`      | Read interpreters, CRUD on qa_scores                  |
+| `payroll_manager` | Read interpreters/logs, manage payroll_records        |
+| `interpreter`     | Read own profile, own logs, own QA scores, call timer |
+
+### Middleware Flow
+
+```text
+Request → Clerk Middleware (Edge) → Role Check → Route Handler
+                  │
+                  ├─ Public routes: /login, /register, /api/webhooks/*
+                  ├─ Interpreter routes: /dashboard/*
+                  └─ Admin routes: /admin/*, /payroll/*, /qa/*
+```
+
+## 5. Caching Strategy
+
+| Data Type        | Strategy          | TTL  | Invalidation                   |
+| :--------------- | :---------------- | :--- | :----------------------------- |
+| Interpreter List | ISR               | 60s  | `revalidatePath()` on mutation |
+| Dashboard Stats  | ISR               | 120s | Time-based                     |
+| QA Scores        | On-demand         | 0    | Always fresh                   |
+| Payroll Records  | On-demand         | 0    | Always fresh (financial)       |
+| System Config    | Server-side cache | 300s | Manual revalidation            |
+
+## 6. Map of Services
+
+1. **Interpreter Hub**: Master roster CRUD with Clerk-synced profiles.
+2. **Production Telemetry**: CSV import + real-time call tracking.
+3. **QA Service**: Weighted evaluation forms with auto-fail logic.
+4. **Payroll Engine**: DB-side aggregation → transactional record creation.
+5. **Recruitment Pipeline**: Webhook-driven state machine for candidates.
+6. **Notification Service**: User-scoped alerts with read/unread state.

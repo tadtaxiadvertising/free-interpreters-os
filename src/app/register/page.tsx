@@ -1,25 +1,50 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
-import { Lock, Mail, AlertCircle, Loader2, Users, ShieldAlert } from 'lucide-react';
-import { login } from '@/app/actions/auth';
+import { Lock, Mail, User, AlertCircle, Loader2, Users, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { signup } from '@/app/actions/auth';
 import Link from 'next/link';
 
 type LoginRole = 'interpreter' | 'admin';
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [role, setRole] = useState<LoginRole>('interpreter');
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit(formData: FormData) {
     setError(null);
     startTransition(async () => {
-      const result = await login(formData);
-      if (!result.success) {
-        setError(result.error || 'Login failed');
+      const result = await signup(formData);
+      if (result.success) {
+        setSuccess(true);
+      } else {
+        setError(result.error || 'Registration failed');
       }
     });
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f] relative overflow-hidden px-6">
+        <div className="relative z-10 w-full max-w-md text-center glass rounded-3xl p-10 border border-green-500/20">
+          <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 size={40} className="text-green-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-4">Registration Successful!</h2>
+          <p className="text-gray-400 mb-8">
+            Your account has been created. Please check your email for a confirmation link (if enabled) or go to login.
+          </p>
+          <Link 
+            href="/login" 
+            className="block w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-all"
+          >
+            Go to Login
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -30,16 +55,16 @@ export default function LoginPage() {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl animate-pulse delay-1000" />
       </div>
 
-      <div className="relative z-10 w-full max-w-md px-6">
+      <div className="relative z-10 w-full max-w-md px-6 py-12">
         {/* Logo */}
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
             Free Interpreters OS
           </h1>
-          <p className="text-gray-500 text-sm mt-2 uppercase tracking-widest">Enterprise Platform</p>
+          <p className="text-gray-500 text-sm mt-2 uppercase tracking-widest">Create New Account</p>
         </div>
 
-        {/* Login Card */}
+        {/* Register Card */}
         <div className="glass rounded-3xl p-8 border border-white/10">
           
           {/* Role Tabs */}
@@ -64,13 +89,9 @@ export default function LoginPage() {
               }`}
             >
               <ShieldAlert size={16} />
-              Administrator
+              Admin
             </button>
           </div>
-
-          <h2 className="text-xl font-bold text-white mb-6">
-            {role === 'admin' ? 'Admin Portal' : 'Interpreter Portal'}
-          </h2>
 
           {error && (
             <div className="flex items-center gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 mb-6">
@@ -83,6 +104,23 @@ export default function LoginPage() {
             <input type="hidden" name="role" value={role} />
             
             <div>
+              <label htmlFor="displayName" className="block text-sm font-medium text-gray-400 mb-2">
+                Full Name
+              </label>
+              <div className="relative">
+                <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  id="displayName"
+                  name="displayName"
+                  type="text"
+                  required
+                  placeholder="John Doe"
+                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                />
+              </div>
+            </div>
+
+            <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-400 mb-2">
                 Email Address
               </label>
@@ -93,8 +131,8 @@ export default function LoginPage() {
                   name="email"
                   type="email"
                   required
-                  placeholder={role === 'admin' ? "admin@freeinterpreters.com" : "user@freeinterpreters.com"}
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  placeholder="user@example.com"
+                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                 />
               </div>
             </div>
@@ -111,7 +149,7 @@ export default function LoginPage() {
                   type="password"
                   required
                   placeholder="••••••••"
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                 />
               </div>
             </div>
@@ -119,7 +157,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isPending}
-              className={`w-full py-3 text-white font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+              className={`w-full py-3 text-white font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2 ${
                 role === 'admin' 
                   ? 'bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400' 
                   : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400'
@@ -128,27 +166,23 @@ export default function LoginPage() {
               {isPending ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  Signing in...
+                  Creating Account...
                 </>
               ) : (
-                'Sign In'
+                'Create Account'
               )}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-gray-500 text-sm">
-              Don't have an account?{' '}
-              <Link href="/register" className="text-blue-400 hover:text-blue-300 font-medium">
-                Create Account
+              Already have an account?{' '}
+              <Link href="/login" className="text-blue-400 hover:text-blue-300 font-medium">
+                Sign In
               </Link>
             </p>
           </div>
         </div>
-
-        <p className="text-center text-gray-600 text-xs mt-8">
-          © 2026 Free Interpreters. Secure Enterprise Access.
-        </p>
       </div>
     </div>
   );
