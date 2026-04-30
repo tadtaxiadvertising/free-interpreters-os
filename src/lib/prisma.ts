@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 
 /**
  * PRISMA CLIENT SINGLETON
@@ -7,8 +9,12 @@ import { PrismaClient } from '@prisma/client';
  * for compatibility with existing Server Actions.
  */
 const prismaClientSingleton = (): PrismaClient => {
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+  const adapter = new PrismaPg(pool);
+  
   return new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    adapter,
   });
 };
 
