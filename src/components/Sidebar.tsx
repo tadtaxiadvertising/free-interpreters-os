@@ -22,7 +22,7 @@ import type { UserRole } from '@/lib/types';
 
 const adminMenu = [
   { icon: LayoutDashboard, label: 'Command Center', href: '/admin' },
-  { icon: Users, label: 'Live Roster', href: '/admin' },
+  { icon: Users, label: 'Interpreter Roster', href: '/interpreters' },
   { icon: UserPlus, label: 'Recruitment', href: '/recruitment' },
   { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
   { icon: DollarSign, label: 'Payroll & Rates', href: '/payroll' },
