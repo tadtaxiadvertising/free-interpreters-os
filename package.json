@@ -7,7 +7,7 @@
     "dev": "next dev -p 3001",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "next lint .",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx prisma/seed.ts"
   },

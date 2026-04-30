@@ -39,16 +39,15 @@ REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM anon, authenticated;
 -- 2. Fix is_admin Function
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN
-LANGUAGE plpgsql
+LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
+STABLE
 AS $$
-BEGIN
-  RETURN EXISTS (
+  SELECT EXISTS (
     SELECT 1 FROM public.user_profiles
     WHERE id = auth.uid() AND role = 'admin'
   );
-END;
 $$;
 
 -- Secure is_admin execution

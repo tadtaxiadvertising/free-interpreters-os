@@ -73,10 +73,17 @@ jobs:
 
     steps:
       - name: 🔔 Trigger Easypanel Deploy
+        env:
+          WEBHOOK_URL: ${{ secrets.EASYPANEL_WEBHOOK_URL }}
         run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "❌ Error: EASYPANEL_WEBHOOK_URL secret is not configured in GitHub Secrets"
+            exit 1
+          fi
+
           RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST \
-            "${{ secrets.EASYPANEL_WEBHOOK_URL }}" \
+            "$WEBHOOK_URL" \
             -H "Content-Type: application/json")
 
           echo "Webhook response: $RESPONSE"

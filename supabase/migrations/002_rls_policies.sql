@@ -20,16 +20,15 @@ ALTER TABLE public.call_sessions ENABLE ROW LEVEL SECURITY;
 -- Helper Function: Is Admin
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN
-LANGUAGE plpgsql
+LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
+STABLE
 AS $$
-BEGIN
-  RETURN EXISTS (
+  SELECT EXISTS (
     SELECT 1 FROM public.user_profiles
     WHERE id = auth.uid() AND role = 'admin'
   );
-END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION public.is_admin() FROM PUBLIC;
