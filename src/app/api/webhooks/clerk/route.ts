@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     const email = email_addresses[0].email_address;
     const displayName = `${first_name} ${last_name}`.trim();
 
-    await prisma.userProfile.create({
+    await (prisma as any).userProfile.create({
       data: {
         clerkId: id as string,
         email: email,
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     const email = email_addresses[0].email_address;
     const displayName = `${first_name} ${last_name}`.trim();
 
-    await prisma.userProfile.update({
+    await (prisma as any).userProfile.update({
       where: { clerkId: id as string },
       data: {
         email: email,
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
   }
 
   if (eventType === 'user.deleted') {
-    await prisma.userProfile.delete({
+    await (prisma as any).userProfile.delete({
       where: { clerkId: id as string }
     });
   }

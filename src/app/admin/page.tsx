@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LogoutButton } from '../../components/LogoutButton';
-import prisma from '@/lib/prisma';
+import prismaClient from '@/lib/prisma';
+const prisma = prismaClient as any;
 
 export const dynamic = 'force-dynamic';
 
@@ -43,14 +44,14 @@ export default async function AdminDashboard() {
   ]);
 
   // Aggregations
-  const totalMinutesToday = Math.round(todaySessions.reduce((sum, s) => sum + (s.durationSeconds || 0), 0) / 60);
-  const totalCostToday = todaySessions.reduce((sum, s) => sum + Number(s.callCost || 0), 0);
+  const totalMinutesToday = Math.round(todaySessions.reduce((sum: number, s: any) => sum + (s.durationSeconds || 0), 0) / 60);
+  const totalCostToday = todaySessions.reduce((sum: number, s: any) => sum + Number(s.callCost || 0), 0);
   
-  const totalMinutesMonth = Math.round(monthSessions.reduce((sum, s) => sum + (s.durationSeconds || 0), 0) / 60);
-  const totalCostMonth = monthSessions.reduce((sum, s) => sum + Number(s.callCost || 0), 0);
+  const totalMinutesMonth = Math.round(monthSessions.reduce((sum: number, s: any) => sum + (s.durationSeconds || 0), 0) / 60);
+  const totalCostMonth = monthSessions.reduce((sum: number, s: any) => sum + Number(s.callCost || 0), 0);
 
-  const onlineCount = interpreters.filter((i) => i.realtimeStatus === 'Online').length;
-  const busyCount = interpreters.filter((i) => i.realtimeStatus === 'Busy').length;
+  const onlineCount = interpreters.filter((i: any) => i.realtimeStatus === 'Online').length;
+  const busyCount = interpreters.filter((i: any) => i.realtimeStatus === 'Busy').length;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -121,8 +122,8 @@ export default async function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {interpreters.map((interp) => {
-                    const isActive = activeCalls.some((c) => c.interpreterId === interp.id);
+                  {interpreters.map((interp: any) => {
+                    const isActive = activeCalls.some((c: any) => c.interpreterId === interp.id);
                     return (
                       <tr key={interp.id} className="hover:bg-white/5 transition-colors group">
                         <td className="py-4 px-6">
@@ -168,7 +169,7 @@ export default async function AdminDashboard() {
             </h3>
             
             <div className="space-y-6">
-              {interpreters.slice(0, 5).map((interp, i) => (
+              {interpreters.slice(0, 5).map((interp: any, i: number) => (
                 <div key={interp.id} className="flex items-center justify-between group cursor-default">
                   <div className="flex items-center gap-4">
                     <div className="relative">

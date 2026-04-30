@@ -11,7 +11,7 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
   
   if (!userId) return null;
 
-  const profile = await prisma.userProfile.findFirst({
+  const profile = await (prisma as any).userProfile.findFirst({
     where: { 
       OR: [
         { id: userId }, // If we store clerk_id in the ID field

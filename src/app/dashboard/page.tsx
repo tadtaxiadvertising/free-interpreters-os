@@ -5,7 +5,8 @@ import { Phone, Clock, DollarSign, TrendingUp } from 'lucide-react';
 import { StatusToggle } from '../../components/StatusToggle';
 import { CallTimer } from '../../components/CallTimer';
 import { CallHistory } from '../../components/CallHistory';
-import prisma from '@/lib/prisma';
+import prismaClient from '@/lib/prisma';
+const prisma = prismaClient as any;
 
 export const dynamic = 'force-dynamic';
 
@@ -79,9 +80,9 @@ export default async function InterpreterDashboard() {
   });
 
   const todayMinutes = Math.round(
-    todayCalls.reduce((sum, c) => sum + (c.durationSeconds || 0), 0) / 60
+    todayCalls.reduce((sum: number, c: any) => sum + (c.durationSeconds || 0), 0) / 60
   );
-  const todayEarnings = todayCalls.reduce((sum, c) => sum + (Number(c.callCost) || 0), 0);
+  const todayEarnings = todayCalls.reduce((sum: number, c: any) => sum + (Number(c.callCost) || 0), 0);
   const todayCallCount = todayCalls.length;
 
   // Recent completed calls
@@ -147,7 +148,7 @@ export default async function InterpreterDashboard() {
 
       {/* Recent Calls */}
       <CallHistory 
-        calls={recentCalls.map(c => ({
+        calls={recentCalls.map((c: any) => ({
           id: c.id,
           started_at: c.startedAt.toISOString(),
           ended_at: c.endedAt?.toISOString() || null,

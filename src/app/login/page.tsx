@@ -9,7 +9,7 @@ import Link from 'next/link';
 type LoginRole = 'interpreter' | 'admin';
 
 export default function LoginPage() {
-  const { isLoaded, signIn, setActive } = useSignIn();
+  const { isLoaded, signIn, setActive } = useSignIn() as any;
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<LoginRole>('interpreter');
@@ -30,8 +30,8 @@ export default function LoginPage() {
         password,
       });
 
-      if (result.status === 'complete') {
-        await setActive({ session: result.createdSessionId });
+      if ((result as any).status === 'complete') {
+        await setActive({ session: (result as any).createdSessionId });
         router.push(role === 'admin' ? '/admin' : '/dashboard');
       } else {
         console.log(result);

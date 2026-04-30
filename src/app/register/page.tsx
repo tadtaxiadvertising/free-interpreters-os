@@ -9,7 +9,7 @@ import Link from 'next/link';
 type LoginRole = 'interpreter' | 'admin';
 
 export default function RegisterPage() {
-  const { isLoaded, signUp, setActive } = useSignUp();
+  const { isLoaded, signUp, setActive } = useSignUp() as any;
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');

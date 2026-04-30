@@ -11,7 +11,7 @@ export default async function RootPage() {
     redirect('/login');
   }
 
-  const profile = await prisma.userProfile.findFirst({
+  const profile = await (prisma as any).userProfile.findFirst({
     where: { 
       OR: [
         { id: userId },
