@@ -1,5 +1,5 @@
 import React from 'react';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { Phone, Clock, DollarSign, TrendingUp } from 'lucide-react';
 import { StatusToggle } from '../../components/StatusToggle';

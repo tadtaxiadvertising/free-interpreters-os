@@ -212,8 +212,8 @@ model Notification {
 model UserProfile {
   id            String   @id @default(uuid())
   email         String   @unique
+  passwordHash  String?  @map("password_hash")
   displayName   String?  @map("display_name")
-  clerkId       String   @unique @map("clerk_id")
   role          String   @default("interpreter")
   interpreterId Int?     @map("interpreter_id") @unique
   createdAt     DateTime @default(now()) @map("created_at")

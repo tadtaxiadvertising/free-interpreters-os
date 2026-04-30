@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { DollarSign, Layers } from 'lucide-react';
 import { PayrateEditor } from '@/components/PayrateEditor';
 import { AccountManager } from '@/components/AccountManager';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import React from 'react';
 

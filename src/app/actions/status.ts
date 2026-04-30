@@ -1,6 +1,6 @@
 'use server';
 
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import type { ActionResult, RealtimeStatus } from '@/lib/types';
 import { revalidatePath } from 'next/cache';

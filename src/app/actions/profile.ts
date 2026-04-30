@@ -1,6 +1,6 @@
 'use server';
 
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 const db = prisma as any;
 import { revalidatePath } from 'next/cache';

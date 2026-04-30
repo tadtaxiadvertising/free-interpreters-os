@@ -2,16 +2,15 @@
 
 import React from 'react';
 import { LogOut } from 'lucide-react';
-import { useClerk } from '@clerk/nextjs';
+import { logout } from '@/app/actions/auth';
 import { useRouter } from 'next/navigation';
 
 export function LogoutButton() {
-  const { signOut } = useClerk();
   const router = useRouter();
 
   const handleSignOut = async () => {
-    await signOut();
-    router.push('/');
+    await logout();
+    // the logout server action already handles redirect, but just in case
   };
 
   return (
