@@ -15,7 +15,7 @@ export async function login(formData: FormData) {
   }
 
   try {
-    const user = await prisma.userProfile.findUnique({
+    const user = await (prisma as any).userProfile.findUnique({
       where: { email },
     });
 
@@ -50,7 +50,7 @@ export async function register(formData: FormData) {
   }
 
   try {
-    const existing = await prisma.userProfile.findUnique({
+    const existing = await (prisma as any).userProfile.findUnique({
       where: { email }
     });
 
@@ -60,7 +60,7 @@ export async function register(formData: FormData) {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const user = await prisma.userProfile.create({
+    const user = await (prisma as any).userProfile.create({
       data: {
         email,
         passwordHash,
@@ -84,7 +84,7 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
   if (!session || !session.userId) return null;
 
   try {
-    const profile = await prisma.userProfile.findUnique({
+    const profile = await (prisma as any).userProfile.findUnique({
       where: { id: session.userId },
       select: {
         id: true,
