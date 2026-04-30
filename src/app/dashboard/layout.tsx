@@ -19,7 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     notificationUserIds.push(profile.id);
   }
 
-  const notifications = await prisma.notification.findMany({
+  const notifications = await db.notification.findMany({
     where: { userId: { in: notificationUserIds } },
     orderBy: { createdAt: 'desc' },
     take: 10
