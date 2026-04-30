@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  EASYPANEL_WEBHOOK_URL: ${{ secrets.EASYPANEL_WEBHOOK_URL }}
+  EASYPANEL_WEBHOOK_URL: ${{ secrets['EASYPANEL_WEBHOOK_URL'] }}
 
 jobs:
   # ── Validate ────────────────────────────────────────────────
