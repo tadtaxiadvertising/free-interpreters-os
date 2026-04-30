@@ -1,6 +1,10 @@
 # API Specification & Webhooks
 
-All endpoints will be located under `/api/v1/` and executed as Next.js API Routes. They are designed for fast `< 10s` execution.
+> **Service**: `interpreters-api` (Backend)  
+> **Base URL**: `https://api.freeinterpreters.com` (production) / `http://localhost:4000` (local)  
+> **Auth**: All endpoints require a valid Supabase `Authorization: Bearer <token>` header unless marked as public.
+
+All endpoints reside and execute **exclusively** in the `interpreters-api` service. The Frontend (`interpreters`) communicates with these endpoints via `NEXT_PUBLIC_API_URL`. Endpoints are designed for fast `< 10s` execution.
 
 ## 1. Recruitment Inbound Webhook
 
@@ -35,6 +39,7 @@ All endpoints will be located under `/api/v1/` and executed as Next.js API Route
 **Purpose:** Bulk upsert daily production minutes from the telephony system via CSV file upload.
 
 **Request Body (FormData):**
+
 - `file`: CSV file containing columns for `name`, `minutes`, `date`, `externalId`.
 
 **Response (200 OK):**
@@ -61,7 +66,8 @@ export async function generatePayrollAction(
 ): Promise<{ success: boolean; recordsCreated?: number; error?: string }>
 ```
 
-*(Note: Automatically protected by Supabase Auth and Admin Role checks)*
+> [!NOTE]
+> Automatically protected by Supabase Auth and Admin Role checks
 
 ---
 

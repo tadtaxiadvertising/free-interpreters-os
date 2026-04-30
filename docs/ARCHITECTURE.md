@@ -1,128 +1,95 @@
-# Architecture Specification — Free Interpreters CRM v2
+# Architecture Specification — Free Interpreters OS v3
 
-> **Migration**: Supabase → Neon.tech + Clerk Auth  
-> **Runtime**: Vercel Hobby Plan ($0) + Edge Runtime  
-> **Last Updated**: 2026-04-29
+> **Architecture**: Decoupled Frontend + Backend API  
+> **Runtime**: Easypanel (Docker/VPS) — Self-Hosted  
+> **Auth**: Supabase Auth (native, no Clerk)  
+> **Last Updated**: 2026-04-30
 
 ---
 
 ## 1. Technology Stack
 
-| Layer           | Technology                            | Rationale                                       |
-| :-------------- | :------------------------------------ | :---------------------------------------------- |
-| Framework       | Next.js 16 (App Router)               | SSR/SSG + Server Actions + Edge Runtime         |
-| Auth            | Clerk                                 | Free tier (10K MAU), RBAC, webhook sync         |
-| Database        | Neon.tech PostgreSQL (Free)           | Serverless auto-scaling, HTTP driver, branching |
-| ORM             | Prisma 7 + `@neondatabase/serverless` | Type-safe queries, connection pooling           |
-| Validation      | Zod v4                                | Runtime + compile-time type safety              |
-| Styling         | Tailwind CSS v4 + Lucide Icons        | Utility-first, tree-shakeable                   |
-| Deployment      | Vercel Hobby Plan                     | Zero-cost, Edge Functions, automatic CI/CD      |
+| Layer       | Technology                            | Service           | Rationale                                    |
+| :---------- | :------------------------------------ | :---------------- | :------------------------------------------- |
+| Framework   | Next.js 16 (App Router)               | Both              | SSR/SSG + API Routes + Server Actions        |
+| Auth        | Supabase Auth                         | Frontend (SSR)    | Native auth, RLS integration, free tier      |
+| Database    | Supabase PostgreSQL                   | Backend only      | Managed Postgres, connection pooling         |
+| ORM         | Prisma 7 + `@prisma/adapter-pg`       | Backend only      | Type-safe queries, ESM support               |
+| Validation  | Zod v4                                | Both              | Runtime + compile-time type safety           |
+| Styling     | Tailwind CSS v4 + Lucide Icons        | Frontend only     | Utility-first, tree-shakeable                |
+| Deployment  | Easypanel (Docker on VPS)             | Both              | Self-hosted, webhook-driven CI/CD            |
 
-## 2. Vercel Hobby Plan Constraints
+## 2. Service Architecture
 
-| Constraint         | Limit    | Mitigation Strategy                              |
-| :----------------- | :------- | :----------------------------------------------- |
-| Serverless Timeout | 10s      | DB-side aggregation via `fn_aggregate_payroll()` |
-| Edge Timeout       | 25s      | Use Edge Runtime for auth middleware             |
-| Bandwidth          | 100GB/mo | ISR + static pages for dashboards                |
-| Builds             | 100/day  | Feature branches only deploy on merge            |
-| Function Size      | 50MB     | Tree-shake Prisma, no heavy deps                 |
+### 2.1 Service Boundary
 
-## 3. Database Architecture (Neon.tech)
+| Service              | Repository              | Easypanel App        | Port | Responsibility                               |
+| :------------------- | :---------------------- | :------------------- | :--- | :------------------------------------------- |
+| **interpreters**     | `free-interpreters-os`  | `interpreters`       | 3000 | UI rendering, auth sessions, static assets   |
+| **interpreters-api** | `interpreters-api`      | `interpreters-api`   | 4000 | Business logic, DB access, webhooks, payroll |
 
-### Connection Strategy
+### 2.2 Communication Flow
 
 ```text
-┌─────────────┐     HTTPS (Neon HTTP Driver)     ┌──────────────┐
-│  Edge Func   │ ─────────────────────────────── → │   Neon.tech   │
-│  (Middleware) │                                  │  PostgreSQL   │
-└─────────────┘                                   │  (Serverless) │
-                                                  └──────────────┘
-┌─────────────┐     WebSocket (Pooled, max=10)    ┌──────────────┐
-│  Server      │ ─────────────────────────────── → │   Neon Pooler │
-│  Actions     │    pgBouncer Transaction Mode     │  :5432        │
-└─────────────┘                                   └──────────────┘
+┌──────────────┐   HTTPS (fetch)    ┌──────────────────┐   TCP/pgBouncer   ┌──────────────┐
+│  Browser      │ ──────────────── → │  interpreters     │                   │              │
+│  (User)       │ ← ──────────────── │  (Frontend:3000)  │                   │              │
+└──────────────┘   HTML/JSON         └────────┬─────────┘                   │              │
+                                              │                             │   Supabase   │
+                                    fetch()   │  NEXT_PUBLIC_API_URL        │   PostgreSQL │
+                                              ▼                             │              │
+                                     ┌──────────────────┐   Prisma/pg      │              │
+                                     │  interpreters-api │ ───────────────→ │              │
+                                     │  (Backend:4000)   │                  │              │
+                                     └──────────────────┘                   └──────────────┘
 ```
 
-- **Edge Functions** (middleware, auth checks): Use `@neondatabase/serverless` HTTP driver — zero TCP overhead.
-- **Server Actions** (CRUD, payroll): Use Prisma with pooled connection (`max: 10`, `idleTimeout: 30s`).
-- **Payroll Aggregation**: Runs as PostgreSQL function `fn_aggregate_payroll()` — all math in DB, only result set returned to serverless function.
+- **Frontend → Backend**: All data operations go through `NEXT_PUBLIC_API_URL` (e.g., `https://api.freeinterpreters.com`).
+- **Backend → Database**: Only `interpreters-api` holds `DATABASE_URL` and Prisma Client.
+- **Auth**: Supabase Auth tokens are forwarded from Frontend to Backend via `Authorization: Bearer <token>` headers. The Backend validates them server-side using Supabase Admin SDK or token introspection.
 
-### Entity-Relationship Diagram
+### 2.3 Database Connection Strategy
 
 ```text
-┌──────────────────┐       1:N       ┌───────────────────┐
-│  user_profiles    │───────────────→│   notifications    │
-│  (Clerk RBAC)     │                └───────────────────┘
-│                   │
-│  clerk_id (UK)    │       1:1
-│  role (ENUM)      │───────────────→┌───────────────────┐
-│  interpreter_id?──│───────────────→│   interpreters     │
-└──────────────────┘                 │   (Master Roster)  │
-                                     │                    │
-                         ┌───────────│   tariff_per_min   │───────────┐
-                         │           └────────┬───────────┘           │
-                         │ 1:N               │ 1:N                   │ 1:N
-                         ▼                   ▼                       ▼
-              ┌──────────────────┐  ┌────────────────┐   ┌───────────────────┐
-              │ interpreter_     │  │ production_    │   │ call_sessions     │
-              │ account_rates    │  │ logs           │   │ (Real-time)       │
-              │                  │  │                │   │                   │
-              │ tariff_per_hour  │  │ interpreted_   │   │ duration_seconds  │
-              │ effective_from   │  │ minutes        │   │ tariff_snapshot   │
-              │ effective_to     │  │ adherence      │   │ call_cost         │
-              └──────────────────┘  └──────┬─────────┘   └───────────────────┘
-                         │                 │ 1:1
-                         │                 ▼
-                         │        ┌────────────────┐
-                         │        │ qa_scores      │
-                         │        │                │
-                         │        │ total_score    │
-                         │        │ critical_error │
-                         │        └────────────────┘
-                         │
-                         └──────→ ┌────────────────┐
-                                  │ accounts       │
-                                  │ (Clients)      │
-                                  └────────────────┘
+┌─────────────────┐   Transaction Pool (port 6543)   ┌──────────────┐
+│ interpreters-api │ ──────────────────────────────→  │  Supabase    │
+│ (Runtime)        │   DATABASE_URL + pgBouncer       │  Pooler      │
+└─────────────────┘                                   └──────────────┘
 
-              ┌──────────────────┐        ┌──────────────────┐
-              │ payroll_records  │        │ payrate_audit_log │
-              │                  │        │                   │
-              │ gross_total      │        │ old_rate          │
-              │ quality_bonus    │        │ new_rate          │
-              │ net_total        │        │ changed_by        │
-              │ approved_by      │        └──────────────────┘
-              └──────────────────┘
-
-              ┌──────────────────┐        ┌──────────────────┐
-              │ recruitment_     │        │ system_configs    │
-              │ candidates       │        │ (Key-Value)       │
-              └──────────────────┘        └──────────────────┘
+┌─────────────────┐   Direct Session (port 5432)      ┌──────────────┐
+│ prisma migrate   │ ──────────────────────────────→  │  Supabase    │
+│ (CI/CD only)     │   DIRECT_URL                     │  Direct DB   │
+└─────────────────┘                                   └──────────────┘
 ```
 
-## 4. Authentication & Authorization (Clerk RBAC)
+## 3. Authentication & Authorization (Supabase RBAC)
 
 ### Roles
 
 | Role              | Permissions                                           |
 | :---------------- | :---------------------------------------------------- |
-| `admin`           | Full CRUD on all modules + payroll approval           |
-| `qa_auditor`      | Read interpreters, CRUD on qa_scores                  |
-| `payroll_manager` | Read interpreters/logs, manage payroll_records        |
-| `interpreter`     | Read own profile, own logs, own QA scores, call timer |
+| admin           | Full CRUD on all modules + payroll approval           |
+| qa_auditor      | Read interpreters, CRUD on qa_scores                  |
+| payroll_manager | Read interpreters/logs, manage payroll_records        |
+| interpreter     | Read own profile, own logs, own QA scores, call timer |
 
-### Middleware Flow
+### Middleware Flow (Frontend)
 
 ```text
-Request → Clerk Middleware (Edge) → Role Check → Route Handler
-                  │
-                  ├─ Public routes: /login, /register, /api/webhooks/*
-                  ├─ Interpreter routes: /dashboard/*
-                  └─ Admin routes: /admin/*, /payroll/*, /qa/*
+Request → Supabase Middleware (SSR) → Session Refresh → Page Render
+               │
+               ├─ Public: /login, /register
+               ├─ Interpreter: /dashboard/*
+               └─ Admin: /admin/*, /payroll/*, /qa/*
 ```
 
-## 5. Caching Strategy
+### API Auth Flow (Backend)
+
+```text
+Request → CORS Check → Bearer Token Extraction → Supabase Token Verify → Route Handler
+```
+
+## 4. Caching Strategy
 
 | Data Type        | Strategy          | TTL  | Invalidation                   |
 | :--------------- | :---------------- | :--- | :----------------------------- |
@@ -132,11 +99,12 @@ Request → Clerk Middleware (Edge) → Role Check → Route Handler
 | Payroll Records  | On-demand         | 0    | Always fresh (financial)       |
 | System Config    | Server-side cache | 300s | Manual revalidation            |
 
-## 6. Map of Services
+## 5. Map of Services
 
-1. **Interpreter Hub**: Master roster CRUD with Clerk-synced profiles.
-2. **Production Telemetry**: CSV import + real-time call tracking.
-3. **QA Service**: Weighted evaluation forms with auto-fail logic.
-4. **Payroll Engine**: DB-side aggregation → transactional record creation.
-5. **Recruitment Pipeline**: Webhook-driven state machine for candidates.
-6. **Notification Service**: User-scoped alerts with read/unread state.
+1. **Interpreter Hub**: Master roster CRUD (Backend API).
+2. **Production Telemetry**: CSV import + real-time call tracking (Backend API).
+3. **QA Service**: Weighted evaluation forms with auto-fail logic (Backend API).
+4. **Payroll Engine**: DB-side aggregation → transactional record creation (Backend API).
+5. **Recruitment Pipeline**: Webhook-driven state machine for candidates (Backend API).
+6. **Notification Service**: User-scoped alerts with read/unread state (Backend API).
+7. **Frontend Shell**: SSR pages, auth sessions, UI components (Frontend).
