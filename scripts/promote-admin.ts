@@ -13,31 +13,27 @@ const pool = new pg.Pool({
   ssl: { rejectUnauthorized: false }
 });
 const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({ adapter }) as any;
 
 async function promote(email: string) {
-  console.log(`🔍 Searching for user: ${email}...`);
+  console.log(`🔍 Searching for user profile: ${email}...`);
 
   try {
-    // 1. Find user ID in auth.users
-    const users: any[] = await prisma.$queryRawUnsafe(
-      `SELECT id FROM auth.users WHERE email = $1`, 
-      email
-    );
+    // 1. Find the user profile by email
+    const profile = await prisma.userProfile.findUnique({
+      where: { email }
+    });
 
-    if (users.length === 0) {
-      console.error(`❌ User with email ${email} not found in auth.users. Make sure to sign up first!`);
+    if (!profile) {
+      console.error(`❌ User profile with email ${email} not found. Make sure to sign up via Clerk first!`);
       return;
     }
 
-    const userId = users[0].id;
-    console.log(`✅ Found User ID: ${userId}`);
-
-    // 2. Update role in user_profiles
-    await prisma.$executeRawUnsafe(
-      `UPDATE public.user_profiles SET role = 'admin' WHERE id = $1`,
-      userId
-    );
+    // 2. Update the role to admin
+    await prisma.userProfile.update({
+      where: { id: profile.id },
+      data: { role: 'admin' }
+    });
 
     console.log(`🚀 SUCCESS: ${email} has been promoted to ADMIN.`);
   } catch (err) {

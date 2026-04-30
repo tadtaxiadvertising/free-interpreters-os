@@ -11,30 +11,27 @@ export async function GET(request: Request) {
 
   try {
     console.log(`🚀 API SETUP: Promoting ${email} to admin...`);
+    const db = prisma as any;
 
-    // 1. Find the user UUID in auth.users (Raw SQL as Prisma doesn't see auth schema by default)
-    const users: any[] = await prisma.$queryRawUnsafe(
-      `SELECT id FROM auth.users WHERE email = $1`, 
-      email
-    );
+    // 1. Find the user profile by email
+    const profile = await db.userProfile.findUnique({
+      where: { email }
+    });
 
-    if (users.length === 0) {
-      return NextResponse.json({ error: 'User not found in auth.users. Please sign up first.' }, { status: 404 });
+    if (!profile) {
+      return NextResponse.json({ error: 'User profile not found. Please sign up via Clerk first.' }, { status: 404 });
     }
 
-    const userId = users[0].id;
-
-    // 2. Upsert the user profile as admin
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO public.user_profiles (id, role, display_name)
-      VALUES ($1, 'admin', $2)
-      ON CONFLICT (id) DO UPDATE SET role = 'admin'
-    `, userId, email);
+    // 2. Update the role to admin
+    await db.userProfile.update({
+      where: { id: profile.id },
+      data: { role: 'admin' }
+    });
 
     return NextResponse.json({ 
       success: true, 
       message: `User ${email} promoted to admin.`,
-      userId 
+      clerkId: profile.clerkId 
     });
   } catch (error: any) {
     console.error('❌ Setup error:', error);
