@@ -27,9 +27,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  EASYPANEL_WEBHOOK_URL: ${{ secrets['EASYPANEL_WEBHOOK_URL'] }}
-
 jobs:
   # ── Validate ────────────────────────────────────────────────
   validate:
@@ -73,6 +70,8 @@ jobs:
     needs: validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 5
+    env:
+      EASYPANEL_WEBHOOK_URL: ${{ secrets.EASYPANEL_WEBHOOK_URL }}
 
     steps:
       - name: 🔔 Trigger Easypanel Deploy
