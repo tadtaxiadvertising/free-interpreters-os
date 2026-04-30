@@ -1,32 +1,35 @@
 import prisma from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import { DollarSign, Layers } from 'lucide-react';
-import { PayrateEditor } from '../../../components/PayrateEditor';
-import { AccountManager } from '../../../components/AccountManager';
-import { createClient } from '@/lib/supabase/server';
+import { PayrateEditor } from '@/components/PayrateEditor';
+import { AccountManager } from '@/components/AccountManager';
+import { auth } from '@clerk/nextjs/server';
 import { cn } from '@/lib/utils';
 import React from 'react';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PayratesPage({ searchParams }: { searchParams: { manageAccounts?: string } }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  const { userId } = await auth();
+  if (!userId) redirect('/login');
 
-  // Fetch user profile (IDE cache might need a reload if types complain)
-  const profile = await prisma.userProfile.findUnique({
-    where: { email: user.email! },
+  const profile = await (prisma as any).userProfile.findFirst({
+    where: { 
+      OR: [
+        { id: userId },
+        { clerkId: userId }
+      ]
+    },
     select: { role: true }
   });
 
   if (profile?.role !== 'admin') redirect('/login');
 
-  const accounts = await prisma.account.findMany({
+  const accounts = await (prisma as any).account.findMany({
     orderBy: { name: 'asc' }
   });
 
-  const interpreters = await prisma.interpreter.findMany({
+  const interpreters = await (prisma as any).interpreter.findMany({
     select: {
       id: true,
       name: true,
@@ -88,7 +91,7 @@ export default async function PayratesPage({ searchParams }: { searchParams: { m
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {interpreters.map((interp) => (
+                {interpreters.map((interp: any) => (
                   <PayrateEditor
                     key={interp.id}
                     interpreter={{
@@ -98,7 +101,7 @@ export default async function PayratesPage({ searchParams }: { searchParams: { m
                       campaign: interp.campaign,
                       status: interp.status,
                       tariffPerMinute: Number(interp.tariffPerMinute),
-                      accountRates: (interp.accountRates as any[]).map((r: any) => ({
+                      accountRates: ((interp as any).accountRates || []).map((r: any) => ({
                         accountId: r.accountId,
                         tariffPerHour: Number(r.tariffPerHour)
                       }))

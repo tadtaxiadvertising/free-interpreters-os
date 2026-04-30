@@ -1,16 +1,22 @@
 import { Sidebar } from "@/components/Sidebar";
-import { createClient } from "@/lib/supabase/server";
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { redirect } from "next/navigation";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { userId } = await auth();
+  if (!userId) redirect('/login');
 
-  const notifications = user ? await prisma.notification.findMany({
-    where: { userId: user.id },
+  const notifications = await prisma.notification.findMany({
+    where: { 
+      OR: [
+        { userId: userId },
+        { user: { clerkId: userId } }
+      ]
+    },
     orderBy: { createdAt: 'desc' },
     take: 10
-  }) : [];
+  });
 
   return (
     <div className="flex min-h-screen">

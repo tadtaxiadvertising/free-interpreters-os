@@ -14,7 +14,13 @@ export default async function InterpreterDashboard() {
   const { userId } = await auth();
   if (!userId) redirect('/login');
 
-  const profile = await prisma.userProfile.findFirst({
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+  const endOfMonth = new Date();
+  endOfMonth.setMonth(endOfMonth.getMonth() + 1, 0);
+
+  const profile = await (prisma as any).userProfile.findFirst({
     where: { 
       OR: [
         { id: userId },
@@ -22,7 +28,22 @@ export default async function InterpreterDashboard() {
       ]
     },
     include: {
-      interpreter: true
+      interpreter: {
+        include: {
+          productionLogs: {
+            where: {
+              date: {
+                gte: startOfMonth,
+                lte: endOfMonth
+              }
+            }
+          },
+          qaScores: {
+            take: 5,
+            orderBy: { createdAt: 'desc' }
+          }
+        }
+      }
     }
   });
 

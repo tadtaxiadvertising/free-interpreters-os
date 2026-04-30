@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
+const db = prisma as any;
 import { createNotification } from './notifications';
 
 export type QAScoreInput = {
@@ -71,14 +72,14 @@ export async function submitQAEvaluation(input: QAScoreInput) {
 
   // 4. Notify Interpreter (Async/Fire & Forget)
   try {
-    const interpreter = await prisma.interpreter.findUnique({
+    const interpreter = await db.interpreter.findUnique({
       where: { id: Number(input.interpreterId) },
       select: { emailCorporativo: true, name: true }
     });
 
     if (interpreter?.emailCorporativo) {
       // Find the user profile matching this email to get the auth ID
-      const profile = await prisma.userProfile.findFirst({
+      const profile = await db.userProfile.findFirst({
         where: { email: interpreter.emailCorporativo }
       });
 

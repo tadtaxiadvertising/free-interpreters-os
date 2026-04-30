@@ -1,7 +1,8 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
+const db = prisma as any;
 import { revalidatePath } from 'next/cache';
 
 export type ProfileUpdateInput = {
@@ -13,17 +14,26 @@ export type ProfileUpdateInput = {
 };
 
 export async function updateInterpreterProfile(input: ProfileUpdateInput) {
-  const supabase = await createClient();
-
-  // 1. Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Unauthorized' };
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: 'Unauthorized' };
 
   try {
-    // 2. Update the interpreter record linked to this email
-    // Using emailCorporativo as the unique link between auth and interpreter record
-    const updated = await prisma.interpreter.update({
-      where: { emailCorporativo: user.email },
+    const profile = await db.userProfile.findFirst({
+      where: { 
+        OR: [
+          { id: userId },
+          { clerkId: userId }
+        ]
+      },
+      select: { interpreterId: true }
+    });
+
+    if (!profile?.interpreterId) {
+      return { success: false, error: 'No interpreter profile found' };
+    }
+
+    const updated = await db.interpreter.update({
+      where: { id: profile.interpreterId },
       data: {
         telefono: input.phone,
         pais: input.country,
@@ -39,6 +49,6 @@ export async function updateInterpreterProfile(input: ProfileUpdateInput) {
     return { success: true, data: updated };
   } catch (error: any) {
     console.error('Profile Update Error:', error);
-    return { success: false, error: 'Failed to update profile. Make sure your profile is linked.' };
+    return { success: false, error: 'Failed to update profile.' };
   }
 }

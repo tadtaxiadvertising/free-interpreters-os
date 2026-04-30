@@ -1,154 +1,156 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import prisma from '@/lib/prisma';
 import type { ActionResult, CallSession } from '@/lib/types';
+import { revalidatePath } from 'next/cache';
+
+const db = prisma as any;
 
 export async function startCall(): Promise<ActionResult<{ sessionId: number; startedAt: string }>> {
-  const supabase = await createClient();
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  try {
+    const profile = await db.userProfile.findFirst({
+      where: { 
+        OR: [
+          { id: userId },
+          { clerkId: userId }
+        ]
+      },
+      select: { interpreterId: true }
+    });
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('interpreter_id')
-    .eq('id', user.id)
-    .single();
+    if (!profile?.interpreterId) {
+      return { success: false, error: 'No interpreter linked', code: 'NOT_FOUND' };
+    }
 
-  if (!profile?.interpreter_id) {
-    return { success: false, error: 'No interpreter linked', code: 'NOT_FOUND' };
+    // Check for existing active call
+    const activeCall = await db.callSession.findFirst({
+      where: {
+        interpreterId: profile.interpreterId,
+        endedAt: null
+      }
+    });
+
+    if (activeCall) {
+      return { success: false, error: 'A call is already active', code: 'CONFLICT' };
+    }
+
+    // Fetch current tariff
+    const interpreter = await db.interpreter.findUnique({
+      where: { id: profile.interpreterId },
+      select: { tariffPerMinute: true }
+    });
+
+    if (!interpreter) {
+      return { success: false, error: 'Interpreter record not found', code: 'NOT_FOUND' };
+    }
+
+    // Create call session
+    const session = await db.callSession.create({
+      data: {
+        interpreterId: profile.interpreterId,
+        startedAt: new Date(),
+        tariffSnapshot: interpreter.tariffPerMinute,
+      }
+    });
+
+    // Auto-set status to Busy
+    await db.interpreter.update({
+      where: { id: profile.interpreterId },
+      data: { realtimeStatus: 'Busy' }
+    });
+
+    revalidatePath('/dashboard');
+    return {
+      success: true,
+      data: { sessionId: session.id, startedAt: session.startedAt.toISOString() },
+    };
+  } catch (error: any) {
+    console.error('Error starting call:', error);
+    return { success: false, error: 'Error starting call', code: 'INTERNAL_ERROR' };
   }
-
-  // Check for existing active call
-  const { data: activeCall } = await supabase
-    .from('call_sessions')
-    .select('id')
-    .eq('interpreter_id', profile.interpreter_id)
-    .is('ended_at', null)
-    .limit(1)
-    .single();
-
-  if (activeCall) {
-    return { success: false, error: 'A call is already active', code: 'CONFLICT' };
-  }
-
-  // Fetch current tariff to snapshot
-  const { data: interpreter } = await supabase
-    .from('interpreters')
-    .select('tariffPerMinute')
-    .eq('id', profile.interpreter_id)
-    .single();
-
-  if (!interpreter) {
-    return { success: false, error: 'Interpreter record not found', code: 'NOT_FOUND' };
-  }
-
-  const now = new Date().toISOString();
-
-  // Create call session + set status to Busy in one flow
-  const { data: session, error } = await supabase
-    .from('call_sessions')
-    .insert({
-      interpreter_id: profile.interpreter_id,
-      started_at: now,
-      tariff_snapshot: interpreter.tariffPerMinute,
-    })
-    .select('id, started_at')
-    .single();
-
-  if (error || !session) {
-    return { success: false, error: error?.message || 'Failed to create call', code: 'SERVICE_UNAVAILABLE' };
-  }
-
-  // Auto-set status to Busy
-  await supabase
-    .from('interpreters')
-    .update({ realtime_status: 'Busy' })
-    .eq('id', profile.interpreter_id);
-
-  return {
-    success: true,
-    data: { sessionId: session.id, startedAt: session.started_at },
-  };
 }
 
 export async function endCall(
   sessionId: number
 ): Promise<ActionResult<{ durationSeconds: number; callCost: number }>> {
-  const supabase = await createClient();
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  try {
+    const profile = await db.userProfile.findFirst({
+      where: { 
+        OR: [
+          { id: userId },
+          { clerkId: userId }
+        ]
+      },
+      select: { interpreterId: true }
+    });
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('interpreter_id')
-    .eq('id', user.id)
-    .single();
+    if (!profile?.interpreterId) {
+      return { success: false, error: 'No interpreter linked', code: 'NOT_FOUND' };
+    }
 
-  if (!profile?.interpreter_id) {
-    return { success: false, error: 'No interpreter linked', code: 'NOT_FOUND' };
+    const now = new Date();
+
+    // End the session
+    const session = await db.callSession.update({
+      where: { id: sessionId },
+      data: { endedAt: now }
+    });
+
+    // Set status back to Online
+    await db.interpreter.update({
+      where: { id: profile.interpreterId },
+      data: { realtimeStatus: 'Online' }
+    });
+
+    revalidatePath('/dashboard');
+    return {
+      success: true,
+      data: {
+        durationSeconds: session.durationSeconds ?? 0,
+        callCost: Number(session.callCost) ?? 0,
+      },
+    };
+  } catch (error: any) {
+    console.error('Error ending call:', error);
+    return { success: false, error: 'Error ending call', code: 'INTERNAL_ERROR' };
   }
-
-  const now = new Date().toISOString();
-
-  // Set ended_at — generated columns compute the rest
-  const { error: updateError } = await supabase
-    .from('call_sessions')
-    .update({ ended_at: now })
-    .eq('id', sessionId)
-    .eq('interpreter_id', profile.interpreter_id)
-    .is('ended_at', null);
-
-  if (updateError) {
-    return { success: false, error: updateError.message, code: 'SERVICE_UNAVAILABLE' };
-  }
-
-  // Re-fetch to get computed columns
-  const { data: session } = await supabase
-    .from('call_sessions')
-    .select('duration_seconds, call_cost')
-    .eq('id', sessionId)
-    .single();
-
-  // Set status back to Online
-  await supabase
-    .from('interpreters')
-    .update({ realtime_status: 'Online' })
-    .eq('id', profile.interpreter_id);
-
-  return {
-    success: true,
-    data: {
-      durationSeconds: session?.duration_seconds ?? 0,
-      callCost: session?.call_cost ?? 0,
-    },
-  };
 }
 
 export async function getActiveCall(): Promise<ActionResult<CallSession | null>> {
-  const supabase = await createClient();
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  try {
+    const profile = await db.userProfile.findFirst({
+      where: { 
+        OR: [
+          { id: userId },
+          { clerkId: userId }
+        ]
+      },
+      select: { interpreterId: true }
+    });
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('interpreter_id')
-    .eq('id', user.id)
-    .single();
+    if (!profile?.interpreterId) {
+      return { success: true, data: null };
+    }
 
-  if (!profile?.interpreter_id) {
-    return { success: true, data: null };
+    const session = await db.callSession.findFirst({
+      where: {
+        interpreterId: profile.interpreterId,
+        endedAt: null
+      }
+    });
+
+    return { success: true, data: (session as CallSession) ?? null };
+  } catch (error) {
+    return { success: false, error: 'Error fetching active call', code: 'INTERNAL_ERROR' };
   }
-
-  const { data: session } = await supabase
-    .from('call_sessions')
-    .select('*')
-    .eq('interpreter_id', profile.interpreter_id)
-    .is('ended_at', null)
-    .limit(1)
-    .single();
-
-  return { success: true, data: (session as CallSession) ?? null };
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import { 
   Settings, 
@@ -15,15 +15,22 @@ import prisma from '@/lib/prisma';
 import { updateInterpreterProfile } from '@/app/actions/profile';
 
 export default async function SettingsPage() {
-  const supabase = await createClient();
+  const { userId } = await auth();
+  if (!userId) redirect('/login');
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
-  const interpreter = await prisma.interpreter.findFirst({
-    where: { emailCorporativo: user.email }
+  const profile = await (prisma as any).userProfile.findFirst({
+    where: { 
+      OR: [
+        { id: userId },
+        { clerkId: userId }
+      ]
+    },
+    include: {
+      interpreter: true
+    }
   });
 
+  const interpreter = profile?.interpreter;
   if (!interpreter) redirect('/dashboard');
 
   return (
