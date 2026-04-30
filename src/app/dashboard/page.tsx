@@ -1,24 +1,29 @@
 import React from 'react';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import { Phone, Clock, DollarSign, TrendingUp } from 'lucide-react';
 import { StatusToggle } from '../../components/StatusToggle';
 import { CallTimer } from '../../components/CallTimer';
 import { CallHistory } from '../../components/CallHistory';
+import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 export default async function InterpreterDashboard() {
-  const supabase = await createClient();
+  const { userId } = await auth();
+  if (!userId) redirect('/login');
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('interpreter_id, display_name, role')
-    .eq('id', user.id)
-    .single();
+  const profile = await prisma.userProfile.findFirst({
+    where: { 
+      OR: [
+        { id: userId },
+        { clerkId: userId }
+      ]
+    },
+    include: {
+      interpreter: true
+    }
+  });
 
   if (!profile) {
     return (
@@ -37,7 +42,9 @@ export default async function InterpreterDashboard() {
     redirect('/admin');
   }
 
-  if (!profile.interpreter_id) {
+  const interpreter = profile.interpreter;
+
+  if (!interpreter) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="glass p-8 rounded-3xl text-center max-w-md">
@@ -50,60 +57,42 @@ export default async function InterpreterDashboard() {
     );
   }
 
-  // Fetch interpreter data
-  const { data: interpreter } = await supabase
-    .from('interpreters')
-    .select('id, name, realtime_status, tariffPerMinute, campaign, languageA, languageB')
-    .eq('id', profile.interpreter_id)
-    .single();
-
-  if (!interpreter) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="glass p-8 rounded-3xl text-center max-w-md">
-          <h2 className="text-2xl font-bold text-white mb-4">Profile Not Found</h2>
-          <p className="text-gray-400">
-            We could not find your interpreter profile. Please contact an administrator.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   // Fetch active call (if any)
-  const { data: activeCall } = await supabase
-    .from('call_sessions')
-    .select('id, started_at, tariff_snapshot')
-    .eq('interpreter_id', interpreter.id)
-    .is('ended_at', null)
-    .limit(1)
-    .single();
+  const activeCall = await prisma.callSession.findFirst({
+    where: {
+      interpreterId: interpreter.id,
+      endedAt: null
+    },
+    orderBy: { startedAt: 'desc' }
+  });
 
   // Fetch today's stats
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  const { data: todayCalls } = await supabase
-    .from('call_sessions')
-    .select('duration_seconds, call_cost')
-    .eq('interpreter_id', interpreter.id)
-    .gte('started_at', todayStart.toISOString())
-    .not('ended_at', 'is', null);
+  const todayCalls = await prisma.callSession.findMany({
+    where: {
+      interpreterId: interpreter.id,
+      startedAt: { gte: todayStart },
+      endedAt: { not: null }
+    }
+  });
 
   const todayMinutes = Math.round(
-    (todayCalls?.reduce((sum, c) => sum + (c.duration_seconds || 0), 0) || 0) / 60
+    todayCalls.reduce((sum, c) => sum + (c.durationSeconds || 0), 0) / 60
   );
-  const todayEarnings = todayCalls?.reduce((sum, c) => sum + (c.call_cost || 0), 0) || 0;
-  const todayCallCount = todayCalls?.length || 0;
+  const todayEarnings = todayCalls.reduce((sum, c) => sum + (Number(c.callCost) || 0), 0);
+  const todayCallCount = todayCalls.length;
 
   // Recent completed calls
-  const { data: recentCalls } = await supabase
-    .from('call_sessions')
-    .select('id, started_at, ended_at, duration_seconds, call_cost, tariff_snapshot')
-    .eq('interpreter_id', interpreter.id)
-    .not('ended_at', 'is', null)
-    .order('started_at', { ascending: false })
-    .limit(10);
+  const recentCalls = await prisma.callSession.findMany({
+    where: {
+      interpreterId: interpreter.id,
+      endedAt: { not: null }
+    },
+    orderBy: { startedAt: 'desc' },
+    take: 10
+  });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -117,7 +106,7 @@ export default async function InterpreterDashboard() {
           </p>
         </div>
         <StatusToggle
-          currentStatus={interpreter.realtime_status}
+          currentStatus={interpreter.realtimeStatus as any}
         />
       </header>
 
@@ -149,15 +138,24 @@ export default async function InterpreterDashboard() {
         <CallTimer
           activeCall={activeCall ? {
             sessionId: activeCall.id,
-            startedAt: activeCall.started_at,
-            tariffSnapshot: activeCall.tariff_snapshot,
+            startedAt: activeCall.startedAt.toISOString(),
+            tariffSnapshot: Number(activeCall.tariffSnapshot),
           } : null}
           currentRate={Number(interpreter.tariffPerMinute)}
         />
       </div>
 
       {/* Recent Calls */}
-      <CallHistory calls={recentCalls || []} />
+      <CallHistory 
+        calls={recentCalls.map(c => ({
+          id: c.id,
+          started_at: c.startedAt.toISOString(),
+          ended_at: c.endedAt?.toISOString() || null,
+          duration_seconds: c.durationSeconds,
+          call_cost: Number(c.callCost),
+          tariff_snapshot: Number(c.tariffSnapshot)
+        }))} 
+      />
     </div>
   );
 }

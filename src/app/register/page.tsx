@@ -1,47 +1,115 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState } from 'react';
 import { Lock, Mail, User, AlertCircle, Loader2, Users, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import { signup } from '@/app/actions/auth';
+import { useSignUp } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 type LoginRole = 'interpreter' | 'admin';
 
 export default function RegisterPage() {
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const { isLoaded, signUp, setActive } = useSignUp();
+  const [emailAddress, setEmailAddress] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<LoginRole>('interpreter');
-  const [isPending, startTransition] = useTransition();
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
-  function handleSubmit(formData: FormData) {
+  // Handle submission of signup form
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isLoaded) return;
+    setIsLoading(true);
     setError(null);
-    startTransition(async () => {
-      const result = await signup(formData);
-      if (result.success) {
-        setSuccess(true);
-      } else {
-        setError(result.error || 'Registration failed');
-      }
-    });
-  }
 
-  if (success) {
+    try {
+      await signUp.create({
+        emailAddress,
+        password,
+        firstName: displayName.split(' ')[0],
+        lastName: displayName.split(' ').slice(1).join(' '),
+      });
+
+      // Prepare email verification
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+
+      // Change to the verification screen
+      setPendingVerification(true);
+    } catch (err: any) {
+      setError(err.errors?.[0]?.longMessage || 'An error occurred during sign up');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle email verification
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isLoaded) return;
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const completeSignUp = await signUp.attemptEmailAddressVerification({
+        code,
+      });
+
+      if (completeSignUp.status !== 'complete') {
+        console.log(JSON.stringify(completeSignUp, null, 2));
+      }
+
+      if (completeSignUp.status === 'complete') {
+        await setActive({ session: completeSignUp.createdSessionId });
+        router.push('/dashboard');
+      }
+    } catch (err: any) {
+      setError(err.errors?.[0]?.longMessage || 'Invalid verification code');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (pendingVerification) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f] relative overflow-hidden px-6">
-        <div className="relative z-10 w-full max-w-md text-center glass rounded-3xl p-10 border border-green-500/20">
-          <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 size={40} className="text-green-500" />
+        <div className="relative z-10 w-full max-w-md text-center glass rounded-3xl p-10 border border-blue-500/20">
+          <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Mail size={40} className="text-blue-400" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-4">Registration Successful!</h2>
+          <h2 className="text-2xl font-bold text-white mb-4">Verify your email</h2>
           <p className="text-gray-400 mb-8">
-            Your account has been created. Please check your email for a confirmation link (if enabled) or go to login.
+            We've sent a verification code to <b>{emailAddress}</b>. Enter it below to activate your account.
           </p>
-          <Link 
-            href="/login" 
-            className="block w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-all"
-          >
-            Go to Login
-          </Link>
+          
+          {error && (
+            <div className="flex items-center gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 mb-6">
+              <AlertCircle size={18} className="text-red-400 shrink-0" />
+              <p className="text-sm text-red-300">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleVerify} className="space-y-5">
+            <input
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Enter 6-digit code"
+              required
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+            />
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+            >
+              {isLoading ? <Loader2 className="animate-spin" size={18} /> : 'Verify Account'}
+            </button>
+          </form>
         </div>
       </div>
     );
@@ -70,6 +138,7 @@ export default function RegisterPage() {
           {/* Role Tabs */}
           <div className="flex bg-white/5 rounded-xl p-1 mb-8">
             <button
+              type="button"
               onClick={() => setRole('interpreter')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${
                 role === 'interpreter' 
@@ -81,6 +150,7 @@ export default function RegisterPage() {
               Interpreter
             </button>
             <button
+              type="button"
               onClick={() => setRole('admin')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${
                 role === 'admin' 
@@ -100,9 +170,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <form action={handleSubmit} className="space-y-5">
-            <input type="hidden" name="role" value={role} />
-            
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="displayName" className="block text-sm font-medium text-gray-400 mb-2">
                 Full Name
@@ -111,9 +179,10 @@ export default function RegisterPage() {
                 <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   id="displayName"
-                  name="displayName"
                   type="text"
                   required
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="John Doe"
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                 />
@@ -128,9 +197,10 @@ export default function RegisterPage() {
                 <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   id="email"
-                  name="email"
                   type="email"
                   required
+                  value={emailAddress}
+                  onChange={(e) => setEmailAddress(e.target.value)}
                   placeholder="user@example.com"
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                 />
@@ -145,9 +215,10 @@ export default function RegisterPage() {
                 <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   id="password"
-                  name="password"
                   type="password"
                   required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                 />
@@ -156,14 +227,14 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={isPending}
+              disabled={isLoading || !isLoaded}
               className={`w-full py-3 text-white font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2 ${
                 role === 'admin' 
                   ? 'bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400' 
                   : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400'
               }`}
             >
-              {isPending ? (
+              {isLoading ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
                   Creating Account...

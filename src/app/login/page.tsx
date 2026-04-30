@@ -1,26 +1,48 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState } from 'react';
 import { Lock, Mail, AlertCircle, Loader2, Users, ShieldAlert } from 'lucide-react';
-import { login } from '@/app/actions/auth';
+import { useSignIn } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 type LoginRole = 'interpreter' | 'admin';
 
 export default function LoginPage() {
-  const [error, setError] = useState<string | null>(null);
+  const { isLoaded, signIn, setActive } = useSignIn();
+  const [emailAddress, setEmailAddress] = useState('');
+  const [password, setPassword] = useState('');
   const [role, setRole] = useState<LoginRole>('interpreter');
-  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
-  function handleSubmit(formData: FormData) {
+  // Handle submission of signin form
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isLoaded) return;
+    setIsLoading(true);
     setError(null);
-    startTransition(async () => {
-      const result = await login(formData);
-      if (!result.success) {
-        setError(result.error || 'Login failed');
+
+    try {
+      const result = await signIn.create({
+        identifier: emailAddress,
+        password,
+      });
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        router.push(role === 'admin' ? '/admin' : '/dashboard');
+      } else {
+        console.log(result);
+        setError("Check your email and password.");
       }
-    });
-  }
+    } catch (err: any) {
+      setError(err.errors?.[0]?.longMessage || 'Invalid email or password');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f] relative overflow-hidden">
@@ -45,6 +67,7 @@ export default function LoginPage() {
           {/* Role Tabs */}
           <div className="flex bg-white/5 rounded-xl p-1 mb-8">
             <button
+              type="button"
               onClick={() => setRole('interpreter')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${
                 role === 'interpreter' 
@@ -56,6 +79,7 @@ export default function LoginPage() {
               Interpreter
             </button>
             <button
+              type="button"
               onClick={() => setRole('admin')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${
                 role === 'admin' 
@@ -79,9 +103,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form action={handleSubmit} className="space-y-5">
-            <input type="hidden" name="role" value={role} />
-            
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-400 mb-2">
                 Email Address
@@ -90,9 +112,10 @@ export default function LoginPage() {
                 <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   id="email"
-                  name="email"
                   type="email"
                   required
+                  value={emailAddress}
+                  onChange={(e) => setEmailAddress(e.target.value)}
                   placeholder={role === 'admin' ? "admin@freeinterpreters.com" : "user@freeinterpreters.com"}
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                 />
@@ -107,9 +130,10 @@ export default function LoginPage() {
                 <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   id="password"
-                  name="password"
                   type="password"
                   required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                 />
@@ -118,14 +142,14 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={isPending}
+              disabled={isLoading || !isLoaded}
               className={`w-full py-3 text-white font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                 role === 'admin' 
                   ? 'bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400' 
                   : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400'
               }`}
             >
-              {isPending ? (
+              {isLoading ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
                   Signing in...

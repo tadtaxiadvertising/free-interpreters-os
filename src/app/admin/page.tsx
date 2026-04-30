@@ -1,37 +1,40 @@
 import React from 'react';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import {
   Users, Phone, DollarSign, Activity,
-  Wifi, WifiOff, PhoneCall, Trophy, BarChart3, TrendingUp, ChevronRight
+  BarChart3, TrendingUp, ChevronRight, Trophy
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LogoutButton } from '../../components/LogoutButton';
-import prismaClient from '@/lib/prisma';
-const prisma = prismaClient as any;
+import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDashboard() {
-  const supabase = await createClient();
+  const { userId } = await auth();
+  if (!userId) redirect('/login');
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  const profile = await prisma.userProfile.findFirst({
+    where: { 
+      OR: [
+        { id: userId },
+        { clerkId: userId }
+      ]
+    },
+    select: { role: true, displayName: true }
+  });
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role, display_name')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.role !== 'admin') redirect('/login');
+  if (profile?.role !== 'admin') {
+    redirect('/dashboard');
+  }
 
   // Time calculations
   const now = new Date();
   const todayStart = new Date(now.setHours(0,0,0,0));
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  // Fetch Data using Prisma for complex aggregations
+  // Fetch Data using Prisma
   const [interpreters, activeCalls, todaySessions, monthSessions] = await Promise.all([
     prisma.interpreter.findMany({ where: { status: 'Activo' }, orderBy: { name: 'asc' } }),
     prisma.callSession.findMany({ where: { endedAt: null }, include: { interpreter: true } }),
@@ -40,14 +43,14 @@ export default async function AdminDashboard() {
   ]);
 
   // Aggregations
-  const totalMinutesToday = Math.round(todaySessions.reduce((sum: number, s: any) => sum + (s.durationSeconds || 0), 0) / 60);
-  const totalCostToday = todaySessions.reduce((sum: number, s: any) => sum + Number(s.callCost || 0), 0);
+  const totalMinutesToday = Math.round(todaySessions.reduce((sum, s) => sum + (s.durationSeconds || 0), 0) / 60);
+  const totalCostToday = todaySessions.reduce((sum, s) => sum + Number(s.callCost || 0), 0);
   
-  const totalMinutesMonth = Math.round(monthSessions.reduce((sum: number, s: any) => sum + (s.durationSeconds || 0), 0) / 60);
-  const totalCostMonth = monthSessions.reduce((sum: number, s: any) => sum + Number(s.callCost || 0), 0);
+  const totalMinutesMonth = Math.round(monthSessions.reduce((sum, s) => sum + (s.durationSeconds || 0), 0) / 60);
+  const totalCostMonth = monthSessions.reduce((sum, s) => sum + Number(s.callCost || 0), 0);
 
-  const onlineCount = interpreters.filter((i: any) => i.realtimeStatus === 'Online').length;
-  const busyCount = interpreters.filter((i: any) => i.realtimeStatus === 'Busy').length;
+  const onlineCount = interpreters.filter((i) => i.realtimeStatus === 'Online').length;
+  const busyCount = interpreters.filter((i) => i.realtimeStatus === 'Busy').length;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -55,8 +58,8 @@ export default async function AdminDashboard() {
         <div>
           <h2 className="text-3xl font-bold text-white tracking-tight">Executive Command Center</h2>
           <p className="text-gray-400 mt-1 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Global Performance Oversight • {profile.display_name}
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            Global Performance Oversight • {profile.displayName}
           </p>
         </div>
         <LogoutButton />
@@ -118,8 +121,8 @@ export default async function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {interpreters.map((interp: any) => {
-                    const isActive = activeCalls.some((c: any) => c.interpreterId === interp.id);
+                  {interpreters.map((interp) => {
+                    const isActive = activeCalls.some((c) => c.interpreterId === interp.id);
                     return (
                       <tr key={interp.id} className="hover:bg-white/5 transition-colors group">
                         <td className="py-4 px-6">
@@ -132,10 +135,10 @@ export default async function AdminDashboard() {
                           <div className="flex items-center gap-2">
                             <div className={cn(
                               "w-2 h-2 rounded-full",
-                              (interp as any).realtimeStatus === 'Online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
-                              (interp as any).realtimeStatus === 'Busy' ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]' : 'bg-gray-600'
+                              interp.realtimeStatus === 'Online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                              interp.realtimeStatus === 'Busy' ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]' : 'bg-gray-600'
                             )} />
-                            <span className="text-[10px] text-gray-400 font-bold uppercase">{(interp as any).realtimeStatus}</span>
+                            <span className="text-[10px] text-gray-400 font-bold uppercase">{interp.realtimeStatus}</span>
                           </div>
                         </td>
                         <td className="py-4 px-6 text-right">
@@ -165,7 +168,7 @@ export default async function AdminDashboard() {
             </h3>
             
             <div className="space-y-6">
-              {interpreters.slice(0, 5).map((interp: any, i: number) => (
+              {interpreters.slice(0, 5).map((interp, i) => (
                 <div key={interp.id} className="flex items-center justify-between group cursor-default">
                   <div className="flex items-center gap-4">
                     <div className="relative">
