@@ -6,18 +6,28 @@ import { PrismaClient } from '@prisma/client';
  * Note: We are migrating towards Supabase JS Client, but keeping this 
  * for compatibility with existing Server Actions.
  */
-const prismaClientSingleton = () => {
+const prismaClientSingleton = (): PrismaClient => {
   return new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
 };
 
 declare global {
-  var prisma: undefined | PrismaClient;
+  var _prisma: undefined | PrismaClient;
 }
 
-const prisma = globalThis.prisma ?? prismaClientSingleton();
+// Use a Proxy to lazily instantiate the Prisma Client
+// This prevents Next.js page data collection from throwing Edge environment errors
+const prisma = new Proxy({} as PrismaClient, {
+  get: (target, prop) => {
+    if (!globalThis._prisma) {
+      globalThis._prisma = prismaClientSingleton();
+    }
+    const value = (globalThis._prisma as any)[prop];
+    return typeof value === 'function' ? value.bind(globalThis._prisma) : value;
+  }
+});
 
 export default prisma;
 
-if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') globalThis._prisma = globalThis._prisma || prismaClientSingleton();
