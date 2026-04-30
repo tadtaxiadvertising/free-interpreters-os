@@ -55,8 +55,14 @@ ENV HOSTNAME="0.0.0.0"
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# CRITICAL: NEXT_PUBLIC_* vars must also be available at RUNTIME
+# for middleware and Server Components (they read process.env at runtime).
+# These are NOT set here — they MUST be injected by Easypanel as
+# runtime environment variables in the service's Environment tab.
+# Without them, the middleware will crash → 502 Bad Gateway.
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://127.0.0.1:3000/ || exit 1
+  CMD curl -f http://127.0.0.1:3000/login || exit 1
 
 USER nextjs
 EXPOSE 3000

@@ -2,6 +2,16 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
+  // Guard: if Supabase env vars are missing, let the request pass through
+  // instead of crashing the entire server with a 502.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    console.error(
+      '⚠️ MIDDLEWARE: Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
+      'Auth middleware is disabled. Set these as runtime env vars in Easypanel.'
+    );
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -32,7 +42,7 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public paths that don't require auth
-  const publicPaths = ['/login', '/api/v1/', '/api/setup-admin', '/api/health'];
+  const publicPaths = ['/login', '/api/health'];
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
 
   if (!user && !isPublic) {
@@ -75,7 +85,7 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  // Redirect root to role-based dashboard
+  // Basic role-based root redirection
   if (user && pathname === '/') {
     const { data: profile } = await supabase
       .from('user_profiles')
