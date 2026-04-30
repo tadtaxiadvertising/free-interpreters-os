@@ -27,6 +27,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  EASYPANEL_WEBHOOK_URL: ${{ secrets.EASYPANEL_WEBHOOK_URL }}
+
 jobs:
   # ── Validate ────────────────────────────────────────────────
   validate:
@@ -73,17 +76,15 @@ jobs:
 
     steps:
       - name: 🔔 Trigger Easypanel Deploy
-        env:
-          WEBHOOK_URL: ${{ secrets.EASYPANEL_WEBHOOK_URL }}
         run: |
-          if [ -z "$WEBHOOK_URL" ]; then
+          if [ -z "$EASYPANEL_WEBHOOK_URL" ]; then
             echo "❌ Error: EASYPANEL_WEBHOOK_URL secret is not configured in GitHub Secrets"
             exit 1
           fi
 
           RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST \
-            "$WEBHOOK_URL" \
+            "$EASYPANEL_WEBHOOK_URL" \
             -H "Content-Type: application/json")
 
           echo "Webhook response: $RESPONSE"
