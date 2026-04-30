@@ -20,12 +20,9 @@ export default async function InterpreterDashboard() {
   const endOfMonth = new Date();
   endOfMonth.setMonth(endOfMonth.getMonth() + 1, 0);
 
-  const profile = await (prisma as any).userProfile.findFirst({
+  const profile = await (prisma as any).userProfile.findUnique({
     where: { 
-      OR: [
-        { id: userId },
-        { clerkId: userId }
-      ]
+      id: userId
     },
     include: {
       interpreter: {

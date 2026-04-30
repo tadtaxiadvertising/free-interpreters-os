@@ -16,12 +16,9 @@ export default async function AdminDashboard() {
   const { userId } = await auth();
   if (!userId) redirect('/login');
 
-  const profile = await prisma.userProfile.findFirst({
+  const profile = await prisma.userProfile.findUnique({
     where: { 
-      OR: [
-        { id: userId },
-        { clerkId: userId }
-      ]
+      id: userId
     },
     select: { role: true, displayName: true }
   });

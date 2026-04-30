@@ -1,30 +1,25 @@
 'use server';
 
-import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
-import type { ActionResult, PayrateAuditEntry } from '@/lib/types';
+import { createClient } from '@/lib/supabase/server';
+import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
-
-const db = prisma as any;
 
 export async function updatePayrate(
   interpreterId: number,
   newRate: number
 ): Promise<ActionResult<{ oldRate: number; newRate: number }>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const supabase = await createClient();
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
   try {
-    // Verify admin role
-    const profile = await db.userProfile.findFirst({
-      where: { 
-        OR: [
-          { id: userId },
-          { clerkId: userId }
-        ]
-      },
-      select: { role: true }
-    });
+    // 1. Verify admin role using user_profiles table (RLS will also handle this if configured)
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
 
     if (profile?.role !== 'admin') {
       return { success: false, error: 'Admin access required', code: 'UNAUTHORIZED' };
@@ -34,55 +29,66 @@ export async function updatePayrate(
       return { success: false, error: 'Rate must be between $0.01 and $999.99', code: 'VALIDATION_ERROR' };
     }
 
-    // Get current rate
-    const interpreter = await db.interpreter.findUnique({
-      where: { id: interpreterId },
-      select: { tariffPerMinute: true }
-    });
+    // 2. Get current rate
+    const { data: interpreter } = await supabase
+      .from('interpreters')
+      .select('tariff_per_minute')
+      .eq('id', interpreterId)
+      .single();
 
     if (!interpreter) {
       return { success: false, error: 'Interpreter not found', code: 'NOT_FOUND' };
     }
 
-    const oldRate = Number(interpreter.tariffPerMinute);
+    const oldRate = Number(interpreter.tariff_per_minute);
 
-    // Update rate
-    await db.interpreter.update({
-      where: { id: interpreterId },
-      data: { tariffPerMinute: newRate }
-    });
+    // 3. Update rate
+    const { error: updateError } = await supabase
+      .from('interpreters')
+      .update({ tariff_per_minute: newRate })
+      .eq('id', interpreterId);
 
-    // Write audit log
-    await db.payrateAuditLog.create({
-      data: {
-        interpreterId: interpreterId,
-        oldRate: oldRate,
-        newRate: newRate,
-        changedBy: userId,
-      }
-    });
+    if (updateError) throw updateError;
+
+    // 4. Write audit log
+    const { error: auditError } = await supabase
+      .from('payrate_audit_log')
+      .insert({
+        interpreter_id: interpreterId,
+        old_rate: oldRate,
+        new_rate: newRate,
+        changed_by: user.id,
+      });
+
+    if (auditError) throw auditError;
 
     revalidatePath('/admin');
+    revalidatePath('/admin/payrates');
     revalidatePath('/payroll');
     return { success: true, data: { oldRate, newRate } };
   } catch (error: any) {
-    console.error('Error updating payrate:', error);
+    console.error('Error updating payrate:', error.message);
     return { success: false, error: error.message, code: 'SERVICE_UNAVAILABLE' };
   }
 }
 
 export async function getPayrateHistory(
   interpreterId: number
-): Promise<ActionResult<PayrateAuditEntry[]>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+): Promise<ActionResult<any[]>> {
+  const supabase = await createClient();
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
   try {
-    const history = await db.payrateAuditLog.findMany({
-      where: { interpreterId },
-      orderBy: { changedAt: 'desc' },
-      take: 20
-    });
+    const { data: history, error } = await supabase
+      .from('payrate_audit_log')
+      .select('*')
+      .eq('interpreter_id', interpreterId)
+      .order('changed_at', { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
 
     return { success: true, data: history ?? [] };
   } catch (error: any) {

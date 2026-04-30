@@ -1,6 +1,6 @@
 'use server';
 
-import prisma from '@/lib/prisma';
+import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
 export type CreateNotificationInput = {
@@ -12,16 +12,22 @@ export type CreateNotificationInput = {
 };
 
 export async function createNotification(input: CreateNotificationInput) {
+  const supabase = await createClient();
+  
   try {
-    const notification = await prisma.notification.create({
-      data: {
-        userId: input.userId,
+    const { data: notification, error } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: input.userId,
         title: input.title,
         message: input.message,
         type: input.type || 'info',
         link: input.link
-      }
-    });
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     revalidatePath('/'); // Global revalidation for the bell icon
     return { success: true, data: notification };
@@ -32,11 +38,16 @@ export async function createNotification(input: CreateNotificationInput) {
 }
 
 export async function markNotificationAsRead(id: string) {
+  const supabase = await createClient();
+  
   try {
-    await prisma.notification.update({
-      where: { id },
-      data: { isRead: true }
-    });
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id);
+
+    if (error) throw error;
+    
     revalidatePath('/');
     return { success: true };
   } catch (error) {

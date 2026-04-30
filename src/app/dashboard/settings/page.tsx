@@ -14,16 +14,15 @@ import {
 import prisma from '@/lib/prisma';
 import { updateInterpreterProfile } from '@/app/actions/profile';
 
+export const dynamic = 'force-dynamic';
+
 export default async function SettingsPage() {
   const { userId } = await auth();
   if (!userId) redirect('/login');
 
   const profile = await (prisma as any).userProfile.findFirst({
     where: { 
-      OR: [
-        { id: userId },
-        { clerkId: userId }
-      ]
+      id: userId
     },
     include: {
       interpreter: true

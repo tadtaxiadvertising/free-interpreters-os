@@ -1,11 +1,13 @@
 'use server';
 
-import prisma from '@/lib/prisma';
-import { createPayrollRecord, calculateBatchPayroll } from '@/lib/payroll';
+import { createClient } from '@/lib/supabase/server';
+import { createPayrollRecord } from '@/lib/payroll';
 import { revalidatePath } from 'next/cache';
 import type { ActionResult } from '@/lib/types';
 
 export async function generatePayrollPeriod(): Promise<ActionResult<{ message: string }>> {
+  const supabase = await createClient();
+  
   try {
     // Definir el período (ej. del 1 al 15 del mes actual)
     const now = new Date();
@@ -13,12 +15,12 @@ export async function generatePayrollPeriod(): Promise<ActionResult<{ message: s
     const periodEnd = new Date(now.getFullYear(), now.getMonth(), 15);
     
     // Obtener todos los intérpretes activos
-    const interpreters = await prisma.interpreter.findMany({
-      where: { status: 'Activo' },
-      select: { id: true }
-    });
+    const { data: interpreters, error: interpError } = await supabase
+      .from('interpreters')
+      .select('id')
+      .eq('status', 'Activo');
     
-    if (interpreters.length === 0) {
+    if (interpError || !interpreters || interpreters.length === 0) {
       return { success: false, error: 'No active interpreters found to process payroll.' };
     }
 
@@ -26,14 +28,14 @@ export async function generatePayrollPeriod(): Promise<ActionResult<{ message: s
     
     for (const interpreter of interpreters) {
       try {
-        // Check if payroll already generated for this period to avoid duplicates
-        const existing = await prisma.payrollRecord.findFirst({
-          where: {
-            interpreterId: interpreter.id,
-            periodStart: periodStart,
-            periodEnd: periodEnd
-          }
-        });
+        // Check if payroll already generated for this period
+        const { data: existing } = await supabase
+          .from('payroll_records')
+          .select('id')
+          .eq('interpreter_id', interpreter.id)
+          .eq('period_start', periodStart.toISOString().split('T')[0])
+          .eq('period_end', periodEnd.toISOString().split('T')[0])
+          .maybeSingle();
         
         if (!existing) {
           await createPayrollRecord(interpreter.id, periodStart, periodEnd);

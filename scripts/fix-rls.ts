@@ -52,15 +52,18 @@ async function fixRLSPolicies() {
   console.log('📡 Executing SQL commands to repair policies...')
 
   for (const sql of sqlCommands) {
-    const { error } = await supabase.rpc('exec_sql', { sql_query: sql }).catch(() => ({ 
-      error: { message: 'RPC exec_sql not found. You might need to run this manually in the SQL Editor.' } 
-    }));
-
-    if (error) {
+    try {
+      const { error } = await supabase.rpc('exec_sql', { sql_query: sql });
+      
+      if (error) {
+        console.warn(`⚠️  Command failed: ${sql.substring(0, 50)}...`);
+        console.warn(`Reason: ${error.message}`);
+      } else {
+        console.log(`✅ Success: ${sql.substring(0, 50)}...`);
+      }
+    } catch (err) {
       console.warn(`⚠️  Command failed: ${sql.substring(0, 50)}...`);
-      console.warn(`Reason: ${error.message}`);
-    } else {
-      console.log(`✅ Success: ${sql.substring(0, 50)}...`);
+      console.warn(`Reason: RPC exec_sql not found. You might need to run this manually in the SQL Editor.`);
     }
   }
 

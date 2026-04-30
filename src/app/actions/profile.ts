@@ -1,8 +1,6 @@
 'use server';
 
-import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
-const db = prisma as any;
+import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
 export type ProfileUpdateInput = {
@@ -14,41 +12,47 @@ export type ProfileUpdateInput = {
 };
 
 export async function updateInterpreterProfile(input: ProfileUpdateInput) {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: 'Unauthorized' };
+  const supabase = await createClient();
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Unauthorized' };
 
   try {
-    const profile = await db.userProfile.findFirst({
-      where: { 
-        OR: [
-          { id: userId },
-          { clerkId: userId }
-        ]
-      },
-      select: { interpreterId: true }
-    });
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('interpreter_id')
+      .eq('id', user.id)
+      .single();
 
-    if (!profile?.interpreterId) {
+    if (profileError || !profile?.interpreter_id) {
       return { success: false, error: 'No interpreter profile found' };
     }
 
-    const updated = await db.interpreter.update({
-      where: { id: profile.interpreterId },
-      data: {
+    const { data: updated, error: updateError } = await supabase
+      .from('interpreters')
+      .update({
         telefono: input.phone,
         pais: input.country,
-        metodoPago: input.paymentMethod,
-        cuentaPago: input.paymentAccount,
+        metodo_pago: input.paymentMethod,
+        cuenta_pago: input.paymentAccount,
         notas: input.notes
-      }
-    });
+      })
+      .eq('id', profile.interpreter_id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Profile Update Error:', updateError.message);
+      return { success: false, error: updateError.message };
+    }
 
     revalidatePath('/dashboard');
+    revalidatePath('/dashboard/settings');
     revalidatePath('/dashboard/earnings');
     
     return { success: true, data: updated };
   } catch (error: any) {
-    console.error('Profile Update Error:', error);
-    return { success: false, error: 'Failed to update profile.' };
+    console.error('Unexpected Profile Update Error:', error);
+    return { success: false, error: 'An unexpected error occurred while updating profile.' };
   }
 }

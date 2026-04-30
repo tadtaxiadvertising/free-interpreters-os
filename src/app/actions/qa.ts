@@ -2,13 +2,11 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import prisma from '@/lib/prisma';
-const db = prisma as any;
 import { createNotification } from './notifications';
 
 export type QAScoreInput = {
-  sessionId: string;
-  interpreterId: string;
+  productionLogId: number;
+  interpreterId: number;
   protocolScore: number;      // 20%
   interpretationScore: number; // 40%
   languageScore: number;       // 20%
@@ -21,9 +19,9 @@ export type QAScoreInput = {
 export async function submitQAEvaluation(input: QAScoreInput) {
   const supabase = await createClient();
 
-  // 1. Calculate Total Score based on BUSINESS_LOGIC.md weights
+  // Note: Total score calculation is handled by database trigger trg_calculate_qa_total
+  // We still calculate it here for the notification, but the DB is the source of truth.
   let totalScore = 0;
-  
   if (input.criticalError) {
     totalScore = 0;
   } else {
@@ -35,59 +33,62 @@ export async function submitQAEvaluation(input: QAScoreInput) {
       (input.technicalScore * 0.10);
   }
 
-  // 2. Determine Action Required based on score
-  let actionRequired = 'None';
+  // Determine Action Required based on score
+  let actionRequired = 'Ninguna';
   if (input.criticalError || totalScore < 70) {
     actionRequired = 'Advertencia / Coaching';
   } else if (totalScore < 85) {
     actionRequired = 'Feedback Requerido';
   }
 
-  // 3. Save to database
-  const user = (await supabase.auth.getUser()).data.user;
+  const { data: { user } } = await supabase.auth.getUser();
   
   const { data, error } = await supabase
     .from('qa_scores')
     .insert({
-      session_id: input.sessionId,
+      production_log_id: input.productionLogId,
       interpreter_id: input.interpreterId,
-      total_score: totalScore,
+      audit_date: new Date().toISOString(),
+      auditor: user?.email || 'System',
       protocol_score: input.protocolScore,
       interpretation_score: input.interpretationScore,
       language_score: input.languageScore,
       service_score: input.serviceScore,
       technical_score: input.technicalScore,
       critical_error: input.criticalError,
-      comments: input.comments,
-      action_required: actionRequired,
-      evaluated_by: user?.id
+      comentarios: input.comments,
+      accion_requerida: actionRequired
     })
     .select()
     .single();
 
   if (error) {
-    console.error('QA Submission Error:', error);
+    console.error('QA Submission Error:', error.message);
     return { success: false, error: error.message };
   }
 
-  // 4. Notify Interpreter (Async/Fire & Forget)
+  // Notify Interpreter
   try {
-    const interpreter = await db.interpreter.findUnique({
-      where: { id: Number(input.interpreterId) },
-      select: { emailCorporativo: true, name: true }
-    });
+    // 1. Get the interpreter's email
+    const { data: interpreter } = await supabase
+      .from('interpreters')
+      .select('email_corporativo')
+      .eq('id', input.interpreterId)
+      .single();
 
-    if (interpreter?.emailCorporativo) {
-      // Find the user profile matching this email to get the auth ID
-      const profile = await db.userProfile.findFirst({
-        where: { email: interpreter.emailCorporativo }
-      });
+    if (interpreter?.email_corporativo) {
+      // 2. Find the auth user linked to this email
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('email', interpreter.email_corporativo)
+        .single();
 
       if (profile) {
         await createNotification({
           userId: profile.id,
-          title: 'QA Evaluation Ready',
-          message: `Your session score: ${totalScore.toFixed(1)}%. Action: ${actionRequired}`,
+          title: 'Evaluación QA Lista',
+          message: `Tu puntaje de sesión: ${totalScore.toFixed(1)}%. Acción: ${actionRequired}`,
           type: totalScore >= 85 ? 'success' : (totalScore >= 70 ? 'info' : 'warning'),
           link: '/dashboard/earnings'
         });
@@ -102,4 +103,3 @@ export async function submitQAEvaluation(input: QAScoreInput) {
   
   return { success: true, data };
 }
-

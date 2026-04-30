@@ -1,25 +1,21 @@
-import { auth } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 export default async function RootPage() {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!user) {
     redirect('/login');
   }
 
-  const profile = await (prisma as any).userProfile.findFirst({
-    where: { 
-      OR: [
-        { id: userId },
-        { clerkId: userId }
-      ]
-    },
-    select: { role: true }
-  });
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
 
   redirect(profile?.role === 'admin' ? '/admin' : '/dashboard');
 }

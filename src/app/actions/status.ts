@@ -1,40 +1,45 @@
 'use server';
 
-import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { createClient } from '@/lib/supabase/server';
 import type { ActionResult, RealtimeStatus } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 
 export async function updateInterpreterStatus(
   newStatus: RealtimeStatus
 ): Promise<ActionResult<{ status: RealtimeStatus }>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const supabase = await createClient();
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
   try {
-    const profile = await (prisma as any).userProfile.findFirst({
-      where: { 
-        OR: [
-          { id: userId },
-          { clerkId: userId }
-        ]
-      },
-      select: { interpreterId: true }
-    });
+    // 1. Get the interpreter ID linked to this user
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('interpreter_id')
+      .eq('id', user.id)
+      .single();
 
-    if (!profile?.interpreterId) {
-      return { success: false, error: 'No interpreter linked', code: 'NOT_FOUND' };
+    if (profileError || !profile?.interpreter_id) {
+      return { success: false, error: 'No interpreter linked to this account', code: 'NOT_FOUND' };
     }
 
-    await (prisma as any).interpreter.update({
-      where: { id: profile.interpreterId },
-      data: { realtimeStatus: newStatus }
-    });
+    // 2. Update the status in the interpreters table
+    // RLS will ensure the user can only update their own record
+    const { error: updateError } = await supabase
+      .from('interpreters')
+      .update({ realtime_status: newStatus })
+      .eq('id', profile.interpreter_id);
+
+    if (updateError) {
+      console.error('Error updating status:', updateError.message);
+      return { success: false, error: updateError.message, code: 'INTERNAL_ERROR' };
+    }
 
     revalidatePath('/dashboard');
     return { success: true, data: { status: newStatus } };
   } catch (error: any) {
-    console.error('Error updating status:', error);
+    console.error('Unexpected error updating status:', error);
     return { success: false, error: error.message, code: 'SERVICE_UNAVAILABLE' };
   }
 }

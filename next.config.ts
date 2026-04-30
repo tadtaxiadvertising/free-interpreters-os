@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: "standalone",
+  // Required for Docker: include Sharp for image optimization
+  experimental: {
+    outputFileTracingIncludes: {
+      "/": ["./prisma/**/*"],
+    },
+  },
 };
 
 export default nextConfig;

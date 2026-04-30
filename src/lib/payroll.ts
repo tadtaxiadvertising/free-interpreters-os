@@ -1,5 +1,4 @@
-import prisma from './prisma';
-import { Prisma } from '@prisma/client';
+import { createClient } from './supabase/server';
 
 interface PayrollInput {
   interpreterId: number;
@@ -17,118 +16,77 @@ interface PayrollCalculation {
 
 /**
  * Calcula nómina para un intérprete en un período específico
- * Usa connection pooling optimizado para Vercel/Supabase gratuito
+ * Optimizado usando Supabase Client y RLS
  */
 export async function calculatePayroll(
   input: PayrollInput
 ): Promise<PayrollCalculation> {
   const { interpreterId, periodStart, periodEnd } = input;
+  const supabase = await createClient();
 
-  // Query quirúrgica: solo datos necesarios
-  const interpreter = await prisma.interpreter.findUnique({
-    where: { id: interpreterId },
-    select: {
-      id: true,
-      tariffPerMinute: true,
-      accountRates: {
-        select: {
-          accountId: true,
-          tariffPerHour: true,
-        },
-      },
-    },
-  });
+  // 1. Obtener datos del intérprete y sus tasas por cuenta
+  const { data: interpreter, error: interpError } = await supabase
+    .from('interpreters')
+    .select('*, interpreter_account_rates(*)')
+    .eq('id', interpreterId)
+    .single();
 
-  if (!interpreter) {
+  if (interpError || !interpreter) {
     throw new Error(`Interpreter ${interpreterId} not found`);
   }
 
-  // Obtener logs de producción en el período (Importados)
-  const productionLogs = await prisma.productionLog.findMany({
-    where: {
-      interpreterId,
-      date: {
-        gte: periodStart,
-        lte: periodEnd,
-      },
-    },
-    select: {
-      id: true,
-      interpretedMinutes: true,
-      adherence: true,
-      accountId: true,
-    },
-  });
+  // 2. Obtener logs de producción
+  const { data: productionLogs } = await supabase
+    .from('production_logs')
+    .select('id, interpreted_minutes, account_id')
+    .eq('interpreter_id', interpreterId)
+    .gte('date', periodStart.toISOString())
+    .lte('date', periodEnd.toISOString());
 
-  // Obtener logs de llamadas en tiempo real (call_sessions)
-  const callSessions: any[] = await prisma.$queryRaw`
-    SELECT duration_seconds, call_cost 
-    FROM public.call_sessions 
-    WHERE interpreter_id = ${interpreterId}
-    AND started_at >= ${periodStart} 
-    AND started_at <= ${periodEnd}
-    AND ended_at IS NOT NULL
-  `;
+  // 3. Obtener logs de llamadas en tiempo real (usando la tabla nativa)
+  const { data: callSessions } = await supabase
+    .from('call_sessions')
+    .select('duration_seconds, call_cost')
+    .eq('interpreter_id', interpreterId)
+    .gte('started_at', periodStart.toISOString())
+    .lte('started_at', periodEnd.toISOString())
+    .not('ended_at', 'is', null);
 
-  // Obtener scores de QA
-  const qaScores = await prisma.qAScore.findMany({
-    where: {
-      interpreterId,
-      auditDate: {
-        gte: periodStart,
-        lte: periodEnd,
-      },
-    },
-    select: {
-      totalScore: true,
-      criticalError: true,
-    },
-  });
+  // 4. Obtener scores de QA
+  const { data: qaScores } = await supabase
+    .from('qa_scores')
+    .select('total_score, critical_error')
+    .eq('interpreter_id', interpreterId)
+    .gte('audit_date', periodStart.toISOString())
+    .lte('audit_date', periodEnd.toISOString());
 
   // Cálculos de minutos
-  const importedMinutes = productionLogs.reduce(
-    (sum: number, log) => sum + log.interpretedMinutes,
-    0
-  );
-  const realtimeMinutes = Math.round(
-    callSessions.reduce((sum: number, call) => sum + (call.duration_seconds || 0), 0) / 60
-  );
-  
+  const importedMinutes = (productionLogs || []).reduce((sum, log) => sum + log.interpreted_minutes, 0);
+  const realtimeMinutes = Math.round((callSessions || []).reduce((sum, call) => sum + (call.duration_seconds || 0), 0) / 60);
   const totalMinutes = importedMinutes + realtimeMinutes;
 
   // Cálculos de costos
   let importedCost = 0;
-  const baseRatePerMinute = parseFloat(interpreter.tariffPerMinute.toString());
+  const baseRatePerMinute = parseFloat(interpreter.tariff_per_minute.toString());
 
-  for (const log of productionLogs) {
+  for (const log of (productionLogs || [])) {
     let ratePerMinute = baseRatePerMinute;
-
-    if (log.accountId) {
-      const specificRate = interpreter.accountRates.find(
-        (r) => r.accountId === log.accountId
-      );
+    if (log.account_id) {
+      const specificRate = interpreter.interpreter_account_rates.find((r: any) => r.account_id === log.account_id);
       if (specificRate) {
-        // Convertir pago por hora a pago por minuto
-        ratePerMinute = parseFloat(specificRate.tariffPerHour.toString()) / 60;
+        ratePerMinute = parseFloat(specificRate.tariff_per_hour.toString()) / 60;
       }
     }
-
-    importedCost += log.interpretedMinutes * ratePerMinute;
+    importedCost += log.interpreted_minutes * ratePerMinute;
   }
 
-  const realtimeCost = callSessions.reduce(
-    (sum: number, call) => sum + parseFloat(call.call_cost || '0'),
-    0
-  );
-
+  const realtimeCost = (callSessions || []).reduce((sum, call) => sum + parseFloat(call.call_cost || '0'), 0);
   const grossTotal = importedCost + realtimeCost;
 
   // Bonus de calidad: +5% si promedio QA >= 90%
   let qualityBonus = 0;
-  if (qaScores.length > 0) {
-    const avgQA =
-      qaScores.reduce((sum: number, qa) => sum + (qa.totalScore?.toNumber() || 0), 0) /
-      qaScores.length;
+  if (qaScores && qaScores.length > 0) {
+    const avgQA = qaScores.reduce((sum, qa) => sum + (parseFloat(qa.total_score) || 0), 0) / qaScores.length;
     if (avgQA >= 90) {
       qualityBonus = grossTotal * 0.05;
     }
@@ -136,15 +94,13 @@ export async function calculatePayroll(
 
   // Penalidades: -10% por error crítico
   let penalidades = 0;
-  const criticalErrors = qaScores.filter((qa) => qa.criticalError).length;
+  const criticalErrors = (qaScores || []).filter(qa => qa.critical_error).length;
   if (criticalErrors > 0) {
     penalidades = grossTotal * 0.1 * criticalErrors;
   }
 
-  // Deducción de transferencia: 1-2% del monto neto
   const subtotal = grossTotal + qualityBonus - penalidades;
   const transferDeduction = subtotal * 0.015; // 1.5%
-
   const netTotal = subtotal - transferDeduction;
 
   return {
@@ -156,52 +112,42 @@ export async function calculatePayroll(
   };
 }
 
-/**
- * Crea registro de nómina en BD
- */
 export async function createPayrollRecord(
   interpreterId: number,
   periodStart: Date,
   periodEnd: Date
 ) {
-  const calculation = await calculatePayroll({
-    interpreterId,
-    periodStart,
-    periodEnd,
-  });
+  const calculation = await calculatePayroll({ interpreterId, periodStart, periodEnd });
+  const supabase = await createClient();
 
-  const record = await prisma.payrollRecord.create({
-    data: {
-      interpreterId,
-      periodStart,
-      periodEnd,
-      totalMinutes: calculation.totalMinutes,
-      grossTotal: new Prisma.Decimal(calculation.grossTotal),
-      qualityBonus: new Prisma.Decimal(calculation.qualityBonus),
-      penalidades: new Prisma.Decimal(calculation.penalidades),
-      transferDeduction: new Prisma.Decimal(calculation.netTotal * 0.015),
-      netTotal: new Prisma.Decimal(calculation.netTotal),
-      status: 'Pendiente',
-    },
-  });
+  const { data: record, error } = await supabase
+    .from('payroll_records')
+    .insert({
+      interpreter_id: interpreterId,
+      period_start: periodStart.toISOString().split('T')[0],
+      period_end: periodEnd.toISOString().split('T')[0],
+      total_minutes: calculation.totalMinutes,
+      gross_total: calculation.grossTotal,
+      quality_bonus: calculation.qualityBonus,
+      penalidades: calculation.penalidades,
+      transfer_deduction: Math.round(calculation.netTotal * 0.015 * 100) / 100,
+      net_total: calculation.netTotal,
+      status: 'Pendiente'
+    })
+    .select()
+    .single();
 
+  if (error) throw error;
   return record;
 }
 
-/**
- * Calcula payroll para múltiples intérpretes (batch)
- * Optimizado para no generar N+1 queries
- */
 export async function calculateBatchPayroll(
   interpreterIds: number[],
   periodStart: Date,
   periodEnd: Date
 ) {
   const results = await Promise.all(
-    interpreterIds.map((id) =>
-      calculatePayroll({ interpreterId: id, periodStart, periodEnd })
-    )
+    interpreterIds.map((id) => calculatePayroll({ interpreterId: id, periodStart, periodEnd }))
   );
-
   return results;
 }
