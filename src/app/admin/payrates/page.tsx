@@ -14,12 +14,7 @@ export default async function PayratesPage({ searchParams }: { searchParams: { m
   if (!userId) redirect('/login');
 
   const profile = await (prisma as any).userProfile.findFirst({
-    where: { 
-      OR: [
-        { id: userId },
-        { clerkId: userId }
-      ]
-    },
+    where: { id: userId },
     select: { role: true }
   });
 

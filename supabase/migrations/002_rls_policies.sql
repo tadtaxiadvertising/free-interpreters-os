@@ -19,14 +19,43 @@ ALTER TABLE public.call_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Helper Function: Is Admin
 CREATE OR REPLACE FUNCTION public.is_admin()
-RETURNS BOOLEAN AS $$
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.user_profiles
     WHERE id = auth.uid() AND role = 'admin'
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.is_admin() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.is_admin() FROM anon;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, service_role;
+
+-- Drop existing policies before recreating (idempotent)
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.user_profiles;
+DROP POLICY IF EXISTS "Admins can manage all profiles" ON public.user_profiles;
+DROP POLICY IF EXISTS "Admins can manage all interpreters" ON public.interpreters;
+DROP POLICY IF EXISTS "Interpreters can view their own profile data" ON public.interpreters;
+DROP POLICY IF EXISTS "Interpreters can update their own profile data" ON public.interpreters;
+DROP POLICY IF EXISTS "Admins can manage production logs" ON public.production_logs;
+DROP POLICY IF EXISTS "Interpreters can view their own logs" ON public.production_logs;
+DROP POLICY IF EXISTS "Admins can manage QA scores" ON public.qa_scores;
+DROP POLICY IF EXISTS "Interpreters can view their own scores" ON public.qa_scores;
+DROP POLICY IF EXISTS "Admins can manage payroll" ON public.payroll_records;
+DROP POLICY IF EXISTS "Interpreters can view their own payroll" ON public.payroll_records;
+DROP POLICY IF EXISTS "Admins can manage call sessions" ON public.call_sessions;
+DROP POLICY IF EXISTS "Interpreters can manage their own sessions" ON public.call_sessions;
+DROP POLICY IF EXISTS "Users can manage their own notifications" ON public.notifications;
+DROP POLICY IF EXISTS "Admins only access recruitment" ON public.recruitment_candidates;
+DROP POLICY IF EXISTS "Admins only access system config" ON public.system_configs;
+DROP POLICY IF EXISTS "Admins only access accounts" ON public.accounts;
+DROP POLICY IF EXISTS "Admins only access account rates" ON public.interpreter_account_rates;
+DROP POLICY IF EXISTS "Admins only access payrate audit log" ON public.payrate_audit_log;
 
 -- 1. USER PROFILES
 CREATE POLICY "Users can view their own profile"

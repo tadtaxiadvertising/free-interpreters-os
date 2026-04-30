@@ -10,7 +10,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Resolve the internal profile ID to match notifications stored under either ID format
   const db = prisma as any;
   const profile = await db.userProfile.findFirst({
-    where: { clerkId: userId },
+    where: { id: userId },
     select: { id: true }
   });
 
