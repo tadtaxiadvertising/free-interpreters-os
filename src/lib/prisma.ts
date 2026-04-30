@@ -9,7 +9,17 @@ import pg from 'pg';
  * for compatibility with existing Server Actions.
  */
 const prismaClientSingleton = (): PrismaClient => {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+  if (!process.env.DATABASE_URL) {
+    console.error('❌ PRISMA: DATABASE_URL is not defined in environment variables.');
+  }
+  
+  const pool = new pg.Pool({ 
+    connectionString: process.env.DATABASE_URL,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  });
+  
   const adapter = new PrismaPg(pool);
   
   return new PrismaClient({

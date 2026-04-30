@@ -82,4 +82,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD echo "🚀 Starting Next.js on port $PORT..." && node server.js
