@@ -56,7 +56,7 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Runtime utilities
-RUN apk add --no-cache openssl curl
+RUN apk add --no-cache openssl curl libc6-compat
 
 # Copy standalone build artifacts
 COPY --from=builder /app/public ./public
@@ -64,9 +64,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Copy Prisma binaries and schema for runtime migrations
-COPY --from=deps /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/prisma ./prisma
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 # Runtime environment defaults
 ENV PORT=3000
@@ -76,7 +76,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:3000/api/health || exit 1
+  CMD curl -f http://127.0.0.1:3000/api/health || exit 1
 
 USER nextjs
 
