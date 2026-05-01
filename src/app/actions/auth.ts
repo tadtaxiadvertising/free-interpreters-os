@@ -63,12 +63,20 @@ export async function register(formData: FormData) {
   }
 
   if (data.user) {
-    // 2. Create UserProfile record (if not handled by trigger)
+    // 2. Try to find a matching interpreter by email
+    const { data: interpreter } = await supabase
+      .from('interpreters')
+      .select('id')
+      .eq('email_corporativo', email)
+      .single();
+
+    // 3. Create UserProfile record
     const { error: profileError } = await supabase.from('user_profiles').insert({
       id: data.user.id,
       email,
       display_name: name || email.split('@')[0],
       role: role,
+      interpreter_id: interpreter?.id || null, // Auto-link if found
     });
 
     if (profileError) {

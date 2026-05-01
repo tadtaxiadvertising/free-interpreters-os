@@ -10,7 +10,9 @@ import pg from 'pg';
  */
 const prismaClientSingleton = (): PrismaClient => {
   if (!process.env.DATABASE_URL) {
-    console.error('❌ PRISMA: DATABASE_URL is not defined in environment variables.');
+    console.warn('⚠️ PRISMA: DATABASE_URL is missing. Database features will be disabled.');
+    // Return a dummy client that doesn't try to connect immediately
+    return new PrismaClient(); 
   }
   
   const pool = new pg.Pool({ 

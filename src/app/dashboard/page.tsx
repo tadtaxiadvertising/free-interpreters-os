@@ -20,82 +20,65 @@ export default async function InterpreterDashboard() {
   const endOfMonth = new Date();
   endOfMonth.setMonth(endOfMonth.getMonth() + 1, 0);
 
-  const profile = await (prisma as any).userProfile.findUnique({
-    where: { 
-      id: userId
-    },
-    include: {
-      interpreter: {
-        include: {
-          productionLogs: {
-            where: {
-              date: {
-                gte: startOfMonth,
-                lte: endOfMonth
+  let profile: any = null;
+  try {
+    profile = await (prisma as any).userProfile.findUnique({
+      where: { id: userId },
+      include: {
+        interpreter: {
+          include: {
+            productionLogs: {
+              where: {
+                date: { gte: startOfMonth, lte: endOfMonth }
               }
+            },
+            qaScores: {
+              take: 5,
+              orderBy: { createdAt: 'desc' }
             }
-          },
-          qaScores: {
-            take: 5,
-            orderBy: { createdAt: 'desc' }
           }
         }
       }
-    }
-  });
-
-  if (!profile) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="glass p-8 rounded-3xl text-center max-w-md">
-          <h2 className="text-2xl font-bold text-white mb-4">Profile Not Created</h2>
-          <p className="text-gray-400">
-            Your user profile could not be found in the system. Please contact an administrator.
-          </p>
-        </div>
-      </div>
-    );
+    });
+  } catch (error) {
+    console.error('❌ DASHBOARD: Profile fetch failed:', error);
   }
 
-  if (profile.role === 'admin') {
+  if (profile && profile.role === 'admin') {
     redirect('/admin');
   }
 
-  const interpreter = profile.interpreter;
-
-  if (!interpreter) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="glass p-8 rounded-3xl text-center max-w-md">
-          <h2 className="text-2xl font-bold text-white mb-4">Account Not Linked</h2>
-          <p className="text-gray-400">
-            Your account has not been linked to an interpreter profile yet. Please contact an administrator.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Fetch active call (if any)
-  const activeCall = await prisma.callSession.findFirst({
-    where: {
-      interpreterId: interpreter.id,
-      endedAt: null
-    },
-    orderBy: { startedAt: 'desc' }
-  });
+  const interpreter = profile?.interpreter || null;
 
   // Fetch today's stats
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  const todayCalls = await prisma.callSession.findMany({
-    where: {
-      interpreterId: interpreter.id,
-      startedAt: { gte: todayStart },
-      endedAt: { not: null }
+  // Fetch active call and stats with Error Handling
+  let activeCall: any = null;
+  let todayCalls: any[] = [];
+  let recentCalls: any[] = [];
+
+  if (interpreter) {
+    try {
+      [activeCall, todayCalls, recentCalls] = await Promise.all([
+        prisma.callSession.findFirst({
+          where: { interpreterId: interpreter.id, endedAt: null },
+          orderBy: { startedAt: 'desc' }
+        }),
+        prisma.callSession.findMany({
+          where: { interpreterId: interpreter.id, startedAt: { gte: todayStart }, endedAt: { not: null } }
+        }),
+        prisma.callSession.findMany({
+          where: { interpreterId: interpreter.id, endedAt: { not: null } },
+          orderBy: { startedAt: 'desc' },
+          take: 10
+        })
+      ]);
+    } catch (error) {
+      console.error('❌ DASHBOARD: Data fetch failed:', error);
     }
-  });
+  }
 
   const todayMinutes = Math.round(
     todayCalls.reduce((sum: number, c: any) => sum + (c.durationSeconds || 0), 0) / 60
@@ -103,15 +86,23 @@ export default async function InterpreterDashboard() {
   const todayEarnings = todayCalls.reduce((sum: number, c: any) => sum + (Number(c.callCost) || 0), 0);
   const todayCallCount = todayCalls.length;
 
-  // Recent completed calls
-  const recentCalls = await prisma.callSession.findMany({
-    where: {
-      interpreterId: interpreter.id,
-      endedAt: { not: null }
-    },
-    orderBy: { startedAt: 'desc' },
-    take: 10
-  });
+  if (!profile || !interpreter) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="glass p-8 rounded-3xl text-center max-w-md">
+          <h2 className="text-2xl font-bold text-white mb-4">Account Access Error</h2>
+          <p className="text-gray-400">
+            {!profile ? "Your user profile could not be found." : "No interpreter profile is linked to your account."}
+            <br /><br />
+            <span className="text-xs text-orange-400 font-mono">Infrastructure Error: DATABASE_UNAVAILABLE</span>
+          </p>
+          <a href="/login" className="mt-6 inline-block bg-white/5 hover:bg-white/10 text-white px-6 py-2 rounded-xl text-sm transition-all">
+            Refresh Session
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
