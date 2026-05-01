@@ -22,7 +22,7 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
       name: formData.get('name'),
       externalId: formData.get('externalId'),
       emailCorporativo: formData.get('emailCorporativo'),
-      tariffPerMinute: parseFloat(formData.get('tariffPerMinute') as string),
+      tariffPerMinute: parseFloat(formData.get('hourlyTariff') as string) / 60,
       status: formData.get('status'),
       campaign: formData.get('campaign'),
       password: formData.get('password'),
@@ -115,16 +115,16 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Tariff per Minute ($)</label>
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Hourly Tariff ($)</label>
           <div className="relative">
             <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
               required
               type="number"
               step="0.01"
-              name="tariffPerMinute"
+              name="hourlyTariff"
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
-              placeholder="0.15"
+              placeholder="9.00"
             />
           </div>
         </div>

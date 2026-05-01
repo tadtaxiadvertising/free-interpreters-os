@@ -129,7 +129,7 @@ export default async function QAPage() {
 
         {/* Scores List - 2/3 width */}
         <div className="xl:col-span-2">
-          <div className="glass rounded-3xl overflow-hidden border border-white/5">
+          <div className="glass rounded-3xl overflow-visible border border-white/5">
             <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
               <h3 className="text-xl font-bold text-white">Recent Evaluations</h3>
               <button className="p-2 bg-white/5 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-colors">

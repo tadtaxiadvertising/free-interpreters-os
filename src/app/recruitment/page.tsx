@@ -82,7 +82,7 @@ export default async function RecruitmentPage() {
       </div>
 
       {/* Candidates List */}
-      <div className="glass rounded-3xl overflow-hidden">
+      <div className="glass rounded-3xl overflow-visible">
         <div className="p-6 border-b border-white/5 flex flex-wrap gap-4 items-center justify-between">
           <h3 className="text-xl font-bold text-white">Active Candidates</h3>
           <div className="flex gap-2">

@@ -80,7 +80,7 @@ export default async function PayrollPage() {
       </div>
 
       {/* Payroll List */}
-      <div className="glass rounded-3xl overflow-hidden">
+      <div className="glass rounded-3xl overflow-visible">
         <div className="p-6 border-b border-white/5 flex justify-between items-center">
           <h3 className="text-xl font-bold text-white">Payment Records</h3>
           <div className="flex gap-2">

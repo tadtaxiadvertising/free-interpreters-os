@@ -62,7 +62,7 @@ export default async function InterpretersPage() {
       </div>
 
       {/* Interpreters Grid/Table */}
-      <div className="glass rounded-3xl overflow-hidden">
+      <div className="glass rounded-3xl overflow-visible">
         <table className="w-full text-left">
           <thead>
             <tr className="text-gray-500 text-xs uppercase tracking-wider border-b border-white/5">
