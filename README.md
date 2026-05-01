@@ -18,13 +18,23 @@ In this decoupled approach:
 1. **Service Provider (`interpreters-api`)**: This acts as the backend source of truth. It holds the Prisma Client and the actual connection to the Supabase database (`DATABASE_URL`).
 2. **Service Consumer (`interpreters` Frontend)**: The frontend application that consumes the API data and handles UI rendering.
 
-**Environment Variable Exchange**:
+**Environment Variable Exchange (Sync)**:
 
-To correctly link both services in Easypanel:
+To link both services correctly in the production environment:
 
-- The **Frontend** must configure the `NEXT_PUBLIC_API_URL` environment variable to point to the public domain of the Backend service (e.g., `https://api.freeinterpreters.com`).
-- The **Backend** must configure the `CORS_ORIGIN` environment variable to accept requests from the Frontend's public domain (e.g., `https://app.freeinterpreters.com`).
-- Both services require their respective `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` to authenticate users, but only the Backend handles `DATABASE_URL`.
+- **Frontend (Consumer)**:
+  - `NEXT_PUBLIC_API_URL`: Points to the Backend's public endpoint (e.g., `https://api.freeinterpreters.com`).
+  - `NEXT_PUBLIC_SUPABASE_URL`: Required for client-side auth.
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Required for client-side auth.
+
+- **Backend (Service Provider)**:
+  - `DATABASE_URL`: Points to port **6543** (Transaction Pooler). This is the "Service Provider" heart.
+  - `DIRECT_URL`: Points to port **5432** (Direct Session) for migrations.
+  - `CORS_ORIGIN`: Must include the Frontend's public domain to allow requests.
+  - `SUPABASE_SERVICE_ROLE_KEY`: Used for admin operations bypass.
+
+> [!IMPORTANT]
+> The Backend acts as the **Service Provider** (providing data/Prisma access), while the Frontend acts as the **Consumer** (rendering UI based on API responses).
 
 See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for full architecture diagrams.
 

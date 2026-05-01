@@ -84,9 +84,13 @@ export async function GET(
 }
 ```
 
-### 3.2 Middleware Convention
+### 3.2 Middleware → Proxy Transition
 
-As documented by the successful Easypanel deployment logs, the traditional `middleware.ts` file is **deprecated for proxy/rewrite logic** in Next.js 16. The current implementation at `src/middleware.ts` is retained **exclusively** for Supabase session refresh. Proxy rules (API forwarding, URL rewrites) must use the new proxy convention via `next.config.ts` `rewrites()`.
+As documented in the Next.js 16 specifications and verified by our deployment logs, the `middleware.ts` convention is deprecated.
+
+- **Current State**: `src/middleware.ts` handles **only** Supabase Auth session refreshing.
+- **Future State**: All interceptor logic should move to the **Proxy** layer.
+- **Rewrites**: All API forwarding and URL masking must reside in `next.config.ts` `rewrites()`. This ensures the standalone build routes traffic correctly through the Node.js server.
 
 ### 3.3 Configuration Surface
 

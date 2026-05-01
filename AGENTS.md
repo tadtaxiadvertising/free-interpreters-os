@@ -28,12 +28,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 }
 ```
 
-### 2. Middleware Deprecation
+### 3.2 Middleware → Proxy Transition
 
-Based on the recent successful Easypanel deployment log, the traditional `middleware.ts` file is **deprecated** in favor of Next.js 16's new **proxy convention** for rewrite/redirect logic. The current implementation uses middleware exclusively for Supabase session refresh — not for proxying.
+As documented in the Next.js 16 specifications and verified by our deployment logs, the `middleware.ts` convention is deprecated.
 
-- **Current status**: `src/middleware.ts` is retained for Supabase Auth session management only.
-- **Do NOT** add proxy rewrites or API forwarding logic to `middleware.ts`. Use `next.config.ts` `rewrites()` instead.
+- **Current State**: `src/middleware.ts` handles **only** Supabase Auth session refreshing.
+- **Future State**: All interceptor logic should move to the **Proxy** layer.
+- **Rewrites**: All API forwarding and URL masking must reside in `next.config.ts` `rewrites()`. This ensures the standalone build routes traffic correctly through the Node.js server.
+- **Edge Logic**: Move to the `proxy` directory if required by your version, or keep `src/middleware.ts` **ONLY** for Supabase session management as per our current stable build.
+- **Do NOT** add business logic or API proxying to `src/middleware.ts`. This will trigger deployment warnings and potential 502s on Easypanel.
 
 ### 3. Configuration Changes
 
