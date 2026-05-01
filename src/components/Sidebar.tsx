@@ -14,9 +14,10 @@ import {
   ShieldCheck,
   UserPlus,
   Settings,
+  Menu,
+  ChevronLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { NotificationBell } from './NotificationBell';
 import type { UserRole } from '@/lib/types';
 
 const adminMenu = [
@@ -37,25 +38,39 @@ const interpreterMenu = [
 
 interface SidebarProps {
   role: UserRole;
-  notifications?: any[];
+  isCollapsed: boolean;
+  onToggle: () => void;
 }
 
-export function Sidebar({ role, notifications = [] }: SidebarProps) {
+export function Sidebar({ role, isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const menuItems = role === 'admin' ? adminMenu : interpreterMenu;
 
   return (
-    <aside className="sticky top-0 h-screen w-full md:w-64 glass border-r border-white/10 z-50 hidden md:flex flex-col">
-      <div className="p-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
-            Free Interpreters
-          </h1>
-          <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-widest font-bold">
-            {role === 'admin' ? 'Admin OS' : 'Portal'}
-          </p>
-        </div>
-        <NotificationBell initialNotifications={notifications} />
+    <aside className={cn(
+      "sticky top-0 h-screen glass border-r border-white/10 z-50 hidden md:flex flex-col transition-all duration-500 ease-in-out",
+      isCollapsed ? "w-20" : "w-64"
+    )}>
+      <div className={cn("p-6 flex items-center", isCollapsed ? "justify-center" : "justify-between")}>
+        {!isCollapsed && (
+          <div className="animate-in fade-in duration-500">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent truncate">
+              Free Interpreters
+            </h1>
+            <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-widest font-bold">
+              {role === 'admin' ? 'Admin OS' : 'Portal'}
+            </p>
+          </div>
+        )}
+        <button 
+          onClick={onToggle}
+          className={cn(
+            "p-2 hover:bg-white/5 rounded-xl text-gray-400 hover:text-white transition-all",
+            isCollapsed && "hover:scale-110"
+          )}
+        >
+          {isCollapsed ? <Menu size={20} /> : <ChevronLeft size={20} />}
+        </button>
       </div>
 
       <nav className="mt-6 px-4 space-y-2 flex-1">
@@ -67,18 +82,23 @@ export function Sidebar({ role, notifications = [] }: SidebarProps) {
             <Link
               key={`${item.href}-${i}`}
               href={item.href}
+              title={isCollapsed ? item.label : ""}
               className={cn(
-                "flex items-center justify-between p-3 rounded-xl transition-all duration-300 group",
+                "flex items-center p-3 rounded-xl transition-all duration-300 group relative",
                 isActive
                   ? "bg-blue-600/20 text-blue-400 glow"
-                  : "text-gray-400 hover:bg-white/5 hover:text-white"
+                  : "text-gray-400 hover:bg-white/5 hover:text-white",
+                isCollapsed ? "justify-center" : "justify-between"
               )}
             >
               <div className="flex items-center gap-3">
                 <Icon size={20} className={cn("transition-transform group-hover:scale-110", isActive && "text-blue-400")} />
-                <span className="font-medium">{item.label}</span>
+                {!isCollapsed && <span className="font-medium animate-in fade-in duration-300 truncate">{item.label}</span>}
               </div>
-              {isActive && <ChevronRight size={16} />}
+              {!isCollapsed && isActive && <ChevronRight size={16} />}
+              {isCollapsed && isActive && (
+                <div className="absolute left-0 w-1 h-6 bg-blue-500 rounded-r-full shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+              )}
             </Link>
           );
         })}

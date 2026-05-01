@@ -3,12 +3,14 @@
 import React, { useState } from 'react';
 import { User, LogOut, Settings } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
+import { NotificationBell } from './NotificationBell';
 
 interface NavbarProps {
   email?: string;
+  notifications?: any[];
 }
 
-export function Navbar({ email }: NavbarProps) {
+export function Navbar({ email, notifications = [] }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -17,6 +19,8 @@ export function Navbar({ email }: NavbarProps) {
         <div className="flex flex-1"></div>
         <div className="flex items-center gap-x-4 lg:gap-x-6">
           
+          <NotificationBell initialNotifications={notifications} />
+
           {/* Separator */}
           <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-white/10" aria-hidden="true" />
 

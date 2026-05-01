@@ -62,9 +62,37 @@ export async function POST(request: Request) {
       );
     }
 
+    const { password, ...interpreterData } = validationResult.data;
+
+    // 1. Create Interpreter in database
     const newInterpreter = await prisma.interpreter.create({
-      data: validationResult.data,
+      data: interpreterData as any,
     });
+
+    // 2. If password provided, create Auth user and UserProfile
+    if (password) {
+      const { createAdminClient } = await import('@/lib/supabase/admin');
+      const supabaseAdmin = createAdminClient();
+
+      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: interpreterData.emailCorporativo!,
+        password: password,
+        email_confirm: true,
+        user_metadata: { display_name: interpreterData.name }
+      });
+
+      if (!authError && authUser.user) {
+        await prisma.userProfile.create({
+          data: {
+            id: authUser.user.id,
+            email: interpreterData.emailCorporativo!,
+            displayName: interpreterData.name,
+            role: 'interpreter',
+            interpreterId: newInterpreter.id
+          }
+        });
+      }
+    }
 
     return NextResponse.json(newInterpreter, { 
       status: 201,

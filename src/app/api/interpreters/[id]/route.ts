@@ -1,122 +1,68 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { InterpreterSchema } from '@/lib/validators';
-
-export async function OPTIONS() {
-  return NextResponse.json({}, {
-    headers: {
-      'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
-}
-
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const resolvedParams = await params;
-    const id = parseInt(resolvedParams.id, 10);
-    if (isNaN(id)) {
-      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-    }
-
-    const interpreter = await prisma.interpreter.findUnique({
-      where: { id },
-    });
-
-    if (!interpreter) {
-      return NextResponse.json({ error: 'Interpreter not found' }, { status: 404 });
-    }
-
-    return NextResponse.json(interpreter, {
-      headers: {
-        'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
-      },
-    });
-
-  } catch (error: any) {
-    console.error('Error fetching interpreter:', error);
-    return NextResponse.json({ error: error.message || 'Error fetching interpreter' }, { status: 500 });
-  }
-}
-
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const resolvedParams = await params;
-    const id = parseInt(resolvedParams.id, 10);
-    if (isNaN(id)) {
-      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-    }
-
-    const body = await request.json();
-    
-    // Validate input (partial is fine for PUT/PATCH, but we'll use schema.partial() to allow partial updates)
-    const validationResult = InterpreterSchema.partial().safeParse(body);
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: validationResult.error.issues },
-        { status: 400 }
-      );
-    }
-
-    const updatedInterpreter = await prisma.interpreter.update({
-      where: { id },
-      data: validationResult.data,
-    });
-
-    return NextResponse.json(updatedInterpreter, {
-      headers: {
-        'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
-      },
-    });
-
-  } catch (error: any) {
-    console.error('Error updating interpreter:', error);
-    if (error.code === 'P2025') {
-      return NextResponse.json({ error: 'Interpreter not found' }, { status: 404 });
-    }
-    if (error.code === 'P2002') {
-      return NextResponse.json(
-        { error: `Interpreter with this ${error.meta?.target?.[0]} already exists.` },
-        { status: 409 }
-      );
-    }
-    return NextResponse.json({ error: error.message || 'Error updating interpreter' }, { status: 500 });
-  }
-}
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params;
-    const id = parseInt(resolvedParams.id, 10);
-    if (isNaN(id)) {
+    const { id } = await params;
+    const interpreterId = parseInt(id);
+
+    if (isNaN(interpreterId)) {
       return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
     }
 
-    await prisma.interpreter.delete({
-      where: { id },
+    // 1. Get interpreter to find associated UserProfile/Auth
+    const interpreter = await prisma.interpreter.findUnique({
+      where: { id: interpreterId },
+      include: { userProfile: true }
     });
 
-    return NextResponse.json({ success: true, message: 'Interpreter deleted successfully' }, {
-      headers: {
-        'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
-      },
+    if (!interpreter) {
+      return NextResponse.json({ error: 'Interpreter not found' }, { status: 404 });
+    }
+
+    // 2. Delete Auth user if exists
+    if (interpreter.userProfile) {
+      const { createAdminClient } = await import('@/lib/supabase/admin');
+      const supabaseAdmin = createAdminClient();
+      await supabaseAdmin.auth.admin.deleteUser(interpreter.userProfile.id);
+      
+      // UserProfile will be deleted automatically if RLS/Prisma CASCADE is set, 
+      // but let's be explicit if needed. Prisma usually needs manual delete if not set in schema.
+      await prisma.userProfile.delete({ where: { id: interpreter.userProfile.id } });
+    }
+
+    // 3. Delete interpreter (CASCADE should handle related records in production_logs, etc.)
+    await prisma.interpreter.delete({
+      where: { id: interpreterId },
     });
+
+    return NextResponse.json({ success: true });
 
   } catch (error: any) {
     console.error('Error deleting interpreter:', error);
-    if (error.code === 'P2025') {
-      return NextResponse.json({ error: 'Interpreter not found' }, { status: 404 });
-    }
     return NextResponse.json({ error: error.message || 'Error deleting interpreter' }, { status: 500 });
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const interpreterId = parseInt(id);
+
+    const updated = await prisma.interpreter.update({
+      where: { id: interpreterId },
+      data: body,
+    });
+
+    return NextResponse.json(updated);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

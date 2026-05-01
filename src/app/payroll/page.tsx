@@ -98,6 +98,7 @@ export default async function PayrollPage() {
               <th className="py-6 px-8">Interpreter</th>
               <th className="py-6 px-4">Period</th>
               <th className="py-6 px-4">Minutes</th>
+              <th className="py-6 px-4 text-center">Rate (Hr/Min)</th>
               <th className="py-6 px-4">Net Total</th>
               <th className="py-6 px-4">Status</th>
               <th className="py-6 px-4 text-right">Actions</th>
@@ -117,7 +118,7 @@ export default async function PayrollPage() {
                     </div>
                   </div>
                 </td>
-                <td className="py-6 px-4 text-gray-400 text-sm">
+                <td className="py-6 px-4 text-gray-400 text-sm" suppressHydrationWarning>
                   <span className="flex items-center gap-2">
                     <Calendar size={14} />
                     {new Date(record.periodStart).toLocaleDateString()} - {new Date(record.periodEnd).toLocaleDateString()}
@@ -125,6 +126,12 @@ export default async function PayrollPage() {
                 </td>
                 <td className="py-6 px-4 text-gray-300">
                   {record.totalMinutes}m
+                </td>
+                <td className="py-6 px-4 text-center">
+                  <div className="flex flex-col items-center">
+                    <span className="text-white text-sm font-bold">${(parseFloat(record.interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}</span>
+                    <span className="text-[10px] text-gray-500">${record.interpreter.tariffPerMinute.toString()}/m</span>
+                  </div>
                 </td>
                 <td className="py-6 px-4 text-white font-mono font-bold">
                   ${record.netTotal.toString()}

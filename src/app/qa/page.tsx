@@ -157,15 +157,15 @@ export default async function QAPage() {
                         <p className="font-bold text-white text-sm">{score.interpreter.name}</p>
                         <p className="text-gray-500 text-[10px]">Auditor: {score.auditor || 'System'}</p>
                       </td>
-                      <td className="py-5 px-4 text-gray-400 text-xs">
+                      <td className="py-5 px-4 text-gray-400 text-xs" suppressHydrationWarning>
                         {new Date(score.auditDate).toLocaleDateString()}
                       </td>
                       <td className="py-5 px-4">
                         <div className="flex items-center gap-2">
                           <span className={cn(
                             "font-bold text-sm",
-                            (score.totalScore?.toNumber() ?? 0) >= 90 ? "text-green-400" :
-                            (score.totalScore?.toNumber() ?? 0) >= 80 ? "text-yellow-400" : "text-red-400"
+                            parseFloat(score.totalScore || 0) >= 90 ? "text-green-400" :
+                            parseFloat(score.totalScore || 0) >= 80 ? "text-yellow-400" : "text-red-400"
                           )}>
                             {score.totalScore?.toString()}%
                           </span>

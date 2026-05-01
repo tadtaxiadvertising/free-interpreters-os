@@ -16,6 +16,7 @@ export const InterpreterSchema = z.object({
   documentosCompleto: z.boolean().default(false),
   notas: z.string().optional().nullable(),
   tariffPerMinute: z.number().positive('Tariff must be positive'),
+  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
 });
 
 export type InterpreterInput = z.infer<typeof InterpreterSchema>;

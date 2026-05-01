@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AddInterpreterButton } from '@/components/AddInterpreterButton';
+import { InterpreterActions } from '@/components/InterpreterActions';
+import { ExportInterpretersButton } from '@/components/ExportInterpretersButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +39,10 @@ export default async function InterpretersPage() {
           <h2 className="text-3xl font-bold text-white">Interpreter Roster</h2>
           <p className="text-gray-400">Manage your global network of interpreters</p>
         </div>
-        <AddInterpreterButton />
+        <div className="flex gap-4">
+          <ExportInterpretersButton data={interpreters} />
+          <AddInterpreterButton />
+        </div>
       </header>
 
       {/* Filters & Search */}
@@ -64,7 +69,7 @@ export default async function InterpretersPage() {
               <th className="py-6 px-8">Interpreter</th>
               <th className="py-6 px-4">Status</th>
               <th className="py-6 px-4">Campaign</th>
-              <th className="py-6 px-4">Rate / Min</th>
+              <th className="py-6 px-4 text-center">Hourly / Min</th>
               <th className="py-6 px-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -102,13 +107,14 @@ export default async function InterpretersPage() {
                     {interpreter.campaign || 'N/A'}
                   </span>
                 </td>
-                <td className="py-6 px-4 text-white font-mono font-bold">
-                  ${interpreter.tariffPerMinute.toString()}
+                <td className="py-6 px-4 text-center">
+                  <div className="flex flex-col items-center">
+                    <span className="text-white font-mono font-bold">${(parseFloat(interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}/hr</span>
+                    <span className="text-[10px] text-gray-500 font-mono tracking-tight">${interpreter.tariffPerMinute.toString()}/min</span>
+                  </div>
                 </td>
                 <td className="py-6 px-4 text-right">
-                  <button className="p-2 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors">
-                    <MoreVertical size={20} />
-                  </button>
+                  <InterpreterActions interpreter={interpreter} />
                 </td>
               </tr>
             ))}

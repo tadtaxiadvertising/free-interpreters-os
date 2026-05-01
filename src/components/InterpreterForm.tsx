@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, User, Mail, Shield, DollarSign, Target, Briefcase, Lock } from 'lucide-react';
 
 interface InterpreterFormProps {
   onSuccess?: () => void;
@@ -25,6 +25,7 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
       tariffPerMinute: parseFloat(formData.get('tariffPerMinute') as string),
       status: formData.get('status'),
       campaign: formData.get('campaign'),
+      password: formData.get('password'),
     };
 
     try {
@@ -51,7 +52,7 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm">
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm animate-in fade-in slide-in-from-top-2">
           {error}
         </div>
       )}
@@ -59,80 +60,114 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Full Name</label>
-          <input
-            required
-            name="name"
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white focus:border-blue-500/50 transition-colors"
-            placeholder="Jane Doe"
-          />
+          <div className="relative">
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <input
+              required
+              name="name"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="Jane Doe"
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">External ID</label>
-          <input
-            required
-            name="externalId"
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white focus:border-blue-500/50 transition-colors"
-            placeholder="INT-001"
-          />
+          <div className="relative">
+            <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <input
+              required
+              name="externalId"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="INT-001"
+            />
+          </div>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Corporate Email</label>
-        <input
-          type="email"
-          name="emailCorporativo"
-          className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white focus:border-blue-500/50 transition-colors"
-          placeholder="jane@freeinterpreters.com"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Corporate Email</label>
+          <div className="relative">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <input
+              required
+              type="email"
+              name="emailCorporativo"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="jane@freeinterpreters.com"
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Access Password</label>
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <input
+              required
+              type="password"
+              name="password"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="••••••••"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Tariff per Minute ($)</label>
-          <input
-            required
-            type="number"
-            step="0.01"
-            name="tariffPerMinute"
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white focus:border-blue-500/50 transition-colors"
-            placeholder="0.15"
-          />
+          <div className="relative">
+            <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <input
+              required
+              type="number"
+              step="0.01"
+              name="tariffPerMinute"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="0.15"
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Initial Status</label>
-          <select
-            name="status"
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white focus:border-blue-500/50 transition-colors appearance-none"
-          >
-            <option value="Activo">Activo</option>
-            <option value="Training">Training</option>
-            <option value="Probation">Probation</option>
-          </select>
+          <div className="relative">
+            <Target className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={18} />
+            <select
+              name="status"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer [&>option]:bg-[#1a1a1a]"
+            >
+              <option value="Activo">Activo</option>
+              <option value="Training">Training</option>
+              <option value="Probation">Probation</option>
+            </select>
+          </div>
         </div>
       </div>
 
       <div className="space-y-2">
         <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Assigned Campaign</label>
-        <input
-          name="campaign"
-          className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white focus:border-blue-500/50 transition-colors"
-          placeholder="HealthCare"
-        />
+        <div className="relative">
+          <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+          <input
+            name="campaign"
+            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+            placeholder="HealthCare"
+          />
+        </div>
       </div>
 
       <div className="flex gap-4 pt-4">
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-gray-400 rounded-2xl font-bold transition-all border border-white/10"
+          className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-gray-400 rounded-2xl font-bold transition-all border border-white/10 active:scale-95"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all glow flex items-center justify-center gap-2 disabled:opacity-50"
+          className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all glow flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
         >
           {loading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
           Save Interpreter
