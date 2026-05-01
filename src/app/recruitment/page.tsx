@@ -16,16 +16,15 @@ import {
 import prisma from '@/lib/prisma';
 import { cn } from '@/lib/utils';
 
-export const dynamic = 'force-dynamic';
+import { AddCandidateButton } from '@/components/AddCandidateButton';
 
 async function getCandidates() {
   try {
-    const candidates = await prisma.recruitmentCandidate.findMany({
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-    return candidates;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const res = await fetch(`${apiUrl}/api/recruitment`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Error fetching candidates:', error);
     return [];
@@ -37,7 +36,7 @@ export default async function RecruitmentPage() {
 
   const statusColors: Record<string, string> = {
     'Aplicante': 'bg-blue-500/10 text-blue-400',
-    'Entrevista': 'bg-purple-500/10 text-purple-400',
+    'Entrevista Agendada': 'bg-purple-500/10 text-purple-400',
     'Rechazado': 'bg-red-500/10 text-red-400',
     'Contratado': 'bg-green-500/10 text-green-400',
   };
@@ -49,11 +48,9 @@ export default async function RecruitmentPage() {
           <h2 className="text-3xl font-bold text-white">Recruitment Funnel</h2>
           <p className="text-gray-400">Track and manage interpreter applications</p>
         </div>
-        <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-2xl font-bold transition-all glow">
-          <Plus size={20} />
-          New Application
-        </button>
+        <AddCandidateButton />
       </header>
+
 
       {/* Pipeline Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

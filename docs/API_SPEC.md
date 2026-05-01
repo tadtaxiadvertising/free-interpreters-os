@@ -21,7 +21,47 @@ export async function GET(
 }
 ```
 
-## 1. Recruitment Inbound Webhook
+## 1. Interpreters Roster
+
+### 1.1 List Interpreters
+
+**Endpoint:** `GET /api/interpreters`  
+**Purpose:** Fetch the list of all interpreters for the roster.  
+**Query Params:**
+
+- `status` (optional): Filter by status (e.g., `Activo`, `Inactivo`).
+- `search` (optional): Search by name, ID, or campaign.
+
+**Response (200 OK):**
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Jane Doe",
+    "externalId": "INT-001",
+    "status": "Activo",
+    "campaign": "HealthCare",
+    "tariffPerMinute": 0.15
+  }
+]
+```
+
+### 1.2 Add Interpreter
+
+**Endpoint:** `POST /api/interpreters`  
+**Purpose:** Create a new interpreter record.  
+**Request Body:** (Validated by `InterpreterSchema`)
+
+```json
+{
+  "name": "John Smith",
+  "externalId": "INT-002",
+  "emailCorporativo": "john@freeinterpreters.com",
+  "tariffPerMinute": 0.12,
+  "status": "Activo"
+}
+```
 
 **Endpoint:** `POST /api/v1/webhooks/recruitment`  
 **Purpose:** Triggered by Typeform/Google Forms/Make when a new candidate applies.

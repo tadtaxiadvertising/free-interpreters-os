@@ -38,26 +38,23 @@ To link both services correctly in the production environment:
 
 See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for full architecture diagrams.
 
-## Repository Structure
+## Repository Structure (Co-located Mono-Repo)
+
+While built as two separate services, the code currently resides in this single repository for development velocity. Deployment targets specific Dockerfiles.
 
 ```text
-free-interpreters-os/          ← This repo (Frontend)
-├── src/app/                   # Pages and layouts
-├── src/components/            # React UI components
-├── src/lib/                   # Auth bridge, utilities
+free-interpreters-os/          
+├── src/app/                   # Frontend pages & Layouts
+├── src/app/api/               # Backend REST endpoints (interpreters-api)
+├── src/app/actions/           # Shared Server Actions
+├── src/components/            # React UI components (shared)
+├── src/lib/                   # Shared logic (Prisma, Supabase, Utils)
 ├── docs/                      # Architecture & API specs
 ├── documentation/             # Corporate SOPs & templates
-├── prisma/                    # Schema reference (read-only)
-├── Dockerfile                 # Frontend production build
+├── prisma/                    # Master Schema & Migrations
+├── Dockerfile                 # Frontend production build (Port 3000)
+├── Dockerfile.api             # Backend production build (Port 4000)
 └── easypanel/                 # Deployment documentation
-
-interpreters-api/              ← Separate repo (Backend)
-├── src/app/api/               # REST endpoints
-├── src/app/actions/           # Server Actions
-├── src/lib/prisma.ts          # Database client
-├── src/services/              # Business logic
-├── prisma/                    # Schema + migrations (owner)
-└── Dockerfile                 # Backend production build
 ```
 
 ## Getting Started

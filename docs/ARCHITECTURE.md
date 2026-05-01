@@ -25,10 +25,12 @@
 
 ### 2.1 Service Boundary
 
-| Service              | Repository              | Easypanel App        | Port | Build Output   | Responsibility                               |
-| :------------------- | :---------------------- | :------------------- | :--- | :------------- | :------------------------------------------- |
-| **interpreters**     | `free-interpreters-os`  | `interpreters`       | 3000 | standalone     | UI rendering, auth sessions, static assets   |
-| **interpreters-api** | `interpreters-api`      | `interpreters-api`   | 4000 | standalone     | Business logic, DB access, webhooks, payroll |
+| Service              | Repository (Current)    | Easypanel App        | Port | Build Target     | Responsibility                               |
+| :------------------- | :---------------------- | :------------------- | :--- | :--------------- | :------------------------------------------- |
+| **interpreters**     | `free-interpreters-os`  | `interpreters`       | 3000 | `Dockerfile`     | UI rendering, auth sessions, static assets   |
+| **interpreters-api** | `free-interpreters-os`  | `interpreters-api`   | 4000 | `Dockerfile.api` | Business logic, DB access, webhooks, payroll |
+
+> **Note**: While currently co-located in a single repository for ease of development, the services are architecturally decoupled. The Frontend consumes the Backend strictly via HTTPS/REST.
 
 ### 2.2 Communication Flow
 

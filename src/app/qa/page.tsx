@@ -13,27 +13,20 @@ import {
 import prisma from '@/lib/prisma';
 import { cn } from '@/lib/utils';
 
-export const dynamic = 'force-dynamic';
+import { NewEvaluationButton } from '@/components/NewEvaluationButton';
 
 async function getQAData() {
   try {
-    const [scores, pendingCalls] = await Promise.all([
-      prisma.qAScore.findMany({
-        orderBy: { auditDate: 'desc' },
-        include: { interpreter: true },
-        take: 10
-      }),
-      prisma.callSession.findMany({
-        where: {
-          endedAt: { not: null },
-          // We could add a check here to exclude calls already in qAScore if we had a direct link
-          // For now, we fetch the most recent completed calls
-        },
-        include: { interpreter: true },
-        orderBy: { startedAt: 'desc' },
-        take: 5
-      })
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    
+    const [scoresRes, pendingRes] = await Promise.all([
+      fetch(`${apiUrl}/api/qa`, { cache: 'no-store' }),
+      fetch(`${apiUrl}/api/qa/pending`, { cache: 'no-store' })
     ]);
+
+    const scores = scoresRes.ok ? await scoresRes.json() : [];
+    const pendingCalls = pendingRes.ok ? await pendingRes.json() : [];
+
     return { scores, pendingCalls };
   } catch (error) {
     console.error('Error fetching QA data:', error);
@@ -56,12 +49,10 @@ export default async function QAPage() {
             <Search size={20} />
             Search Call
           </button>
-          <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-2xl font-bold transition-all glow">
-            <Plus size={20} />
-            New Manual Evaluation
-          </button>
+          <NewEvaluationButton />
         </div>
       </header>
+
 
       {/* QA Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -165,7 +156,7 @@ export default async function QAPage() {
                         <p className="text-gray-500 text-[10px]">Auditor: {score.auditor || 'System'}</p>
                       </td>
                       <td className="py-5 px-4 text-gray-400 text-xs">
-                        {score.auditDate.toLocaleDateString()}
+                        {new Date(score.auditDate).toLocaleDateString()}
                       </td>
                       <td className="py-5 px-4">
                         <div className="flex items-center gap-2">

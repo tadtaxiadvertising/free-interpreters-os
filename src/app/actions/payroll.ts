@@ -5,14 +5,17 @@ import { createPayrollRecord } from '@/lib/payroll';
 import { revalidatePath } from 'next/cache';
 import type { ActionResult } from '@/lib/types';
 
-export async function generatePayrollPeriod(): Promise<ActionResult<{ message: string }>> {
+export async function generatePayrollPeriod(
+  startDate?: Date,
+  endDate?: Date
+): Promise<ActionResult<{ message: string }>> {
   const supabase = await createClient();
   
   try {
-    // Definir el período (ej. del 1 al 15 del mes actual)
     const now = new Date();
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const periodEnd = new Date(now.getFullYear(), now.getMonth(), 15);
+    const periodStart = startDate || new Date(now.getFullYear(), now.getMonth(), 1);
+    const periodEnd = endDate || new Date(now.getFullYear(), now.getMonth(), 15);
+
     
     // Obtener todos los intérpretes activos
     const { data: interpreters, error: interpError } = await supabase

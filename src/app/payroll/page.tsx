@@ -20,15 +20,11 @@ export const dynamic = 'force-dynamic';
 
 async function getPayrollRecords() {
   try {
-    const records = await prisma.payrollRecord.findMany({
-      orderBy: {
-        periodStart: 'desc'
-      },
-      include: {
-        interpreter: true
-      }
-    });
-    return records;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const res = await fetch(`${apiUrl}/api/payroll`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Error fetching payroll records:', error);
     return [];
@@ -38,7 +34,7 @@ async function getPayrollRecords() {
 export default async function PayrollPage() {
   const records = await getPayrollRecords();
 
-  const totalPayout = records.reduce((acc, rec) => acc + rec.netTotal.toNumber(), 0);
+  const totalPayout = records.reduce((acc: number, rec: any) => acc + parseFloat(rec.netTotal || 0), 0);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -124,7 +120,7 @@ export default async function PayrollPage() {
                 <td className="py-6 px-4 text-gray-400 text-sm">
                   <span className="flex items-center gap-2">
                     <Calendar size={14} />
-                    {record.periodStart.toLocaleDateString()} - {record.periodEnd.toLocaleDateString()}
+                    {new Date(record.periodStart).toLocaleDateString()} - {new Date(record.periodEnd).toLocaleDateString()}
                   </span>
                 </td>
                 <td className="py-6 px-4 text-gray-300">

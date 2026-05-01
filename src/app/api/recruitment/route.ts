@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { InterpreterSchema } from '@/lib/validators';
+import { RecruitmentCandidateSchema } from '@/lib/validators';
 
 export async function OPTIONS() {
   return NextResponse.json({}, {
     headers: {
       'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });
@@ -25,27 +25,24 @@ export async function GET(request: Request) {
     if (search) {
       whereClause.OR = [
         { name: { contains: search, mode: 'insensitive' } },
-        { externalId: { contains: search, mode: 'insensitive' } },
-        { emailCorporativo: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { telefono: { contains: search, mode: 'insensitive' } },
       ];
     }
 
-    const interpreters = await prisma.interpreter.findMany({
+    const candidates = await prisma.recruitmentCandidate.findMany({
       where: whereClause,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { fechaPostulacion: 'desc' },
     });
 
-    return NextResponse.json(interpreters, {
+    return NextResponse.json(candidates, {
       headers: {
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       },
     });
-
   } catch (error: any) {
-    console.error('Error fetching interpreters:', error);
-    return NextResponse.json({ error: error.message || 'Error fetching interpreters' }, { status: 500 });
+    console.error('Error fetching candidates:', error);
+    return NextResponse.json({ error: error.message || 'Error fetching candidates' }, { status: 500 });
   }
 }
 
@@ -54,7 +51,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     
     // Validate input
-    const validationResult = InterpreterSchema.safeParse(body);
+    const validationResult = RecruitmentCandidateSchema.safeParse(body);
     if (!validationResult.success) {
       return NextResponse.json(
         { error: 'Validation failed', details: validationResult.error.issues },
@@ -62,28 +59,24 @@ export async function POST(request: Request) {
       );
     }
 
-    const newInterpreter = await prisma.interpreter.create({
+    const newCandidate = await prisma.recruitmentCandidate.create({
       data: validationResult.data,
     });
 
-    return NextResponse.json(newInterpreter, { 
+    return NextResponse.json(newCandidate, { 
       status: 201,
       headers: {
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       },
     });
-
   } catch (error: any) {
-    console.error('Error creating interpreter:', error);
-    // Handle unique constraint violations
+    console.error('Error creating candidate:', error);
     if (error.code === 'P2002') {
       return NextResponse.json(
-        { error: `Interpreter with this ${error.meta?.target?.[0]} already exists.` },
+        { error: 'Candidate with this email already exists.' },
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: error.message || 'Error creating interpreter' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Error creating candidate' }, { status: 500 });
   }
 }
