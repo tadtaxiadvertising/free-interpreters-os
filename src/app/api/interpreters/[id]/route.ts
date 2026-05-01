@@ -55,14 +55,36 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     const interpreterId = parseInt(id);
+    
+    const { password, ...updateData } = body;
 
+    // 1. If password provided, update Supabase Auth
+    if (password) {
+      const interpreter = await prisma.interpreter.findUnique({
+        where: { id: interpreterId },
+        include: { userProfile: true }
+      });
+
+      if (interpreter?.userProfile) {
+        const { createAdminClient } = await import('@/lib/supabase/admin');
+        const supabaseAdmin = createAdminClient();
+        const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+          interpreter.userProfile.id,
+          { password }
+        );
+        if (authError) throw authError;
+      }
+    }
+
+    // 2. Update Interpreter record
     const updated = await prisma.interpreter.update({
       where: { id: interpreterId },
-      data: body,
+      data: updateData,
     });
 
     return NextResponse.json(updated);
   } catch (error: any) {
+    console.error('Error updating interpreter:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

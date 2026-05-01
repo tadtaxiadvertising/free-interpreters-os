@@ -61,8 +61,8 @@ export function InterpreterActions({ interpreter }: InterpreterActionsProps) {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/interpreters/${interpreter.id}/password`, {
-        method: 'POST',
+      const response = await fetch(`${apiUrl}/api/interpreters/${interpreter.id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: newPassword }),
       });
