@@ -1,21 +1,22 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Users,
-  Phone,
   DollarSign,
   ChevronRight,
   Clock,
-  History,
   ShieldCheck,
   UserPlus,
   Settings,
   Menu,
   ChevronLeft,
+  Trophy,
+  TrendingUp,
+  Award,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/types';
@@ -30,22 +31,58 @@ const adminMenu = [
 ];
 
 const interpreterMenu = [
-  { icon: LayoutDashboard, label: 'My Dashboard', href: '/dashboard' },
-  { icon: Clock, label: 'Active Session', href: '/dashboard' },
-  { icon: DollarSign, label: 'My Earnings', href: '/dashboard/earnings' },
-  { icon: Settings, label: 'Account Settings', href: '/dashboard/settings' },
+  { icon: LayoutDashboard, label: 'Mi Dashboard', href: '/dashboard' },
+  { icon: Trophy, label: 'Mi Ranking', href: '/dashboard/ranking' },
+  { icon: DollarSign, label: 'Mis Ganancias', href: '/dashboard/earnings' },
+  { icon: Settings, label: 'Configuración', href: '/dashboard/settings' },
 ];
+
+interface RankingData {
+  position: number;
+  totalInterpreters: number;
+  myMinutes: number;
+  avgMinutes: number;
+}
 
 interface SidebarProps {
   role: UserRole;
   isCollapsed: boolean;
   onToggle: () => void;
   notifications?: any[];
+  ranking?: RankingData | null;
 }
 
-export function Sidebar({ role, isCollapsed, onToggle, notifications = [] }: SidebarProps) {
+/**
+ * Determines the SINGLE active menu item using mutually exclusive logic:
+ * 1. Exact match always wins
+ * 2. For prefix matches (e.g. /dashboard/earnings matches /dashboard), 
+ *    only the MOST SPECIFIC match is active
+ */
+function getActiveIndex(pathname: string, items: typeof adminMenu): number {
+  // First pass: check for exact match
+  const exactIdx = items.findIndex(item => pathname === item.href);
+  if (exactIdx !== -1) return exactIdx;
+
+  // Second pass: longest prefix match (most specific wins)
+  let bestIdx = -1;
+  let bestLen = 0;
+  items.forEach((item, i) => {
+    if (pathname.startsWith(item.href) && item.href.length > bestLen) {
+      bestLen = item.href.length;
+      bestIdx = i;
+    }
+  });
+
+  return bestIdx;
+}
+
+export function Sidebar({ role, isCollapsed, onToggle, notifications = [], ranking }: SidebarProps) {
   const pathname = usePathname();
   const menuItems = role === 'admin' ? adminMenu : interpreterMenu;
+  const activeIndex = getActiveIndex(pathname, menuItems);
+
+  // Inline ranking data for the sidebar (interpreter only)
+  const showRanking = role === 'interpreter' && ranking && !isCollapsed;
 
   return (
     <aside className={cn(
@@ -77,12 +114,11 @@ export function Sidebar({ role, isCollapsed, onToggle, notifications = [] }: Sid
       <nav className="mt-6 px-4 space-y-2 flex-1">
         {menuItems.map((item, i) => {
           const Icon = item.icon;
-          // Ensure only the first matching item is marked active if there are duplicates
-          const isActive = pathname === item.href && menuItems.findIndex(m => m.href === pathname) === i;
+          const isActive = i === activeIndex;
 
           return (
             <Link
-              key={`${item.href}-${i}`}
+              key={item.href}
               href={item.href}
               title={isCollapsed ? item.label : ""}
               className={cn(
@@ -105,6 +141,39 @@ export function Sidebar({ role, isCollapsed, onToggle, notifications = [] }: Sid
           );
         })}
       </nav>
+
+      {/* Mi Ranking mini-card (interpreter sidebar only) */}
+      {showRanking && ranking && (
+        <div className="px-4 mb-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/10 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Award size={16} className="text-amber-400" />
+              <span className="text-xs font-bold text-amber-400 uppercase tracking-wide">Mi Ranking</span>
+            </div>
+            <div className="flex items-baseline gap-1 mb-2">
+              <span className="text-2xl font-bold text-white">#{ranking.position}</span>
+              <span className="text-xs text-slate-400">de {ranking.totalInterpreters}</span>
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-400">Tú</span>
+                <span className="text-emerald-400 font-medium">{ranking.myMinutes} min</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-400">Promedio</span>
+                <span className="text-slate-300 font-medium">{ranking.avgMinutes} min</span>
+              </div>
+              {/* Visual bar */}
+              <div className="mt-2 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full"
+                  style={{ width: `${Math.min((ranking.myMinutes / Math.max(ranking.avgMinutes, 1)) * 50, 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom section */}
       <div className={cn("p-4 transition-all duration-500", isCollapsed ? "px-2" : "px-4")}>

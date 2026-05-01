@@ -22,14 +22,75 @@ export default async function DashboardLayout({ children }: { children: React.Re
     take: 10
   });
 
+  // ── Compute ranking data for the sidebar ──
+  let ranking = null;
+  if (profile?.interpreter_id) {
+    try {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const endOfMonth = new Date();
+      endOfMonth.setMonth(endOfMonth.getMonth() + 1, 0);
+
+      // Get all interpreters' monthly minutes for ranking
+      const allInterpreters = await db.interpreter.findMany({
+        where: { status: 'Activo' },
+        select: {
+          id: true,
+          callSessions: {
+            where: {
+              startedAt: { gte: startOfMonth, lte: endOfMonth },
+              endedAt: { not: null },
+            },
+            select: { durationSeconds: true },
+          },
+          productionLogs: {
+            where: {
+              date: { gte: startOfMonth, lte: endOfMonth },
+            },
+            select: { interpretedMinutes: true },
+          },
+        },
+      });
+
+      // Calculate total minutes for each interpreter
+      const rankings = allInterpreters.map((interp: any) => {
+        const sessionMin = Math.round(
+          (interp.callSessions || []).reduce((s: number, c: any) => s + (c.durationSeconds || 0), 0) / 60
+        );
+        const logMin = (interp.productionLogs || []).reduce(
+          (s: number, l: any) => s + (l.interpretedMinutes || 0), 0
+        );
+        return { id: interp.id, totalMinutes: sessionMin + logMin };
+      });
+
+      // Sort descending
+      rankings.sort((a: any, b: any) => b.totalMinutes - a.totalMinutes);
+
+      const myEntry = rankings.find((r: any) => r.id === profile.interpreter_id);
+      const myPosition = rankings.findIndex((r: any) => r.id === profile.interpreter_id) + 1;
+      const totalMinutesAll = rankings.reduce((s: number, r: any) => s + r.totalMinutes, 0);
+      const avgMinutes = rankings.length > 0 ? Math.round(totalMinutesAll / rankings.length) : 0;
+
+      ranking = {
+        position: myPosition || rankings.length,
+        totalInterpreters: rankings.length,
+        myMinutes: myEntry?.totalMinutes || 0,
+        avgMinutes,
+      };
+    } catch (error) {
+      console.error('❌ LAYOUT: Ranking calculation failed:', error);
+    }
+  }
+
   return (
     <DashboardShell 
       role="interpreter" 
       userName={profile?.display_name || "Interpreter"}
       notifications={notifications}
+      ranking={ranking}
     >
       {children}
     </DashboardShell>
   );
 }
-

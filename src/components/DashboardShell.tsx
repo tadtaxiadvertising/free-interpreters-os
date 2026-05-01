@@ -6,14 +6,22 @@ import { Navbar } from './Navbar';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/types';
 
+interface RankingData {
+  position: number;
+  totalInterpreters: number;
+  myMinutes: number;
+  avgMinutes: number;
+}
+
 interface DashboardShellProps {
   children: React.ReactNode;
   role: UserRole;
   userName: string;
   notifications?: any[];
+  ranking?: RankingData | null;
 }
 
-export function DashboardShell({ children, role, userName, notifications = [] }: DashboardShellProps) {
+export function DashboardShell({ children, role, userName, notifications = [], ranking = null }: DashboardShellProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Load preference from localStorage on mount
@@ -37,6 +45,7 @@ export function DashboardShell({ children, role, userName, notifications = [] }:
         isCollapsed={isCollapsed} 
         onToggle={handleToggle} 
         notifications={notifications}
+        ranking={ranking}
       />
       
       <div className="flex flex-col flex-1 h-screen overflow-hidden">

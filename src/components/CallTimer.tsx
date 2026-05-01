@@ -32,8 +32,22 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
   const [tariff, setTariff] = useState(activeCall?.tariffSnapshot ?? currentRate);
   const [callResult, setCallResult] = useState<{ duration: number; cost: number } | null>(null);
   const [isPending, startTransition] = useTransition();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const startedAtRef = useRef<string | null>(activeCall?.startedAt ?? null);
+  const workerRef = useRef<Worker | null>(null);
+
+  // Initialize Web Worker
+  useEffect(() => {
+    workerRef.current = new Worker('/timer-worker.js');
+    workerRef.current.onmessage = (e) => {
+      if (e.data.type === 'tick') {
+        setElapsed(e.data.elapsed);
+      }
+    };
+
+    return () => {
+      workerRef.current?.terminate();
+    };
+  }, []);
 
   // Calculate elapsed from server timestamp (resilient to reload)
   const calculateElapsed = useCallback((startedAt: string) => {
@@ -49,6 +63,9 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
       setIsActive(true);
       setElapsed(calculateElapsed(activeCall.startedAt));
 
+      // Start the worker
+      workerRef.current?.postMessage({ type: 'start', startedAt: activeCall.startedAt });
+
       // Sync to localStorage
       const state: TimerLocalState = {
         sessionId: activeCall.sessionId,
@@ -58,30 +75,6 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
       localStorage.setItem(LS_KEY, JSON.stringify(state));
     }
   }, [activeCall, calculateElapsed, sessionId]);
-
-  // Timer tick
-  useEffect(() => {
-    let animationFrameId: number;
-    let lastTick = 0;
-
-    const tick = (timestamp: number) => {
-      if (timestamp - lastTick >= 1000) {
-        if (startedAtRef.current) {
-          setElapsed(calculateElapsed(startedAtRef.current));
-        }
-        lastTick = timestamp;
-      }
-      animationFrameId = requestAnimationFrame(tick);
-    };
-
-    if (isActive && startedAtRef.current) {
-      animationFrameId = requestAnimationFrame(tick);
-    }
-
-    return () => {
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
-    };
-  }, [isActive, calculateElapsed]);
 
   function handleStart() {
     setCallResult(null);
@@ -93,6 +86,9 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
         setTariff(currentRate);
         setIsActive(true);
         setElapsed(0);
+
+        // Start the Web Worker timer
+        workerRef.current?.postMessage({ type: 'start', startedAt: result.data.startedAt });
 
         const state: TimerLocalState = {
           sessionId: result.data.sessionId,
@@ -115,7 +111,9 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
           cost: result.data.callCost,
         });
         localStorage.removeItem(LS_KEY);
-        if (intervalRef.current) clearInterval(intervalRef.current);
+
+        // Stop the Web Worker
+        workerRef.current?.postMessage({ type: 'stop' });
       }
     });
   }
@@ -154,19 +152,20 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
         <span>Tarifa: ${(tariff * 60).toFixed(2)}/hr (${tariff.toFixed(2)}/min)</span>
       </div>
 
-      {/* Control Buttons */}
+      {/* Control Buttons — Start Call (green) + Registro Rápido (blue) side by side */}
       <div className="flex gap-4">
         {!isActive ? (
           <div className="flex gap-4">
             <button
               onClick={handleStart}
               disabled={isPending}
+              id="btn-start-call"
               className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-green-600 to-green-500 text-white font-bold rounded-2xl hover:from-green-500 hover:to-green-400 transition-all duration-300 disabled:opacity-50 shadow-lg shadow-green-600/20"
             >
               {isPending ? <Loader2 size={20} className="animate-spin" /> : <Play size={20} />}
-              Start Call
+              Iniciar Llamada
             </button>
-            {/* QuickLogButton moved directly near Start Call */}
+            {/* QuickLogButton (blue style) next to Start Call */}
             <div className="relative z-[60]">
               <QuickLogButton inline={true} />
             </div>
@@ -175,10 +174,11 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
           <button
             onClick={handleEnd}
             disabled={isPending}
+            id="btn-end-call"
             className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-red-600 to-red-500 text-white font-bold rounded-2xl hover:from-red-500 hover:to-red-400 transition-all duration-300 disabled:opacity-50 shadow-lg shadow-red-600/20"
           >
             {isPending ? <Loader2 size={20} className="animate-spin" /> : <Square size={20} />}
-            End Call
+            Finalizar Llamada
           </button>
         )}
       </div>
@@ -186,14 +186,14 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
       {/* Call Result */}
       {callResult && (
         <div className="mt-8 glass rounded-2xl p-6 w-full max-w-sm border border-green-500/20 animate-in slide-in-from-bottom-4 duration-500">
-          <h4 className="text-sm font-bold text-green-400 mb-3">Call Completed ✓</h4>
+          <h4 className="text-sm font-bold text-green-400 mb-3">Llamada Completada ✓</h4>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-gray-500">Duration</p>
+              <p className="text-xs text-gray-500">Duración</p>
               <p className="text-lg font-bold text-white">{formatTime(callResult.duration)}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Earnings</p>
+              <p className="text-xs text-gray-500">Ganancia</p>
               <p className="text-lg font-bold text-green-400">${callResult.cost.toFixed(2)}</p>
             </div>
           </div>

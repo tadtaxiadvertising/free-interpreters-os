@@ -26,6 +26,7 @@ model Interpreter {
   documentosCompleto Boolean  @default(false) @map("documentos_completo")
   notas              String?  @db.Text
   tariffPerMinute    Decimal  @db.Decimal(10, 2) @map("tariff_per_minute")
+  monthlyGoal        Int      @default(2000) @map("monthly_goal")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -214,12 +215,18 @@ model Notification {
 }
 
 model UserProfile {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  displayName   String?  @map("display_name")
-  role          String   @default("interpreter")
-  interpreterId Int?     @map("interpreter_id") @unique
-  createdAt     DateTime @default(now()) @map("created_at")
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  displayName        String?   @map("display_name")
+  role               String    @default("interpreter")
+  interpreterId      Int?      @map("interpreter_id") @unique
+  termsAcceptedAt    DateTime? @map("terms_accepted_at")
+  signatureDate      DateTime? @map("signature_date")
+  bankName           String?   @map("bank_name")
+  bankAccount        String?   @map("bank_account")
+  bankCedula         String?   @map("bank_cedula")
+  onboardingComplete Boolean   @default(false) @map("onboarding_complete")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   interpreter   Interpreter? @relation(fields: [interpreterId], references: [id])
 

@@ -41,11 +41,12 @@ export function QuickLogButton({ inline = false }: { inline?: boolean }) {
     <>
       <button
         onClick={() => setIsOpen(true)}
+        id="btn-quick-log"
         className={cn(
-          "flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-all group",
+          "flex items-center gap-2 text-white font-bold transition-all group",
           inline
-            ? "px-8 py-4 rounded-2xl shadow-lg shadow-indigo-600/20 hover:shadow-indigo-500/30"
-            : "fixed bottom-8 right-8 z-50 px-5 py-3 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:shadow-[0_0_25px_rgba(79,70,229,0.6)] hover:-translate-y-1"
+            ? "px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl shadow-lg shadow-blue-600/20 hover:from-blue-500 hover:to-blue-400 hover:shadow-blue-500/30"
+            : "fixed bottom-8 right-8 z-50 px-5 py-3 bg-blue-600 hover:bg-blue-500 rounded-full shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:shadow-[0_0_25px_rgba(59,130,246,0.6)] hover:-translate-y-1"
         )}
       >
         <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
