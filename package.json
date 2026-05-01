@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "next lint .",
     "migrate": "tsx scripts/migrate.ts",
+    "migrate:onboarding": "tsx scripts/migrate-onboarding.ts",
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
