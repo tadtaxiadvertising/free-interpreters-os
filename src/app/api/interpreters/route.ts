@@ -64,6 +64,13 @@ export async function POST(request: Request) {
 
     const { password, ...interpreterData } = validationResult.data;
 
+    if (password && !interpreterData.emailCorporativo) {
+      return NextResponse.json(
+        { error: 'Email corporativo is required when creating an account with a password.' },
+        { status: 400 }
+      );
+    }
+
     console.log(`[API_INTERPRETERS_POST] Step 1: Creating interpreter record for ${interpreterData.emailCorporativo}`);
     const newInterpreter = await prisma.interpreter.create({
       data: interpreterData as any,

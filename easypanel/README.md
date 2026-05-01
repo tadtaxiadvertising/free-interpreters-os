@@ -12,6 +12,7 @@ Easypanel requires these variables to be configured in the **Environment** tab o
 | :------------------------------ | :---------------------------------------------- | :------------------------------------ |
 | `NEXT_PUBLIC_SUPABASE_URL`      | REST API endpoint for your Supabase project.    | `https://your-id.supabase.co`         |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anonymous public key for client-side requests.  | `eyJhbGciOiJIUz...`                   |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Service role secret key for admin operations.   | `eyJhbGciOiJIUz...`                   |
 
 ### 2. Database Configuration (Prisma)
 
