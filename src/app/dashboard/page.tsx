@@ -51,18 +51,18 @@ export default async function InterpreterDashboard() {
 
   const interpreter = profile?.interpreter || null;
 
-  // Fetch today's stats
+  // Fetch today's and month's call sessions
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  // Fetch active call and stats with Error Handling
   let activeCall: any = null;
   let todayCalls: any[] = [];
   let recentCalls: any[] = [];
+  let monthCalls: any[] = [];
 
   if (interpreter) {
     try {
-      [activeCall, todayCalls, recentCalls] = await Promise.all([
+      [activeCall, todayCalls, recentCalls, monthCalls] = await Promise.all([
         prisma.callSession.findFirst({
           where: { interpreterId: interpreter.id, endedAt: null },
           orderBy: { startedAt: 'desc' }
@@ -73,7 +73,14 @@ export default async function InterpreterDashboard() {
         prisma.callSession.findMany({
           where: { interpreterId: interpreter.id, endedAt: { not: null } },
           orderBy: { startedAt: 'desc' },
-          take: 10
+          take: 50 // Increased for filtering
+        }),
+        prisma.callSession.findMany({
+          where: { 
+            interpreterId: interpreter.id, 
+            startedAt: { gte: startOfMonth, lte: endOfMonth },
+            endedAt: { not: null }
+          }
         })
       ]);
     } catch (error) {
@@ -87,15 +94,21 @@ export default async function InterpreterDashboard() {
   const todayEarnings = todayCalls.reduce((sum: number, c: any) => sum + (Number(c.callCost) || 0), 0);
   const todayCallCount = todayCalls.length;
 
-  // Gamification Metrics
-  const mtdMinutes = interpreter?.productionLogs?.reduce((sum: number, log: any) => sum + (log.interpretedMinutes || 0), 0) || 0;
+  // Gamification Metrics (Combined Production Logs + Call Sessions)
+  const logMinutes = interpreter?.productionLogs?.reduce((sum: number, log: any) => sum + (log.interpretedMinutes || 0), 0) || 0;
+  const sessionMinutes = Math.round(
+    monthCalls.reduce((sum: number, c: any) => sum + (c.durationSeconds || 0), 0) / 60
+  );
+  
+  const mtdMinutes = logMinutes + sessionMinutes;
   const monthlyGoal = 2000;
   const mtdProgress = Math.min((mtdMinutes / monthlyGoal) * 100, 100);
   
   const latestQaScore = interpreter?.qaScores?.[0]?.totalScore ? Number(interpreter.qaScores[0].totalScore) : 0;
   const isQaExcellent = latestQaScore >= 90;
   
-  const mtdEarnings = (mtdMinutes / 60) * Number(interpreter.tariffPerMinute || 0) * 60; // Approximate MTD earnings
+  const mtdEarnings = monthCalls.reduce((sum: number, c: any) => sum + (Number(c.callCost) || 0), 0) + 
+    (logMinutes * Number(interpreter.tariffPerMinute || 0));
 
   if (!profile || !interpreter) {
     return (
@@ -187,10 +200,13 @@ export default async function InterpreterDashboard() {
                 <DollarSign size={20} />
               </div>
             </div>
-            <p className="text-4xl font-bold text-white tracking-tight">
-              ${mtdEarnings.toFixed(2)}
-            </p>
-            <p className="text-xs text-slate-400 mt-2">Based on ${Number(interpreter.tariffPerMinute || 0).toFixed(2)}/min rate</p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-4xl font-bold text-white tracking-tight">
+                ${mtdEarnings.toFixed(2)}
+              </p>
+              <span className="text-slate-500 text-sm font-medium">({(mtdMinutes / 60).toFixed(1)} hrs)</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-2">Rate: ${(Number(interpreter.tariffPerMinute || 0) * 60).toFixed(2)}/hr</p>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, X, Clock, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -9,22 +10,28 @@ export function QuickLogButton() {
   const [duration, setDuration] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const router = useRouter();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!duration || isNaN(Number(duration))) return;
 
     setIsSubmitting(true);
     try {
-      // API call to log the manual call would go here
-      // await fetch('/api/calls/manual', { method: 'POST', ... })
+      const response = await fetch('/api/calls/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ durationMinutes: duration }),
+      });
       
-      // Simulate network request
-      await new Promise(resolve => setTimeout(resolve, 800));
+      if (!response.ok) throw new Error('Failed to save log');
       
       setIsOpen(false);
       setDuration('');
+      router.refresh(); // Refresh the server component data
     } catch (error) {
       console.error('Error logging call:', error);
+      alert('Error saving manual log. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
