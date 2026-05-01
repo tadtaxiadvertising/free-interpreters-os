@@ -64,13 +64,15 @@ export async function POST(request: Request) {
 
     const { password, ...interpreterData } = validationResult.data;
 
-    // 1. Create Interpreter in database
+    console.log(`[API_INTERPRETERS_POST] Step 1: Creating interpreter record for ${interpreterData.emailCorporativo}`);
     const newInterpreter = await prisma.interpreter.create({
       data: interpreterData as any,
     });
+    console.log(`[API_INTERPRETERS_POST] Interpreter created with ID: ${newInterpreter.id}`);
 
     // 2. If password provided, create Auth user and UserProfile
     if (password) {
+      console.log(`[API_INTERPRETERS_POST] Step 2: Creating Auth user for ${interpreterData.emailCorporativo}`);
       const { createAdminClient } = await import('@/lib/supabase/admin');
       const supabaseAdmin = createAdminClient();
 
@@ -81,16 +83,45 @@ export async function POST(request: Request) {
         user_metadata: { display_name: interpreterData.name }
       });
 
-      if (!authError && authUser.user) {
-        await prisma.userProfile.create({
-          data: {
-            id: authUser.user.id,
-            email: interpreterData.emailCorporativo!,
-            displayName: interpreterData.name,
-            role: 'interpreter',
-            interpreterId: newInterpreter.id
-          }
-        });
+      if (authError) {
+        console.error(`[API_INTERPRETERS_POST] ❌ Auth creation failed: ${authError.message}`);
+        // Return 400 with details about the partial success
+        const response = NextResponse.json(
+          { error: `Interpreter record created (ID: ${newInterpreter.id}), but Auth creation failed: ${authError.message}` },
+          { status: 400 }
+        );
+        response.headers.set('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
+        return response;
+      }
+
+      if (authUser.user) {
+        console.log(`[API_INTERPRETERS_POST] Step 3: Upserting UserProfile for Auth ID: ${authUser.user.id}`);
+        try {
+          await prisma.userProfile.upsert({
+            where: { id: authUser.user.id },
+            update: {
+              email: interpreterData.emailCorporativo!,
+              displayName: interpreterData.name,
+              interpreterId: newInterpreter.id
+            },
+            create: {
+              id: authUser.user.id,
+              email: interpreterData.emailCorporativo!,
+              displayName: interpreterData.name,
+              role: 'interpreter',
+              interpreterId: newInterpreter.id
+            }
+          });
+          console.log('[API_INTERPRETERS_POST] ✅ UserProfile upserted successfully');
+        } catch (profileError: any) {
+          console.error(`[API_INTERPRETERS_POST] ❌ UserProfile DB error: ${profileError.message}`);
+          const response = NextResponse.json(
+            { error: `Interpreter and Auth user created, but profile linking failed: ${profileError.message}` },
+            { status: 500 }
+          );
+          response.headers.set('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
+          return response;
+        }
       }
     }
 

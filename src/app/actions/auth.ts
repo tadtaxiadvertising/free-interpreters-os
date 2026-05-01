@@ -20,18 +20,27 @@ export async function login(formData: FormData) {
   });
 
   if (error) {
-    console.error('Login error:', error.message);
+    console.error(`[AUTH_LOGIN] Login failed for ${email}:`, error.message);
     return { error: error.message };
   }
 
+  console.log(`[AUTH_LOGIN] Login successful for ${email}, fetching profile...`);
+
   // Get user profile to determine redirect
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
     .select('role')
     .eq('id', data.user.id)
-    .single();
+    .maybeSingle();
 
-  return { success: true, role: profile?.role || 'interpreter' };
+  if (profileError) {
+    console.error('[AUTH_LOGIN] Error fetching profile:', profileError.message);
+  }
+
+  const role = profile?.role || 'interpreter';
+  console.log(`[AUTH_LOGIN] User role: ${role}`);
+
+  return { success: true, role };
 }
 
 export async function register(formData: FormData) {
@@ -39,6 +48,8 @@ export async function register(formData: FormData) {
   const password = formData.get('password') as string;
   const name = formData.get('name') as string;
   const role = (formData.get('role') as string) || 'interpreter';
+
+  console.log(`[AUTH_REGISTER] Attempting registration for: ${email}`);
 
   if (!email || !password) {
     return { error: 'Email and password are required' };
@@ -58,31 +69,47 @@ export async function register(formData: FormData) {
   });
 
   if (error) {
-    console.error('Registration error:', error.message);
+    console.error('[AUTH_REGISTER] Supabase Auth Error:', error.message);
     return { error: error.message };
   }
 
   if (data.user) {
+    console.log(`[AUTH_REGISTER] Auth user created: ${data.user.id}`);
+    
+    // Use Admin client for DB operations to bypass RLS and ensure success during signup
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const supabaseAdmin = createAdminClient();
+
     // 2. Try to find a matching interpreter by email
-    const { data: interpreter } = await supabase
+    const { data: interpreter } = await supabaseAdmin
       .from('interpreters')
       .select('id')
       .eq('email_corporativo', email)
-      .single();
+      .maybeSingle();
 
-    // 3. Create UserProfile record
-    const { error: profileError } = await supabase.from('user_profiles').insert({
+    console.log(`[AUTH_REGISTER] Linking to interpreter: ${interpreter?.id || 'none'}`);
+
+    // 3. Upsert UserProfile record (The DB trigger might have already created a basic one)
+    const { error: profileError } = await supabaseAdmin.from('user_profiles').upsert({
       id: data.user.id,
       email,
       display_name: name || email.split('@')[0],
       role: role,
-      interpreter_id: interpreter?.id || null, // Auto-link if found
-    });
+      interpreter_id: interpreter?.id || null,
+    }, { onConflict: 'id' });
 
     if (profileError) {
-      console.error('Profile creation error:', profileError.message);
-      // We don't fail here as the user is already created in Auth
+      console.error('[AUTH_REGISTER] Profile upsert error:', profileError.message, profileError.details);
+      return { 
+        success: true, 
+        role, 
+        warning: 'Account created but profile linking had an issue. Please contact support.' 
+      };
     }
+    
+    console.log('[AUTH_REGISTER] Registration successful');
+  } else {
+    console.warn('[AUTH_REGISTER] signUp returned no user and no error (check if email confirmation is required)');
   }
 
   return { success: true, role };
