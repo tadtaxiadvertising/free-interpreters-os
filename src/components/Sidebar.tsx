@@ -26,7 +26,7 @@ const adminMenu = [
   { icon: UserPlus, label: 'Recruitment', href: '/recruitment' },
   { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
   { icon: DollarSign, label: 'Payroll & Rates', href: '/payroll' },
-  { icon: Settings, label: 'System Settings', href: '/admin' },
+  { icon: Settings, label: 'System Settings', href: '/settings' },
 ];
 
 const interpreterMenu = [
@@ -106,12 +106,19 @@ export function Sidebar({ role, isCollapsed, onToggle, notifications = [] }: Sid
       </nav>
 
       {/* Bottom section */}
-      <div className="p-4 space-y-4">
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-600/10 to-transparent border border-blue-500/10">
-          <p className="text-xs text-gray-500">System Status</p>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-sm font-medium text-gray-300">Edge API Online</span>
+      <div className={cn("p-4 transition-all duration-500", isCollapsed ? "px-2" : "px-4")}>
+        <div className={cn(
+          "rounded-2xl bg-gradient-to-br from-blue-600/10 to-transparent border border-blue-500/10 transition-all duration-500",
+          isCollapsed ? "p-2 flex flex-col items-center" : "p-4"
+        )}>
+          {!isCollapsed && <p className="text-xs text-gray-500 animate-in fade-in duration-500">System Status</p>}
+          <div className={cn("flex items-center gap-2", !isCollapsed && "mt-2")}>
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+            {!isCollapsed && (
+              <span className="text-sm font-medium text-gray-300 animate-in fade-in duration-500 truncate">
+                Edge API Online
+              </span>
+            )}
           </div>
         </div>
       </div>
