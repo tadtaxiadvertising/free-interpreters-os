@@ -6,19 +6,21 @@ import {
   MoreVertical,
   Plus,
 } from 'lucide-react';
-import prisma from '@/lib/prisma';
 import { cn } from '@/lib/utils';
+import { AddInterpreterButton } from '@/components/AddInterpreterButton';
 
 export const dynamic = 'force-dynamic';
 
 async function getInterpreters() {
   try {
-    const interpreters = await prisma.interpreter.findMany({
-      orderBy: {
-        name: 'asc'
-      }
-    });
-    return interpreters;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const res = await fetch(`${apiUrl}/api/interpreters`, { cache: 'no-store' });
+    if (!res.ok) {
+      console.warn(`API returned status ${res.status}`);
+      return [];
+    }
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Error fetching interpreters:', error);
     return [];
@@ -35,10 +37,7 @@ export default async function InterpretersPage() {
           <h2 className="text-3xl font-bold text-white">Interpreter Roster</h2>
           <p className="text-gray-400">Manage your global network of interpreters</p>
         </div>
-        <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-2xl font-bold transition-all glow">
-          <Plus size={20} />
-          Add Interpreter
-        </button>
+        <AddInterpreterButton />
       </header>
 
       {/* Filters & Search */}

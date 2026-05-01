@@ -16,7 +16,6 @@ import {
   Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { LogoutButton } from './LogoutButton';
 import { NotificationBell } from './NotificationBell';
 import type { UserRole } from '@/lib/types';
 
@@ -46,7 +45,7 @@ export function Sidebar({ role, notifications = [] }: SidebarProps) {
   const menuItems = role === 'admin' ? adminMenu : interpreterMenu;
 
   return (
-    <aside className="sticky top-0 h-screen w-64 glass border-r border-white/10 z-50 flex flex-col">
+    <aside className="sticky top-0 h-screen w-full md:w-64 glass border-r border-white/10 z-50 hidden md:flex flex-col">
       <div className="p-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
@@ -94,7 +93,6 @@ export function Sidebar({ role, notifications = [] }: SidebarProps) {
             <span className="text-sm font-medium text-gray-300">Edge API Online</span>
           </div>
         </div>
-        <LogoutButton />
       </div>
     </aside>
   );

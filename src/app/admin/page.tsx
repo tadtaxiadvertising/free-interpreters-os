@@ -6,7 +6,6 @@ import {
   BarChart3, TrendingUp, ChevronRight, Trophy
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { LogoutButton } from '../../components/LogoutButton';
 import prismaClient from '@/lib/prisma';
 const prisma = prismaClient as any;
 
@@ -80,7 +79,6 @@ export default async function AdminDashboard() {
             Global Performance Oversight • {profile?.displayName || 'Administrator'}
           </p>
         </div>
-        <LogoutButton />
       </header>
 
       {/* Primary KPI Row */}
@@ -91,19 +89,23 @@ export default async function AdminDashboard() {
           { label: 'Active Roster', value: interpreters.length, sub: `${onlineCount} Online Now`, icon: Users, color: 'text-purple-400' },
           { label: 'Live Traffic', value: activeCalls.length, sub: 'Call Sessions', icon: Phone, color: 'text-orange-400' },
         ].map((stat, i) => (
-          <div key={i} className="glass p-6 rounded-3xl border border-white/5 relative overflow-hidden group">
+          <div key={i} className="glass p-6 rounded-3xl border border-white/5 relative overflow-hidden group flex flex-col justify-between min-h-[160px]">
             <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
               <stat.icon size={80} />
             </div>
-            <div className={`p-3 rounded-2xl bg-white/5 ${stat.color} w-fit mb-4`}>
+            <div className={`p-3 rounded-2xl bg-white/5 ${stat.color} w-fit mb-2`}>
               <stat.icon size={24} />
             </div>
-            <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
-            <h3 className="text-3xl font-bold text-white mt-1">{stat.value}</h3>
-            <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
-              <TrendingUp size={12} className="text-green-400" />
-              {stat.sub}
-            </p>
+            <div>
+              <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
+              <h3 className="text-3xl font-bold text-white mt-1 leading-none">{stat.value}</h3>
+            </div>
+            <div className="mt-2 pt-2 border-t border-white/5">
+              <p className="text-xs text-gray-400 flex items-center gap-1">
+                <TrendingUp size={12} className="text-green-400" />
+                {stat.sub}
+              </p>
+            </div>
           </div>
         ))}
       </div>
