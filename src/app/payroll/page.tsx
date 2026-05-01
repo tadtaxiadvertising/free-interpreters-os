@@ -104,7 +104,7 @@ export default async function PayrollPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {records.map((record) => (
+            {records.map((record: any) => (
               <tr key={record.id} className="group hover:bg-white/5 transition-colors">
                 <td className="py-6 px-8">
                   <div className="flex items-center gap-4">

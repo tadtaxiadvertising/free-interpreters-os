@@ -69,7 +69,7 @@ export default async function QAPage() {
         <div className="glass p-6 rounded-3xl border border-white/5">
           <p className="text-sm text-gray-500 font-medium">Critical Errors</p>
           <div className="flex items-center gap-3 mt-2">
-            <h3 className="text-3xl font-bold text-white">{scores.filter(s => s.criticalError).length}</h3>
+            <h3 className="text-3xl font-bold text-white">{scores.filter((s: any) => s.criticalError).length}</h3>
             <span className="text-xs font-bold text-red-400 bg-red-400/10 px-2 py-1 rounded-full">This Period</span>
           </div>
           <AlertTriangle size={24} className="mt-4 text-red-500" />
@@ -96,7 +96,7 @@ export default async function QAPage() {
           </div>
           
           <div className="space-y-4">
-            {pendingCalls.map((call) => (
+            {pendingCalls.map((call: any) => (
               <div key={call.id} className="glass p-5 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-all group">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
@@ -149,7 +149,7 @@ export default async function QAPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {scores.map((score) => (
+                  {scores.map((score: any) => (
                     <tr key={score.id} className="group hover:bg-white/5 transition-colors">
                       <td className="py-5 px-8">
                         <p className="font-bold text-white text-sm">{score.interpreter.name}</p>
