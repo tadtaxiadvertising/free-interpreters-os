@@ -124,11 +124,19 @@ export default async function InterpretersPage() {
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t border-slate-800/50">
-                  <span className="text-sm text-slate-400">Rate</span>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-tighter">Rate</span>
+                    <p className="text-white font-mono font-bold">${(parseFloat(interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}<span className="text-xs text-slate-500">/h</span></p>
+                  </div>
                   <div className="text-right">
-                    <p className="text-white font-mono font-bold">${(parseFloat(interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}<span className="text-xs text-slate-500">/hr</span></p>
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-tighter">Target</span>
+                    <p className="text-indigo-400 font-mono font-bold">40h<span className="text-xs text-slate-500">/mo</span></p>
                   </div>
                 </div>
+
+                <button className="w-full mt-4 py-2 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-500/20 rounded-xl text-xs font-bold transition-all duration-300">
+                  Set Custom Goal
+                </button>
               </div>
             </div>
           );

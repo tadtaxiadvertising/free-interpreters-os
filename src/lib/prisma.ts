@@ -17,7 +17,7 @@ const prismaClientSingleton = (): PrismaClient => {
   
   const pool = new pg.Pool({ 
     connectionString: process.env.DATABASE_URL,
-    max: 20,
+    max: process.env.NODE_ENV === 'production' ? 1 : 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
   });

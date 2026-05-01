@@ -6,8 +6,11 @@ import { revalidatePath } from 'next/cache';
 export type ProfileUpdateInput = {
   phone?: string;
   country?: string;
-  paymentMethod?: string;
-  paymentAccount?: string;
+  metodoPago?: string;
+  banco?: string;
+  tipoCuenta?: string;
+  cuentaPago?: string;
+  cedulaRnc?: string;
   notes?: string;
 };
 
@@ -33,8 +36,11 @@ export async function updateInterpreterProfile(input: ProfileUpdateInput) {
       .update({
         telefono: input.phone,
         pais: input.country,
-        metodo_pago: input.paymentMethod,
-        cuenta_pago: input.paymentAccount,
+        metodo_pago: input.metodoPago,
+        banco: input.banco,
+        tipo_cuenta: input.tipoCuenta,
+        cuenta_pago: input.cuentaPago,
+        cedula_rnc: input.cedulaRnc,
         notas: input.notes
       })
       .eq('id', profile.interpreter_id)

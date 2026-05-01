@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, X, Clock, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function QuickLogButton() {
+export function QuickLogButton({ inline = false }: { inline?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [duration, setDuration] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,10 +41,15 @@ export function QuickLogButton() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-8 right-8 z-50 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-full font-medium shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:shadow-[0_0_25px_rgba(79,70,229,0.6)] transition-all hover:-translate-y-1 group"
+        className={cn(
+          "flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-all group",
+          inline
+            ? "px-8 py-4 rounded-2xl shadow-lg shadow-indigo-600/20 hover:shadow-indigo-500/30"
+            : "fixed bottom-8 right-8 z-50 px-5 py-3 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:shadow-[0_0_25px_rgba(79,70,229,0.6)] hover:-translate-y-1"
+        )}
       >
         <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-        <span className="hidden md:inline">Quick Log</span>
+        <span className={inline ? "" : "hidden md:inline"}>Registro Rápido</span>
       </button>
 
       {isOpen && (

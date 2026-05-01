@@ -115,7 +115,7 @@ export default async function InterpreterDashboard() {
       <div className="flex items-center justify-center h-screen">
         <div className="glass p-8 rounded-3xl text-center max-w-md">
           <h2 className="text-2xl font-bold text-white mb-4">Account Access Error</h2>
-          <p className="text-gray-400">
+          <p className="text-gray-300">
             {!profile ? "Your user profile could not be found." : "No interpreter profile is linked to your account."}
             <br /><br />
             <span className="text-xs text-orange-400 font-mono">Infrastructure Error: DATABASE_UNAVAILABLE</span>
@@ -145,7 +145,7 @@ export default async function InterpreterDashboard() {
                 </span>
               )}
             </div>
-            <p className="text-slate-400 font-medium">
+            <p className="text-slate-300 font-medium">
               {interpreter.languageA} ↔ {interpreter.languageB}
               {interpreter.campaign && <span className="ml-3 text-indigo-400">• {interpreter.campaign}</span>}
             </p>
@@ -158,8 +158,8 @@ export default async function InterpreterDashboard() {
           <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm">
             <div className="flex justify-between items-end mb-4">
               <div>
-                <p className="text-sm text-slate-400 font-medium mb-1">MTD Minutes</p>
-                <p className="text-3xl font-bold text-white">{mtdMinutes}<span className="text-lg text-slate-500"> / {monthlyGoal}</span></p>
+                <p className="text-sm text-slate-300 font-medium mb-1">MTD Minutes</p>
+                <p className="text-3xl font-bold text-white">{mtdMinutes}<span className="text-lg text-slate-400"> / {monthlyGoal}</span></p>
               </div>
               <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400">
                 <Clock size={24} />
@@ -173,14 +173,14 @@ export default async function InterpreterDashboard() {
                 <div className="absolute inset-0 bg-white/20 animate-pulse" />
               </div>
             </div>
-            <p className="text-xs text-slate-400 mt-2 text-right">{mtdProgress.toFixed(1)}% of monthly goal</p>
+            <p className="text-xs text-slate-300 mt-2 text-right">{mtdProgress.toFixed(1)}% of monthly goal</p>
           </div>
 
           {/* QA Score */}
           <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm flex flex-col justify-center">
             <div className="flex justify-between items-center mb-2">
-              <p className="text-sm text-slate-400 font-medium">Latest QA Score</p>
-              <div className={cn("p-2 rounded-xl", isQaExcellent ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-400")}>
+              <p className="text-sm text-slate-300 font-medium">Latest QA Score</p>
+              <div className={cn("p-2 rounded-xl", isQaExcellent ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-300")}>
                 <ShieldCheck size={20} />
               </div>
             </div>
@@ -195,7 +195,7 @@ export default async function InterpreterDashboard() {
           {/* Earnings */}
           <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm flex flex-col justify-center">
             <div className="flex justify-between items-center mb-2">
-              <p className="text-sm text-slate-400 font-medium">MTD Est. Earnings</p>
+              <p className="text-sm text-slate-300 font-medium">MTD Est. Earnings</p>
               <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
                 <DollarSign size={20} />
               </div>
@@ -204,9 +204,9 @@ export default async function InterpreterDashboard() {
               <p className="text-4xl font-bold text-white tracking-tight">
                 ${mtdEarnings.toFixed(2)}
               </p>
-              <span className="text-slate-500 text-sm font-medium">({(mtdMinutes / 60).toFixed(1)} hrs)</span>
+              <span className="text-slate-400 text-sm font-medium">({(mtdMinutes / 60).toFixed(1)} hrs)</span>
             </div>
-            <p className="text-xs text-slate-400 mt-2">Rate: ${(Number(interpreter.tariffPerMinute || 0) * 60).toFixed(2)}/hr</p>
+            <p className="text-xs text-slate-300 mt-2">Rate: ${(Number(interpreter.tariffPerMinute || 0) * 60).toFixed(2)}/hr</p>
           </div>
         </div>
       </div>

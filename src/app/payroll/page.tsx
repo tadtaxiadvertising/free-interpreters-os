@@ -52,30 +52,35 @@ export default async function PayrollPage() {
 
       {/* Payroll Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="glass p-6 rounded-3xl border border-white/5">
-          <p className="text-sm text-gray-500 font-medium">Total Payout (Lifetime)</p>
-          <div className="flex items-center gap-3 mt-2">
-            <h3 className="text-3xl font-bold text-white">${totalPayout.toLocaleString()}</h3>
+        <div className="bg-gradient-to-br from-indigo-900/40 to-slate-900/60 p-6 rounded-3xl border border-indigo-500/20 shadow-lg relative overflow-hidden backdrop-blur-md">
+          <div className="absolute top-0 right-0 p-16 bg-indigo-500/10 blur-[50px] rounded-full pointer-events-none" />
+          <p className="text-sm text-indigo-200/70 font-medium tracking-wide uppercase">Total Payout (Lifetime)</p>
+          <div className="flex items-center gap-3 mt-2 relative z-10">
+            <h3 className="text-4xl font-black text-white tracking-tight">${totalPayout.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
           </div>
-          <TrendingUp size={24} className="mt-4 text-green-400" />
+          <TrendingUp size={24} className="mt-4 text-indigo-400 relative z-10" />
         </div>
-        <div className="glass p-6 rounded-3xl border border-white/5">
-          <p className="text-sm text-gray-500 font-medium">Pending Payments</p>
-          <div className="flex items-center gap-3 mt-2">
-            <h3 className="text-3xl font-bold text-white">
-              {records.filter(r => r.status === 'Pendiente').length}
+        
+        <div className="bg-gradient-to-br from-emerald-900/40 to-slate-900/60 p-6 rounded-3xl border border-emerald-500/20 shadow-lg relative overflow-hidden backdrop-blur-md">
+          <div className="absolute top-0 right-0 p-16 bg-emerald-500/10 blur-[50px] rounded-full pointer-events-none" />
+          <p className="text-sm text-emerald-200/70 font-medium tracking-wide uppercase">Pending Payments</p>
+          <div className="flex items-center gap-3 mt-2 relative z-10">
+            <h3 className="text-4xl font-black text-white tracking-tight">
+              {records.filter((r: any) => r.status === 'Pendiente').length}
             </h3>
-            <span className="text-xs font-bold text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-full">Action Needed</span>
+            <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]">Action Needed</span>
           </div>
-          <AlertCircle size={24} className="mt-4 text-yellow-400" />
+          <AlertCircle size={24} className="mt-4 text-emerald-400 relative z-10" />
         </div>
-        <div className="glass p-6 rounded-3xl border border-white/5">
-          <p className="text-sm text-gray-500 font-medium">Last Cycle Avg.</p>
-          <div className="flex items-center gap-3 mt-2">
-            <h3 className="text-3xl font-bold text-white">$450.00</h3>
-            <span className="text-xs font-bold text-blue-400 bg-blue-400/10 px-2 py-1 rounded-full">Per Int.</span>
+        
+        <div className="bg-gradient-to-br from-purple-900/40 to-slate-900/60 p-6 rounded-3xl border border-purple-500/20 shadow-lg relative overflow-hidden backdrop-blur-md">
+          <div className="absolute top-0 right-0 p-16 bg-purple-500/10 blur-[50px] rounded-full pointer-events-none" />
+          <p className="text-sm text-purple-200/70 font-medium tracking-wide uppercase">Last Cycle Avg.</p>
+          <div className="flex items-center gap-3 mt-2 relative z-10">
+            <h3 className="text-4xl font-black text-white tracking-tight">$450.00</h3>
+            <span className="text-xs font-bold text-purple-400 bg-purple-400/10 px-3 py-1 rounded-full border border-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]">Per Int.</span>
           </div>
-          <DollarSign size={24} className="mt-4 text-blue-400" />
+          <DollarSign size={24} className="mt-4 text-purple-400 relative z-10" />
         </div>
       </div>
 
@@ -92,60 +97,62 @@ export default async function PayrollPage() {
 
         <table className="w-full text-left">
           <thead>
-            <tr className="text-gray-500 text-xs uppercase tracking-wider border-b border-white/5">
-              <th className="py-6 px-8">Interpreter</th>
-              <th className="py-6 px-4">Period</th>
-              <th className="py-6 px-4">Minutes</th>
-              <th className="py-6 px-4 text-center">Rate (Hr/Min)</th>
-              <th className="py-6 px-4">Net Total</th>
-              <th className="py-6 px-4">Status</th>
-              <th className="py-6 px-4 text-right">Actions</th>
+            <tr className="text-slate-500 text-xs uppercase tracking-wider border-b border-white/5">
+              <th className="py-6 px-8 font-semibold">Interpreter</th>
+              <th className="py-6 px-4 font-semibold">Period</th>
+              <th className="py-6 px-4 font-semibold">Minutes</th>
+              <th className="py-6 px-4 text-center font-semibold">Rate (Hr/Min)</th>
+              <th className="py-6 px-4 font-semibold">Net Total</th>
+              <th className="py-6 px-4 font-semibold">Status</th>
+              <th className="py-6 px-4 text-right font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {records.map((record: any) => (
-              <tr key={record.id} className="group hover:bg-white/5 transition-colors">
+              <tr key={record.id} className="group hover:bg-white/5 transition-all duration-300">
                 <td className="py-6 px-8">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400 font-bold border border-white/5">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-indigo-400 font-bold border border-white/5 shadow-inner">
                       {record.interpreter.name.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-bold text-white">{record.interpreter.name}</p>
-                      <p className="text-xs text-gray-500">{record.interpreter.metodoPago}</p>
+                      <p className="font-bold text-white group-hover:text-indigo-400 transition-colors">{record.interpreter.name}</p>
+                      <p className="text-xs text-slate-500 font-mono">{record.interpreter.metodoPago}</p>
                     </div>
                   </div>
                 </td>
-                <td className="py-6 px-4 text-gray-400 text-sm" suppressHydrationWarning>
+                <td className="py-6 px-4 text-slate-400 text-sm font-medium" suppressHydrationWarning>
                   <span className="flex items-center gap-2">
-                    <Calendar size={14} />
+                    <Calendar size={14} className="text-slate-500" />
                     {new Date(record.periodStart).toLocaleDateString()} - {new Date(record.periodEnd).toLocaleDateString()}
                   </span>
                 </td>
-                <td className="py-6 px-4 text-gray-300">
+                <td className="py-6 px-4 text-white font-mono">
                   {record.totalMinutes}m
                 </td>
                 <td className="py-6 px-4 text-center">
                   <div className="flex flex-col items-center">
-                    <span className="text-white text-sm font-bold">${(parseFloat(record.interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}</span>
-                    <span className="text-[10px] text-gray-500">${record.interpreter.tariffPerMinute.toString()}/m</span>
+                    <span className="text-white text-sm font-bold font-mono">${(parseFloat(record.interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}</span>
+                    <span className="text-[10px] text-slate-500 font-mono">${record.interpreter.tariffPerMinute.toString()}/m</span>
                   </div>
                 </td>
-                <td className="py-6 px-4 text-white font-mono font-bold">
-                  ${record.netTotal.toString()}
+                <td className="py-6 px-4">
+                  <span className="text-emerald-400 font-bold text-lg tracking-tight">
+                    ${parseFloat(record.netTotal).toFixed(2)}
+                  </span>
                 </td>
                 <td className="py-6 px-4">
                   <span className={cn(
-                    "px-3 py-1 rounded-full text-xs font-bold",
-                    record.status === 'Pagado' ? "bg-green-500/10 text-green-400" :
-                    record.status === 'Procesando' ? "bg-blue-500/10 text-blue-400" :
-                    "bg-yellow-500/10 text-yellow-400"
+                    "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                    record.status === 'Pagado' ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]" :
+                    record.status === 'Procesando' ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" :
+                    "bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)]"
                   )}>
                     {record.status}
                   </span>
                 </td>
                 <td className="py-6 px-4 text-right">
-                  <button className="p-2 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors">
+                  <button className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors">
                     <MoreVertical size={20} />
                   </button>
                 </td>
@@ -155,9 +162,9 @@ export default async function PayrollPage() {
         </table>
 
         {records.length === 0 && (
-          <div className="p-20 text-center">
-            <DollarSign size={48} className="mx-auto text-gray-700 mb-4" />
-            <p className="text-gray-500">No payroll records found.</p>
+          <div className="p-20 text-center bg-slate-900/20 rounded-b-3xl border-t border-white/5">
+            <DollarSign size={48} className="mx-auto text-slate-700 mb-4" />
+            <p className="text-slate-500 font-medium">No payroll records found.</p>
           </div>
         )}
       </div>

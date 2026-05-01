@@ -5,6 +5,7 @@ import { Play, Square, DollarSign, Clock, Loader2 } from 'lucide-react';
 import { startCall, endCall } from '@/app/actions/calls';
 import type { TimerLocalState } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { QuickLogButton } from './QuickLogButton';
 
 const LS_KEY = 'fios_active_call';
 
@@ -60,14 +61,25 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
 
   // Timer tick
   useEffect(() => {
+    let animationFrameId: number;
+    let lastTick = 0;
+
+    const tick = (timestamp: number) => {
+      if (timestamp - lastTick >= 1000) {
+        if (startedAtRef.current) {
+          setElapsed(calculateElapsed(startedAtRef.current));
+        }
+        lastTick = timestamp;
+      }
+      animationFrameId = requestAnimationFrame(tick);
+    };
+
     if (isActive && startedAtRef.current) {
-      intervalRef.current = setInterval(() => {
-        setElapsed(calculateElapsed(startedAtRef.current!));
-      }, 1000);
+      animationFrameId = requestAnimationFrame(tick);
     }
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
   }, [isActive, calculateElapsed]);
 
@@ -137,22 +149,28 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
       </div>
 
       {/* Rate info */}
-      <div className="flex items-center gap-2 mb-6 text-gray-400 text-sm">
+      <div className="flex items-center gap-2 mb-6 text-slate-300 text-sm">
         <Clock size={14} />
-        <span>Rate: ${tariff.toFixed(2)}/min</span>
+        <span>Tarifa: ${(tariff * 60).toFixed(2)}/hr (${tariff.toFixed(2)}/min)</span>
       </div>
 
       {/* Control Buttons */}
       <div className="flex gap-4">
         {!isActive ? (
-          <button
-            onClick={handleStart}
-            disabled={isPending}
-            className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-green-600 to-green-500 text-white font-bold rounded-2xl hover:from-green-500 hover:to-green-400 transition-all duration-300 disabled:opacity-50 shadow-lg shadow-green-600/20"
-          >
-            {isPending ? <Loader2 size={20} className="animate-spin" /> : <Play size={20} />}
-            Start Call
-          </button>
+          <div className="flex gap-4">
+            <button
+              onClick={handleStart}
+              disabled={isPending}
+              className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-green-600 to-green-500 text-white font-bold rounded-2xl hover:from-green-500 hover:to-green-400 transition-all duration-300 disabled:opacity-50 shadow-lg shadow-green-600/20"
+            >
+              {isPending ? <Loader2 size={20} className="animate-spin" /> : <Play size={20} />}
+              Start Call
+            </button>
+            {/* QuickLogButton moved directly near Start Call */}
+            <div className="relative z-[60]">
+              <QuickLogButton inline={true} />
+            </div>
+          </div>
         ) : (
           <button
             onClick={handleEnd}

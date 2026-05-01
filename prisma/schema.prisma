@@ -18,10 +18,13 @@ model Interpreter {
   emailCorporativo   String?  @unique @map("email_corporativo")
   telefono           String?
   pais               String?
-  metodoPago         String?  @map("metodo_pago")
+  metodoPago         String?  @default("Transferencia Bancaria") @map("metodo_pago")
   cuentaPago         String?  @map("cuenta_pago")
+  banco              String?
+  tipoCuenta         String?  @map("tipo_cuenta")
+  cedulaRnc          String?  @map("cedula_rnc")
   documentosCompleto Boolean  @default(false) @map("documentos_completo")
-  notas              String?
+  notas              String?  @db.Text
   tariffPerMinute    Decimal  @db.Decimal(10, 2) @map("tariff_per_minute")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
@@ -188,6 +191,7 @@ model PayrateAuditLog {
   newRate       Decimal  @db.Decimal(10, 2) @map("new_rate")
   changedBy     String   @map("changed_by")
   changedAt     DateTime @default(now()) @map("changed_at")
+  details       String?  @db.Text
 
   interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
 

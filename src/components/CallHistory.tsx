@@ -82,8 +82,11 @@ export function CallHistory({ calls }: { calls: Call[] }) {
                     {call.duration_seconds ? formatDuration(call.duration_seconds) : '—'}
                   </div>
                 </td>
-                <td className="py-4 px-2 text-center text-slate-400 text-sm">
-                  ${(Number(call.tariff_snapshot) * 60).toFixed(2)}/hr
+                <td className="py-4 px-2 text-center">
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-slate-300 text-sm font-medium">${(Number(call.tariff_snapshot) * 60).toFixed(2)}/hr</span>
+                    <span className="text-slate-500 text-xs">${Number(call.tariff_snapshot).toFixed(2)}/min</span>
+                  </div>
                 </td>
                 <td className="py-4 px-2 text-right">
                   <span className="text-emerald-400 font-bold text-sm tracking-tight">

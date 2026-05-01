@@ -77,7 +77,8 @@ export function Sidebar({ role, isCollapsed, onToggle, notifications = [] }: Sid
       <nav className="mt-6 px-4 space-y-2 flex-1">
         {menuItems.map((item, i) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          // Ensure only the first matching item is marked active if there are duplicates
+          const isActive = pathname === item.href && menuItems.findIndex(m => m.href === pathname) === i;
 
           return (
             <Link

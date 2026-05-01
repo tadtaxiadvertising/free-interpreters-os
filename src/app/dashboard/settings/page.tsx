@@ -47,8 +47,11 @@ export default async function SettingsPage() {
         const data = {
           phone: formData.get('phone') as string,
           country: formData.get('country') as string,
-          paymentMethod: formData.get('paymentMethod') as string,
-          paymentAccount: formData.get('paymentAccount') as string,
+          metodoPago: 'Transferencia Bancaria',
+          banco: formData.get('banco') as string,
+          tipoCuenta: formData.get('tipoCuenta') as string,
+          cuentaPago: formData.get('cuentaPago') as string,
+          cedulaRnc: formData.get('cedulaRnc') as string,
           notes: formData.get('notes') as string,
         };
         await updateInterpreterProfile(data);
@@ -118,26 +121,58 @@ export default async function SettingsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Method</label>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Método de Pago</label>
+              <input 
+                type="text" 
+                disabled 
+                value="Transferencia Bancaria"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-400 cursor-not-allowed"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Banco</label>
               <select 
-                name="paymentMethod"
-                defaultValue={interpreter.metodoPago || ''}
+                name="banco"
+                defaultValue={interpreter.banco || ''}
                 className="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-xl px-4 py-3 text-white focus:outline-none transition-all appearance-none"
               >
-                <option value="" disabled>Select Method</option>
-                <option value="PayPal">PayPal</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-                <option value="Payoneer">Payoneer</option>
-                <option value="USDT">USDT (Crypto)</option>
+                <option value="" disabled>Seleccionar Banco</option>
+                <option value="Banreservas">Banreservas</option>
+                <option value="Banco Popular">Banco Popular</option>
+                <option value="BHD">BHD</option>
+                <option value="Scotiabank">Scotiabank</option>
+                <option value="Banco Santa Cruz">Banco Santa Cruz</option>
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Account / Details</label>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo de Cuenta</label>
+              <select 
+                name="tipoCuenta"
+                defaultValue={interpreter.tipoCuenta || ''}
+                className="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-xl px-4 py-3 text-white focus:outline-none transition-all appearance-none"
+              >
+                <option value="" disabled>Seleccionar Tipo</option>
+                <option value="Ahorros">Ahorros</option>
+                <option value="Corriente">Corriente</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Número de Cuenta</label>
               <input 
-                name="paymentAccount"
+                name="cuentaPago"
                 type="text" 
                 defaultValue={interpreter.cuentaPago || ''}
-                placeholder="Email, Account Number, or Wallet Address"
+                placeholder="Número de cuenta bancaria"
+                className="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-xl px-4 py-3 text-white focus:outline-none transition-all"
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cédula / RNC</label>
+              <input 
+                name="cedulaRnc"
+                type="text" 
+                defaultValue={interpreter.cedulaRnc || ''}
+                placeholder="Documento de identidad"
                 className="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-xl px-4 py-3 text-white focus:outline-none transition-all"
               />
             </div>

@@ -46,24 +46,53 @@ export default async function AdminDashboard() {
   let activeCalls: any[] = [];
   let todaySessions: any[] = [];
   let monthSessions: any[] = [];
+  let allProductionLogs: any[] = [];
 
   try {
-    [interpreters, activeCalls, todaySessions, monthSessions] = await Promise.all([
-      prisma.userProfile.findMany({ where: { role: 'interpreter' }, orderBy: { displayName: 'asc' } }).then((data: any[]) => data.map((d: any) => ({ ...d, name: d.displayName }))),
+    [interpreters, activeCalls, todaySessions, monthSessions, allProductionLogs] = await Promise.all([
+      prisma.interpreter.findMany({ 
+        orderBy: { name: 'asc' },
+        include: { productionLogs: { where: { date: { gte: monthStart } } } }
+      }),
       prisma.callSession.findMany({ where: { endedAt: null }, include: { interpreter: true } }),
       prisma.callSession.findMany({ where: { startedAt: { gte: todayStart } } }),
-      prisma.callSession.findMany({ where: { startedAt: { gte: monthStart } } })
+      prisma.callSession.findMany({ where: { startedAt: { gte: monthStart }, endedAt: { not: null } } }),
+      prisma.productionLog.findMany({ where: { date: { gte: monthStart } } })
     ]);
   } catch (error) {
     console.error('❌ ADMIN: Database fetch failed:', error);
-    // Fallback to empty arrays if DB is missing
   }
 
-  // Aggregations with safe defaults
+  // Calculate Ranking
+  const interpreterStats = interpreters.map(interp => {
+    const sessionMinutes = Math.round(
+      monthSessions
+        .filter((s: any) => s.interpreterId === interp.id)
+        .reduce((sum: number, s: any) => sum + (s.durationSeconds || 0), 0) / 60
+    );
+    const logMinutes = allProductionLogs
+      .filter((l: any) => l.interpreterId === interp.id)
+      .reduce((sum: number, l: any) => sum + (l.interpretedMinutes || 0), 0);
+    
+    const totalMinutes = sessionMinutes + logMinutes;
+    const totalHours = totalMinutes / 60;
+    
+    return {
+      ...interp,
+      totalMinutes,
+      totalHours,
+      sessionMinutes,
+      logMinutes
+    };
+  }).sort((a, b) => b.totalMinutes - a.totalMinutes);
+
+  const topPerformers = interpreterStats.slice(0, 5);
+
+  // Aggregations
   const totalMinutesToday = Math.round(todaySessions.reduce((sum: number, s: any) => sum + (s.durationSeconds || 0), 0) / 60);
   const totalCostToday = todaySessions.reduce((sum: number, s: any) => sum + Number(s.callCost || 0), 0);
   
-  const totalMinutesMonth = Math.round(monthSessions.reduce((sum: number, s: any) => sum + (s.durationSeconds || 0), 0) / 60);
+  const totalMinutesMonth = interpreterStats.reduce((sum, i) => sum + i.totalMinutes, 0);
   const totalCostMonth = monthSessions.reduce((sum: number, s: any) => sum + Number(s.callCost || 0), 0);
 
   const onlineCount = interpreters.filter((i: any) => i.realtimeStatus === 'Online').length;
@@ -79,12 +108,17 @@ export default async function AdminDashboard() {
             Global Performance Oversight • {profile?.displayName || 'Administrator'}
           </p>
         </div>
+        <div className="flex gap-3">
+           <button className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-indigo-500/20">
+             Set Global Goals
+           </button>
+        </div>
       </header>
 
       {/* Primary KPI Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'MTD Minutes', value: totalMinutesMonth.toLocaleString(), sub: `Today: ${totalMinutesToday}`, icon: Activity, color: 'text-blue-400' },
+          { label: 'MTD Hours', value: (totalMinutesMonth / 60).toFixed(1), sub: `Today: ${(totalMinutesToday / 60).toFixed(1)}h`, icon: Activity, color: 'text-blue-400' },
           { label: 'MTD Payout', value: `$${totalCostMonth.toLocaleString()}`, sub: `Today: $${totalCostToday.toFixed(2)}`, icon: DollarSign, color: 'text-green-400' },
           { label: 'Active Roster', value: interpreters.length, sub: `${onlineCount} Online Now`, icon: Users, color: 'text-purple-400' },
           { label: 'Live Traffic', value: activeCalls.length, sub: 'Call Sessions', icon: Phone, color: 'text-orange-400' },
@@ -135,13 +169,13 @@ export default async function AdminDashboard() {
                   <tr>
                     <th className="py-4 px-6">Interpreter</th>
                     <th className="py-4 px-4">Campaign</th>
-                    <th className="py-4 px-4">Rate</th>
+                    <th className="py-4 px-4">Hourly Rate</th>
                     <th className="py-4 px-4">Status</th>
                     <th className="py-4 px-6 text-right">Activity</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {interpreters.map((interp: any) => {
+                  {interpreterStats.map((interp: any) => {
                     const isActive = activeCalls.some((c: any) => c.interpreterId === interp.id);
                     return (
                       <tr key={interp.id} className="hover:bg-white/5 transition-colors group">
@@ -150,7 +184,7 @@ export default async function AdminDashboard() {
                           <p className="text-[10px] text-gray-500 font-mono">{interp.externalId}</p>
                         </td>
                         <td className="py-4 px-4 text-gray-400 text-xs">{interp.campaign || '—'}</td>
-                        <td className="py-4 px-4 text-blue-400 font-medium text-sm">${Number(interp.tariffPerMinute).toFixed(2)}</td>
+                        <td className="py-4 px-4 text-indigo-400 font-medium text-sm font-mono">${(Number(interp.tariffPerMinute) * 60).toFixed(2)}/h</td>
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-2">
                             <div className={cn(
@@ -184,11 +218,11 @@ export default async function AdminDashboard() {
           <div className="glass p-6 rounded-3xl border border-white/5">
             <h3 className="text-xl font-bold text-white flex items-center gap-3 mb-6">
               <Trophy size={20} className="text-yellow-500" />
-              Monthly Leaders
+              Monthly Ranking
             </h3>
             
             <div className="space-y-6">
-              {interpreters.slice(0, 5).map((interp: any, i: number) => (
+              {topPerformers.map((interp: any, i: number) => (
                 <div key={interp.id} className="flex items-center justify-between group cursor-default">
                   <div className="flex items-center gap-4">
                     <div className="relative">
@@ -198,28 +232,42 @@ export default async function AdminDashboard() {
                       {i === 0 && <div className="absolute -top-1 -right-1 text-yellow-500 bg-black rounded-full"><Trophy size={12} /></div>}
                     </div>
                     <div>
-                      <p className="text-white font-bold text-sm">{interp.name}</p>
+                      <p className="text-white font-bold text-sm truncate max-w-[100px]">{interp.name}</p>
                       <p className="text-[10px] text-gray-500">Rank #{i + 1}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-white font-bold text-xs">{Math.floor(Math.random() * 500 + 1000)}m</p>
-                    <p className="text-[10px] text-green-400 font-bold">98% QA</p>
+                    <p className="text-white font-bold text-xs">{interp.totalHours.toFixed(1)}h</p>
+                    <p className="text-[10px] text-indigo-400 font-bold">{interp.totalMinutes} min</p>
                   </div>
                 </div>
               ))}
             </div>
             
             <button className="w-full mt-8 py-3 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-2xl text-xs font-bold transition-all border border-white/10">
-              View Detailed Leaderboard
+              View Full Leaderboard
             </button>
+          </div>
+
+          {/* Goals Management */}
+          <div className="glass p-6 rounded-3xl border border-white/5">
+            <h3 className="text-lg font-bold text-white mb-4">Interpreter Goals</h3>
+            <div className="space-y-4">
+               <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
+                  <p className="text-xs text-gray-400 mb-1">Standard Monthly Goal</p>
+                  <p className="text-xl font-bold text-white">40.0 Hours</p>
+               </div>
+               <button className="w-full py-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-xl text-xs font-bold hover:bg-indigo-600/30 transition-all">
+                 Configure Per-Interpreter
+               </button>
+            </div>
           </div>
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 gap-4">
-            <a href="/payroll" className="glass p-5 rounded-3xl border border-white/5 hover:border-blue-500/30 transition-all group flex items-center justify-between">
+            <a href="/payroll" className="glass p-5 rounded-3xl border border-white/5 hover:border-indigo-500/30 transition-all group flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
                   <DollarSign size={18} />
                 </div>
                 <span className="text-white font-bold text-sm">Run Payroll</span>
