@@ -6,9 +6,11 @@ import { Save, Loader2, User, Mail, Shield, DollarSign, Target, Briefcase, Lock 
 interface InterpreterFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
+  initialData?: any;
+  interpreterId?: number;
 }
 
-export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
+export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterId }: InterpreterFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,27 +20,35 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const data = {
+    const isEditing = !!interpreterId;
+    
+    const data: any = {
       name: formData.get('name'),
       externalId: formData.get('externalId'),
       emailCorporativo: formData.get('emailCorporativo'),
       tariffPerMinute: parseFloat(formData.get('hourlyTariff') as string) / 60,
       status: formData.get('status'),
       campaign: formData.get('campaign'),
-      password: formData.get('password'),
     };
+
+    if (formData.get('password')) {
+      data.password = formData.get('password');
+    }
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/interpreters`, {
-        method: 'POST',
+      const url = isEditing ? `${apiUrl}/api/interpreters/${interpreterId}` : `${apiUrl}/api/interpreters`;
+      const method = isEditing ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create interpreter');
+        throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'create'} interpreter`);
       }
 
       onSuccess?.();
@@ -65,6 +75,7 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
             <input
               required
               name="name"
+              defaultValue={initialData?.name}
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
               placeholder="Jane Doe"
             />
@@ -77,6 +88,7 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
             <input
               required
               name="externalId"
+              defaultValue={initialData?.externalId}
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
               placeholder="INT-001"
             />
@@ -93,24 +105,40 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
               required
               type="email"
               name="emailCorporativo"
+              defaultValue={initialData?.emailCorporativo}
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
               placeholder="jane@freeinterpreters.com"
             />
           </div>
         </div>
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Access Password</label>
-          <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-            <input
-              required
-              type="password"
-              name="password"
-              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
-              placeholder="••••••••"
-            />
+        {!interpreterId && (
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Access Password</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+              <input
+                required={!interpreterId}
+                type="password"
+                name="password"
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+                placeholder="••••••••"
+              />
+            </div>
           </div>
-        </div>
+        )}
+        {interpreterId && (
+          <div className="space-y-2 opacity-50">
+             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Password</label>
+             <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  disabled
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-gray-500 cursor-not-allowed"
+                  placeholder="Use Reset Password option"
+                />
+             </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -123,6 +151,7 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
               type="number"
               step="0.01"
               name="hourlyTariff"
+              defaultValue={initialData?.tariffPerMinute ? (parseFloat(initialData.tariffPerMinute) * 60).toFixed(2) : ''}
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
               placeholder="9.00"
             />
@@ -134,11 +163,13 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
             <Target className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={18} />
             <select
               name="status"
+              defaultValue={initialData?.status || 'Activo'}
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer [&>option]:bg-[#1a1a1a]"
             >
               <option value="Activo">Activo</option>
               <option value="Training">Training</option>
               <option value="Probation">Probation</option>
+              <option value="Inactivo">Inactivo</option>
             </select>
           </div>
         </div>
@@ -150,6 +181,7 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
           <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
           <input
             name="campaign"
+            defaultValue={initialData?.campaign}
             className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
             placeholder="HealthCare"
           />
@@ -170,7 +202,7 @@ export function InterpreterForm({ onSuccess, onCancel }: InterpreterFormProps) {
           className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all glow flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
         >
           {loading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-          Save Interpreter
+          {interpreterId ? 'Update Interpreter' : 'Save Interpreter'}
         </button>
       </div>
     </form>
