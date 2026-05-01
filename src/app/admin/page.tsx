@@ -244,9 +244,12 @@ export default async function AdminDashboard() {
               ))}
             </div>
             
-            <button className="w-full mt-8 py-3 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-2xl text-xs font-bold transition-all border border-white/10">
+            <a 
+              href="/dashboard/ranking"
+              className="w-full mt-8 py-3 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-2xl text-xs font-bold transition-all border border-white/10 flex items-center justify-center"
+            >
               View Full Leaderboard
-            </button>
+            </a>
           </div>
 
           {/* Goals Management */}
@@ -257,9 +260,12 @@ export default async function AdminDashboard() {
                   <p className="text-xs text-gray-400 mb-1">Standard Monthly Goal</p>
                   <p className="text-xl font-bold text-white">40.0 Hours</p>
                </div>
-               <button className="w-full py-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-xl text-xs font-bold hover:bg-indigo-600/30 transition-all">
+               <a 
+                 href="/interpreters"
+                 className="w-full py-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-xl text-xs font-bold hover:bg-indigo-600/30 transition-all flex items-center justify-center"
+               >
                  Configure Per-Interpreter
-               </button>
+               </a>
             </div>
           </div>
 

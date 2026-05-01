@@ -54,12 +54,18 @@ export function Navbar({ email, notifications = [] }: NavbarProps) {
                 </div>
                 
                 <div className="px-2 py-2">
-                  <button className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-300 hover:bg-slate-800 transition-colors flex items-center gap-3">
+                  <a 
+                    href="/dashboard/settings"
+                    className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-300 hover:bg-slate-800 transition-colors flex items-center gap-3"
+                  >
                     <Settings size={16} className="text-slate-400" /> Manage Account
-                  </button>
-                  <button className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-300 hover:bg-slate-800 transition-colors flex items-center gap-3">
+                  </a>
+                  <a 
+                    href="/dashboard/settings"
+                    className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-300 hover:bg-slate-800 transition-colors flex items-center gap-3"
+                  >
                     <ShieldCheck size={16} className="text-slate-400" /> Security
-                  </button>
+                  </a>
                 </div>
                 
                 <div className="px-2 pt-2 border-t border-slate-800">

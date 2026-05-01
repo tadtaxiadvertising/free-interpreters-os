@@ -12,9 +12,75 @@ const prisma = prismaClient as any;
 
 export const dynamic = 'force-dynamic';
 
+import React from 'react';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck, RefreshCw, LogIn } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { StatusToggle } from '../../components/StatusToggle';
+import { CallTimer } from '../../components/CallTimer';
+import { CallHistory } from '../../components/CallHistory';
+import { OnboardingGate } from '../../components/OnboardingGate';
+import { getCurrentProfile } from '@/app/actions/auth';
+import prismaClient from '@/lib/prisma';
+const prisma = prismaClient as any;
+
+export const dynamic = 'force-dynamic';
+
 export default async function InterpreterDashboard() {
-  const { userId } = await auth();
-  if (!userId) redirect('/login');
+  const { userId, user } = await auth();
+  if (!userId || !user) redirect('/login');
+
+  let profile = await getCurrentProfile();
+
+  // ── AUTO-REPAIR: If profile is missing but user exists in Auth ──
+  if (!profile) {
+    console.warn(`[DASHBOARD] Profile missing for user ${userId}, attempting auto-repair...`);
+    try {
+      const { createAdminClient } = await import('@/lib/supabase/admin');
+      const supabaseAdmin = createAdminClient();
+      
+      // Try to link to an existing interpreter by email
+      const { data: interpreter } = await supabaseAdmin
+        .from('interpreters')
+        .select('id')
+        .eq('email_corporativo', user.email)
+        .maybeSingle();
+
+      const { data: newProfile, error } = await supabaseAdmin.from('user_profiles').upsert({
+        id: userId,
+        email: user.email,
+        display_name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
+        role: 'interpreter',
+        interpreter_id: interpreter?.id || null,
+      }, { onConflict: 'id' }).select().single();
+
+      if (!error && newProfile) {
+        console.log(`[DASHBOARD] Profile auto-repaired for ${userId}`);
+        profile = {
+          id: newProfile.id,
+          email: newProfile.email,
+          role: newProfile.role as any,
+          interpreter_id: newProfile.interpreter_id,
+          display_name: newProfile.display_name || '',
+          terms_accepted_at: newProfile.terms_accepted_at,
+          signature_date: newProfile.signature_date,
+          bank_name: newProfile.bank_name,
+          bank_account: newProfile.bank_account,
+          bank_account_type: newProfile.bank_account_type,
+          bank_cedula: newProfile.bank_cedula,
+          onboarding_complete: newProfile.onboarding_complete || false,
+          created_at: newProfile.created_at,
+        };
+      }
+    } catch (err) {
+      console.error('[DASHBOARD] Auto-repair failed:', err);
+    }
+  }
+
+  if (profile && profile.role === 'admin') {
+    redirect('/admin');
+  }
 
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
@@ -22,113 +88,99 @@ export default async function InterpreterDashboard() {
   const endOfMonth = new Date();
   endOfMonth.setMonth(endOfMonth.getMonth() + 1, 0);
 
-  let profile: any = null;
-  try {
-    profile = await (prisma as any).userProfile.findUnique({
-      where: { id: userId },
-      include: {
-        interpreter: {
-          include: {
-            productionLogs: {
-              where: {
-                date: { gte: startOfMonth, lte: endOfMonth }
-              }
-            },
-            qaScores: {
-              take: 5,
-              orderBy: { createdAt: 'desc' }
-            }
-          }
-        }
-      }
-    });
-  } catch (error) {
-    console.error('❌ DASHBOARD: Profile fetch failed:', error);
-  }
-
-  if (profile && profile.role === 'admin') {
-    redirect('/admin');
-  }
-
-  const interpreter = profile?.interpreter || null;
-
-  // Fetch today's and month's call sessions
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
+  // Fetch full data if we have an interpreter link
+  let interpreter: any = null;
   let activeCall: any = null;
   let todayCalls: any[] = [];
   let recentCalls: any[] = [];
   let monthCalls: any[] = [];
 
-  if (interpreter) {
+  if (profile?.interpreter_id) {
     try {
-      [activeCall, todayCalls, recentCalls, monthCalls] = await Promise.all([
-        prisma.callSession.findFirst({
-          where: { interpreterId: interpreter.id, endedAt: null },
-          orderBy: { startedAt: 'desc' }
-        }),
-        prisma.callSession.findMany({
-          where: { interpreterId: interpreter.id, startedAt: { gte: todayStart }, endedAt: { not: null } }
-        }),
-        prisma.callSession.findMany({
-          where: { interpreterId: interpreter.id, endedAt: { not: null } },
-          orderBy: { startedAt: 'desc' },
-          take: 50 // Increased for filtering
-        }),
-        prisma.callSession.findMany({
-          where: { 
-            interpreterId: interpreter.id, 
-            startedAt: { gte: startOfMonth, lte: endOfMonth },
-            endedAt: { not: null }
-          }
-        })
-      ]);
+      interpreter = await prisma.interpreter.findUnique({
+        where: { id: profile.interpreter_id },
+        include: {
+          productionLogs: { where: { date: { gte: startOfMonth, lte: endOfMonth } } },
+          qaScores: { take: 5, orderBy: { createdAt: 'desc' } }
+        }
+      });
+
+      if (interpreter) {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        [activeCall, todayCalls, recentCalls, monthCalls] = await Promise.all([
+          prisma.callSession.findFirst({
+            where: { interpreterId: interpreter.id, endedAt: null },
+            orderBy: { startedAt: 'desc' }
+          }),
+          prisma.callSession.findMany({
+            where: { interpreterId: interpreter.id, startedAt: { gte: todayStart }, endedAt: { not: null } }
+          }),
+          prisma.callSession.findMany({
+            where: { interpreterId: interpreter.id, endedAt: { not: null } },
+            orderBy: { startedAt: 'desc' },
+            take: 10
+          }),
+          prisma.callSession.findMany({
+            where: { 
+              interpreterId: interpreter.id, 
+              startedAt: { gte: startOfMonth, lte: endOfMonth },
+              endedAt: { not: null }
+            }
+          })
+        ]);
+      }
     } catch (error) {
       console.error('❌ DASHBOARD: Data fetch failed:', error);
     }
   }
 
-  const todayMinutes = Math.round(
-    todayCalls.reduce((sum: number, c: any) => sum + (c.durationSeconds || 0), 0) / 60
-  );
-  const todayEarnings = todayCalls.reduce((sum: number, c: any) => sum + (Number(c.callCost) || 0), 0);
-  const todayCallCount = todayCalls.length;
-
-  // Gamification Metrics (Combined Production Logs + Call Sessions)
-  const logMinutes = interpreter?.productionLogs?.reduce((sum: number, log: any) => sum + (log.interpretedMinutes || 0), 0) || 0;
-  const sessionMinutes = Math.round(
-    monthCalls.reduce((sum: number, c: any) => sum + (c.durationSeconds || 0), 0) / 60
-  );
-  
-  const mtdMinutes = logMinutes + sessionMinutes;
-  
-  // ── DYNAMIC MONTHLY GOAL: pulled from interpreter.monthlyGoal (DB) ──
-  const monthlyGoal = interpreter?.monthlyGoal ?? 2000;
-  const mtdProgress = Math.min((mtdMinutes / monthlyGoal) * 100, 100);
-  
-  const latestQaScore = interpreter?.qaScores?.[0]?.totalScore ? Number(interpreter.qaScores[0].totalScore) : 0;
-  const isQaExcellent = latestQaScore >= 90;
-  
-  const mtdEarnings = monthCalls.reduce((sum: number, c: any) => sum + (Number(c.callCost) || 0), 0) + 
-    (logMinutes * Number(interpreter?.tariffPerMinute || 0));
-
-  // ── Check onboarding status ──
-  const onboardingComplete = profile?.onboardingComplete ?? false;
-
   if (!profile || !interpreter) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="glass p-8 rounded-3xl text-center max-w-md">
-          <h2 className="text-2xl font-bold text-white mb-4">Account Access Error</h2>
-          <p className="text-gray-300">
-            {!profile ? "Your user profile could not be found." : "No interpreter profile is linked to your account."}
-            <br /><br />
-            <span className="text-xs text-orange-400 font-mono">Infrastructure Error: DATABASE_UNAVAILABLE</span>
-          </p>
-          <a href="/login" className="mt-6 inline-block bg-white/5 hover:bg-white/10 text-white px-6 py-2 rounded-xl text-sm transition-all">
-            Refresh Session
-          </a>
+      <div className="flex items-center justify-center min-h-[80vh]">
+        <div className="glass p-10 rounded-[2.5rem] text-center max-w-lg border border-white/5 shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-32 bg-orange-500/10 blur-[100px] rounded-full -mr-16 -mt-16" />
+          
+          <div className="relative z-10">
+            <div className="w-20 h-20 bg-orange-500/10 rounded-3xl flex items-center justify-center text-orange-400 mx-auto mb-6 border border-orange-500/20">
+              <ShieldCheck size={40} />
+            </div>
+            
+            <h2 className="text-3xl font-black text-white mb-4 tracking-tight">Acceso Restringido</h2>
+            <p className="text-slate-300 leading-relaxed mb-8">
+              {!profile 
+                ? "No pudimos localizar tu perfil de usuario en el sistema." 
+                : "Tu cuenta de usuario no está vinculada a un perfil de intérprete activo."}
+              <br />
+              <span className="text-slate-500 text-sm mt-4 block">
+                Por favor, contacta al administrador para completar tu vinculación de ID corporativo.
+              </span>
+            </p>
+            
+            <div className="flex flex-col gap-3">
+              <a 
+                href="/dashboard" 
+                className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white px-6 py-4 rounded-2xl font-bold transition-all border border-white/5"
+              >
+                <RefreshCw size={18} />
+                Reintentar Conexión
+              </a>
+              <a 
+                href="/login" 
+                className="flex items-center justify-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium"
+              >
+                <LogIn size={14} />
+                Cerrar Sesión e Identificarse
+              </a>
+            </div>
+            
+            <div className="mt-10 pt-8 border-t border-white/5">
+              <p className="text-[10px] text-orange-500 font-black uppercase tracking-[0.2em]">
+                System Diagnostic: {profile ? 'INTERPRETER_LINK_MISSING' : 'PROFILE_MISSING_IN_DB'}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );

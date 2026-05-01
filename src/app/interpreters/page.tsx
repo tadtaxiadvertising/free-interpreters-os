@@ -3,8 +3,6 @@ import {
   Users, 
   Search, 
   Filter, 
-  MoreVertical,
-  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AddInterpreterButton } from '@/components/AddInterpreterButton';
@@ -130,13 +128,18 @@ export default async function InterpretersPage() {
                   </div>
                   <div className="text-right">
                     <span className="text-xs text-slate-500 font-bold uppercase tracking-tighter">Target</span>
-                    <p className="text-indigo-400 font-mono font-bold">40h<span className="text-xs text-slate-500">/mo</span></p>
+                    <p className="text-indigo-400 font-mono font-bold">{interpreter.monthlyGoal || 2000}m<span className="text-xs text-slate-500">/mo</span></p>
                   </div>
                 </div>
 
-                <button className="w-full mt-4 py-2 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-500/20 rounded-xl text-xs font-bold transition-all duration-300">
-                  Set Custom Goal
-                </button>
+                {/* Fixed Action Button */}
+                <div className="pt-2">
+                  <AddInterpreterButton 
+                    label="Adjust Goals & Profile"
+                    mode="edit"
+                    initialData={interpreter}
+                  />
+                </div>
               </div>
             </div>
           );
