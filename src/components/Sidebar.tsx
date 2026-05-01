@@ -40,9 +40,10 @@ interface SidebarProps {
   role: UserRole;
   isCollapsed: boolean;
   onToggle: () => void;
+  notifications?: any[];
 }
 
-export function Sidebar({ role, isCollapsed, onToggle }: SidebarProps) {
+export function Sidebar({ role, isCollapsed, onToggle, notifications = [] }: SidebarProps) {
   const pathname = usePathname();
   const menuItems = role === 'admin' ? adminMenu : interpreterMenu;
 

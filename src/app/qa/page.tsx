@@ -14,6 +14,7 @@ import prisma from '@/lib/prisma';
 import { cn } from '@/lib/utils';
 
 import { NewEvaluationButton } from '@/components/NewEvaluationButton';
+import { ExportQAScoresButton } from '@/components/ExportQAScoresButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,10 +48,7 @@ export default async function QAPage() {
           <p className="text-gray-400">Monitor and evaluate interpreter performance</p>
         </div>
         <div className="flex gap-3">
-          <button className="flex items-center gap-2 bg-white/5 border border-white/10 hover:bg-white/10 text-white px-6 py-3 rounded-2xl font-bold transition-all">
-            <Search size={20} />
-            Search Call
-          </button>
+          <ExportQAScoresButton data={scores} />
           <NewEvaluationButton />
         </div>
       </header>

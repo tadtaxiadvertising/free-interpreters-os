@@ -15,6 +15,7 @@ import prisma from '@/lib/prisma';
 import { cn } from '@/lib/utils';
 
 import { GeneratePayrollButton } from '@/components/GeneratePayrollButton';
+import { ExportPayrollButton } from '@/components/ExportPayrollButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,10 +45,7 @@ export default async function PayrollPage() {
           <p className="text-gray-400">Calculate and manage interpreter payments</p>
         </div>
         <div className="flex gap-4">
-          <button className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-6 py-3 rounded-2xl font-bold border border-white/10 transition-all">
-            <Download size={20} />
-            Export CSV
-          </button>
+          <ExportPayrollButton data={records} />
           <GeneratePayrollButton />
         </div>
       </header>

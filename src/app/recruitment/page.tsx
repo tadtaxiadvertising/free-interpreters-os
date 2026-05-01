@@ -17,6 +17,8 @@ import prisma from '@/lib/prisma';
 import { cn } from '@/lib/utils';
 
 import { AddCandidateButton } from '@/components/AddCandidateButton';
+import { ExportCandidatesButton } from '@/components/ExportCandidatesButton';
+import { CandidateActions } from '@/components/CandidateActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +52,10 @@ export default async function RecruitmentPage() {
           <h2 className="text-3xl font-bold text-white">Recruitment Funnel</h2>
           <p className="text-gray-400">Track and manage interpreter applications</p>
         </div>
-        <AddCandidateButton />
+        <div className="flex gap-4">
+          <ExportCandidatesButton data={candidates} />
+          <AddCandidateButton />
+        </div>
       </header>
 
 
@@ -163,9 +168,7 @@ export default async function RecruitmentPage() {
                   )}
                 </td>
                 <td className="py-6 px-4 text-right">
-                  <button className="p-2 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors">
-                    <MoreVertical size={20} />
-                  </button>
+                  <CandidateActions candidate={candidate} />
                 </td>
               </tr>
             ))}
