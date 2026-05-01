@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 
 import { NewEvaluationButton } from '@/components/NewEvaluationButton';
 
+export const dynamic = 'force-dynamic';
+
 async function getQAData() {
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';

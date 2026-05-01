@@ -18,6 +18,8 @@ import { cn } from '@/lib/utils';
 
 import { AddCandidateButton } from '@/components/AddCandidateButton';
 
+export const dynamic = 'force-dynamic';
+
 async function getCandidates() {
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
