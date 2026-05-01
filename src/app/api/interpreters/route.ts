@@ -104,14 +104,33 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error('Error creating interpreter:', error);
+    console.error('❌ INTERPRETERS_API_POST_ERROR:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      meta: error.meta
+    });
+
     // Handle unique constraint violations
     if (error.code === 'P2002') {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: `Interpreter with this ${error.meta?.target?.[0]} already exists.` },
         { status: 409 }
       );
+      response.headers.set('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
+      return response;
     }
-    return NextResponse.json({ error: error.message || 'Error creating interpreter' }, { status: 500 });
+    const response = NextResponse.json({ 
+      error: error.message || 'Internal Server Error',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      code: error.code,
+    }, { status: 500 });
+
+    // Add CORS headers to error response
+    response.headers.set('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    return response;
   }
 }
