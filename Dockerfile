@@ -67,4 +67,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 USER nextjs
 EXPOSE 3000
 
-CMD ["sh", "-c", "echo '🚀 interpreters frontend starting on port '\"$PORT\"'...' && node server.js"]
+CMD ["sh", "-c", "echo '🚀 INTERPRETERS-FRONTEND starting on port: '\"$PORT\"' (internal)' && node server.js"]
