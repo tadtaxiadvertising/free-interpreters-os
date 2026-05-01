@@ -11,6 +11,21 @@ This platform uses a **decoupled two-service architecture**:
 | `interpreters` (Frontend) | User interface, auth sessions, SSR pages | Next.js 16, Supabase Auth, Tailwind CSS v4 |
 | `interpreters-api` (Backend) | REST API, business logic, database access | Next.js 16 API Routes, Prisma 7, PostgreSQL |
 
+### Dual-Service Synchronization in Easypanel
+
+In this decoupled approach:
+
+1. **Service Provider (`interpreters-api`)**: This acts as the backend source of truth. It holds the Prisma Client and the actual connection to the Supabase database (`DATABASE_URL`).
+2. **Service Consumer (`interpreters` Frontend)**: The frontend application that consumes the API data and handles UI rendering.
+
+**Environment Variable Exchange**:
+
+To correctly link both services in Easypanel:
+
+- The **Frontend** must configure the `NEXT_PUBLIC_API_URL` environment variable to point to the public domain of the Backend service (e.g., `https://api.freeinterpreters.com`).
+- The **Backend** must configure the `CORS_ORIGIN` environment variable to accept requests from the Frontend's public domain (e.g., `https://app.freeinterpreters.com`).
+- Both services require their respective `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` to authenticate users, but only the Backend handles `DATABASE_URL`.
+
 See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for full architecture diagrams.
 
 ## Repository Structure

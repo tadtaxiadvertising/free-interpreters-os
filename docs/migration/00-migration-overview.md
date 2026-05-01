@@ -45,6 +45,7 @@ Este documento define el cambio de paradigma de arquitectura de la plataforma Fr
 ```
 
 **Dependencias eliminadas en la migración:**
+
 - `vercel.json` — Configuración de despliegue Vercel
 - `.vercel/` — Directorio local de Vercel CLI
 - Vercel Edge Runtime — Sustituido por Node.js estándar
@@ -90,12 +91,12 @@ Este documento define el cambio de paradigma de arquitectura de la plataforma Fr
 
 ### Mapa de Red Interno
 
-| Servicio    | Hostname Interno         | Puerto | Acceso Externo       |
-| :---------- | :----------------------- | :----- | :------------------- |
-| Traefik     | (gestionado por Easypanel) | 80/443 | ✅ Público (HTTPS)  |
-| App Next.js | `free-interp-os`         | 3000   | ❌ Solo vía Traefik |
-| PostgreSQL  | `free-interp-os-db`      | 5432   | ❌ Solo interno     |
-| Redis       | `free-interp-os-redis`   | 6379   | ❌ Solo interno     |
+| Servicio    | Hostname Interno           | Puerto | Acceso Externo     |
+| :---------- | :------------------------- | :----- | :----------------- |
+| Traefik     | (gestionado por Easypanel) | 80/443 | ✅ Público (HTTPS) |
+| App Next.js | `free-interp-os`           | 3000   | ❌ Solo vía Traefik|
+| PostgreSQL  | `free-interp-os-db`        | 5432   | ❌ Solo interno    |
+| Redis       | `free-interp-os-redis`     | 6379   | ❌ Solo interno    |
 
 ### Flujo de una Request
 
@@ -119,18 +120,18 @@ App Container (Next.js 16 en modo `next start`)
 
 ## 4. Cambio de Paradigma
 
-| Aspecto           | Vercel (Antes)                    | Easypanel (Después)                    |
-| :---------------- | :-------------------------------- | :------------------------------------- |
-| **Runtime**       | Serverless Functions (aisladas)  | Proceso Node.js persistente            |
-| **State**         | Stateless (cada request = nuevo) | Stateful (in-memory cache posible)     |
-| **DB Connection** | Pool efímero (max ~10, HTTP)     | Pool persistente (max ~50, TCP)        |
-| **Build**         | Vercel CI (auto en push)         | GitHub Actions → Webhook Easypanel     |
-| **SSL**           | Automático (Vercel)              | Automático (Traefik + Let's Encrypt)   |
-| **Logs**          | Vercel Dashboard (limitado)      | Docker logs + Easypanel UI             |
-| **Escalado**      | Auto-scale (Vercel)              | Vertical (upgrade VPS) o Horizontal    |
-| **Costo**         | $0 (con limites estrictos)       | $0 (Oracle Cloud Always Free Tier)     |
-| **Auth**          | Clerk SaaS                       | JWT nativo (`jose` + `bcryptjs`)       |
-| **DB Host**       | Neon.tech (remoto, ~50-100ms)    | Localhost (<1ms)                        |
+| Aspecto           | Vercel (Antes)                   | Easypanel (Después)                  |
+| :---------------- | :------------------------------- | :----------------------------------- |
+| **Runtime**       | Serverless Functions (aisladas)  | Proceso Node.js persistente          |
+| **State**         | Stateless (cada request = nuevo) | Stateful (in-memory cache posible)   |
+| **DB Connection** | Pool efímero (max ~10, HTTP)     | Pool persistente (max ~50, TCP)      |
+| **Build**         | Vercel CI (auto en push)         | GitHub Actions → Webhook Easypanel   |
+| **SSL**           | Automático (Vercel)              | Automático (Traefik + Let's Encrypt) |
+| **Logs**          | Vercel Dashboard (limitado)      | Docker logs + Easypanel UI           |
+| **Escalado**      | Auto-scale (Vercel)              | Vertical (upgrade VPS) o Horizontal  |
+| **Costo**         | $0 (con limites estrictos)       | $0 (Oracle Cloud Always Free Tier)   |
+| **Auth**          | Clerk SaaS                       | JWT nativo (`jose` + `bcryptjs`)     |
+| **DB Host**       | Neon.tech (remoto, ~50-100ms)    | Localhost (<1ms)                     |
 
 ---
 
@@ -138,41 +139,41 @@ App Container (Next.js 16 en modo `next start`)
 
 ### Eliminar
 
-| Archivo/Directorio     | Motivo                                       |
-| :--------------------- | :------------------------------------------- |
-| `.vercel/`             | Configuración local de Vercel CLI            |
-| `vercel.json`          | No aplica en Easypanel (si existe)           |
+| Archivo/Directorio | Motivo                             |
+| :----------------- | :--------------------------------- |
+| `.vercel/`         | Configuración local de Vercel CLI  |
+| `vercel.json`      | No aplica en Easypanel (si existe) |
 
 ### Modificar
 
-| Archivo               | Cambio                                                     |
-| :-------------------- | :--------------------------------------------------------- |
-| `package.json`        | Eliminar `@supabase/*`, `svix`; agregar script `docker`    |
-| `prisma/schema.prisma`| Confirmar `provider = "postgresql"` sin driver serverless   |
-| `next.config.ts`      | Agregar `output: "standalone"` para builds Docker          |
-| `.env`                | Reescribir para apuntar a DB local del contenedor          |
+| Archivo                | Cambio                                                     |
+| :--------------------- | :--------------------------------------------------------- |
+| `package.json`         | Eliminar `@supabase/*`, `svix`; agregar script `docker`    |
+| `prisma/schema.prisma` | Confirmar `provider = "postgresql"` sin driver serverless  |
+| `next.config.ts`       | Agregar `output: "standalone"` para builds Docker          |
+| `.env`                 | Reescribir para apuntar a DB local del contenedor          |
 | `src/middleware.ts`    | Confirmar que usa JWT nativo, sin Clerk                    |
 
 ### Crear
 
-| Archivo               | Propósito                                                  |
-| :-------------------- | :--------------------------------------------------------- |
-| `Dockerfile`          | Build multistage optimizado para producción                |
-| `.dockerignore`       | Excluir node_modules, .git, etc.                           |
-| `.env.example`        | Plantilla de variables para Easypanel                      |
+| Archivo         | Propósito                                   |
+| :-------------- | :------------------------------------------ |
+| `Dockerfile`    | Build multistage optimizado para producción |
+| `.dockerignore` | Excluir node_modules, .git, etc.            |
+| `.env.example`  | Plantilla de variables para Easypanel       |
 
 ---
 
 ## 6. Plan de Ejecución
 
-| Fase | Documento                         | Acción                                          |
-| :--- | :-------------------------------- | :---------------------------------------------- |
-| 1    | `01-vps-and-easypanel-setup.md`   | Provisionar VPS + Instalar Easypanel            |
-| 2    | `02-dockerization-and-builds.md`  | Crear Dockerfile + `.dockerignore`              |
-| 3    | `03-database-and-services.md`     | Levantar PostgreSQL + migrar datos              |
-| 4    | `04-environment-variables.md`     | Configurar secretos en Easypanel                |
-| 5    | `05-ci-cd-pipelines.md`          | GitHub Actions + Webhook de despliegue          |
-| 6    | `06-troubleshooting-and-logs.md` | Guía de depuración y recuperación               |
+| Fase | Documento                        | Acción                                 |
+| :--- | :------------------------------- | :------------------------------------- |
+| 1    | `01-vps-and-easypanel-setup.md`  | Provisionar VPS + Instalar Easypanel   |
+| 2    | `02-dockerization-and-builds.md` | Crear Dockerfile + `.dockerignore`     |
+| 3    | `03-database-and-services.md`    | Levantar PostgreSQL + migrar datos     |
+| 4    | `04-environment-variables.md`    | Configurar secretos en Easypanel       |
+| 5    | `05-ci-cd-pipelines.md`          | GitHub Actions + Webhook de despliegue |
+| 6    | `06-troubleshooting-and-logs.md` | Guía de depuración y recuperación      |
 
 ---
 

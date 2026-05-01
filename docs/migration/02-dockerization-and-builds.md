@@ -186,11 +186,11 @@ CMD ["node", "server.js"]
 
 ### Desglose de Tamaños
 
-| Stage   | Contenido                          | Tamaño Estimado |
-| :------ | :--------------------------------- | :-------------- |
-| `deps`  | node_modules + Prisma Client       | ~800MB          |
-| `builder`| .next/standalone + static          | ~600MB          |
-| `runner` | Standalone server + static + Prisma | **~150-200MB**  |
+| Stage     | Contenido                            | Tamaño Estimado |
+| :-------- | :----------------------------------- | :-------------- |
+| `deps`    | node_modules + Prisma Client         | ~800MB          |
+| `builder` | .next/standalone + static            | ~600MB          |
+| `runner`  | Standalone server + static + Prisma  | **~150-200MB**  |
 
 ---
 
@@ -241,6 +241,7 @@ Easypanel soporta **Nixpacks** (auto-detection de framework). Si prefieres no ma
 ### 5.1 Cómo Funciona Nixpacks
 
 Nixpacks detecta automáticamente:
+
 - **Lenguaje**: Node.js (por `package.json`)
 - **Framework**: Next.js (por `next.config.ts`)
 - **Build command**: `npm run build`
@@ -255,14 +256,14 @@ Nixpacks detecta automáticamente:
 
 ### 5.3 Nixpacks vs. Dockerfile Custom
 
-| Criterio              | Nixpacks                        | Dockerfile Multistage           |
-| :-------------------- | :------------------------------ | :------------------------------ |
-| Configuración         | Zero-config                     | Manual                          |
-| Tamaño de imagen      | ~400-600MB                      | ~150-200MB                      |
-| Control sobre layers  | Limitado                        | Total                           |
-| Caching de deps       | Automático                      | Configurable por layer          |
-| Prisma compatibility  | Funciona con `postinstall`      | Explícito en Dockerfile         |
-| Recomendación         | Para empezar rápido             | **Para producción optimizada**  |
+| Criterio             | Nixpacks                   | Dockerfile Multistage          |
+| :------------------- | :------------------------- | :----------------------------- |
+| Configuración        | Zero-config                | Manual                         |
+| Tamaño de imagen     | ~400-600MB                 | ~150-200MB                     |
+| Control sobre layers | Limitado                   | Total                          |
+| Caching de deps      | Automático                 | Configurable por layer         |
+| Prisma compatibility | Funciona con `postinstall` | Explícito en Dockerfile        |
+| Recomendación        | Para empezar rápido        | **Para producción optimizada** |
 
 > **Recomendación**: Usar el Dockerfile multistage proporcionado. Nixpacks es una alternativa válida para prototipado rápido, pero el Dockerfile da control total sobre el tamaño y seguridad de la imagen.
 

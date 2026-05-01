@@ -78,10 +78,10 @@ https://panel.freeinterpreters.com/api/deploy/webhook/<PROJECT_ID>/<SERVICE_ID>
 
 Ir a tu repositorio en GitHub → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
 
-| Secret Name                | Valor                                              |
-| :------------------------- | :------------------------------------------------- |
-| `EASYPANEL_WEBHOOK_URL`    | La URL del webhook de Easypanel                    |
-| `DATABASE_URL`             | `postgresql://postgres:pw@localhost:5432/test` (para CI test) |
+| Secret Name             | Valor                                                         |
+| :---------------------- | :------------------------------------------------------------ |
+| `EASYPANEL_WEBHOOK_URL` | La URL del webhook de Easypanel                               |
+| `DATABASE_URL`          | `postgresql://postgres:pw@localhost:5432/test` (para CI test) |
 
 > **Nota**: El `DATABASE_URL` en CI es una URL dummy o de un servicio PostgreSQL temporal. No es la URL de producción.
 
@@ -236,13 +236,13 @@ jobs:
 
 GitHub → Repositorio → **Settings** → **Branches** → **Add rule**.
 
-| Regla                                           | Valor    |
-| :---------------------------------------------- | :------- |
-| Branch name pattern                             | `main`   |
-| Require a pull request before merging           | ✅       |
-| Require status checks to pass before merging    | ✅       |
-| Status checks: `validate`                       | Required |
-| Require branches to be up to date before merging | ✅      |
+| Regla                                            | Valor    |
+| :----------------------------------------------- | :------- |
+| Branch name pattern                              | `main`   |
+| Require a pull request before merging            | ✅       |
+| Require status checks to pass before merging     | ✅       |
+| Status checks: `validate`                        | Required |
+| Require branches to be up to date before merging | ✅       |
 
 ### 5.2 Flujo de Trabajo del Desarrollador
 
@@ -259,20 +259,20 @@ GitHub → Repositorio → **Settings** → **Branches** → **Add rule**.
 
 ## Paso 6: GitHub Actions — Límites del Free Tier
 
-| Recurso                | Límite (Free)                   |
-| :--------------------- | :------------------------------ |
-| Minutos de ejecución   | 2,000 min/mes (repos privados) |
-| Storage (artifacts)    | 500 MB                          |
-| Concurrent jobs        | 20                              |
-| Tiempo máximo por job  | 6 horas                         |
+| Recurso               | Límite (Free)                  |
+| :-------------------- | :----------------------------- |
+| Minutos de ejecución  | 2,000 min/mes (repos privados) |
+| Storage (artifacts)   | 500 MB                         |
+| Concurrent jobs       | 20                             |
+| Tiempo máximo por job | 6 horas                        |
 
 ### Cálculo de Consumo Estimado
 
-| Escenario             | Duración | Frecuencia      | Minutos/Mes |
-| :-------------------- | :------- | :--------------- | :---------- |
-| Validate (PR)         | ~3 min   | 20 PRs/mes       | 60 min      |
-| Validate + Deploy     | ~5 min   | 20 merges/mes    | 100 min     |
-| **Total estimado**    |          |                  | **160 min** |
+| Escenario          | Duración | Frecuencia    | Minutos/Mes |
+| :----------------- | :------- | :------------ | :---------- |
+| Validate (PR)      | ~3 min   | 20 PRs/mes    | 60 min      |
+| Validate + Deploy  | ~5 min   | 20 merges/mes | 100 min     |
+| **Total estimado** |          |               | **160 min** |
 
 > Consumo estimado: **8% del límite gratuito**. Margen amplísimo.
 

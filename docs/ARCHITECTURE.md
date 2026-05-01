@@ -1,32 +1,34 @@
 # Architecture Specification — Free Interpreters OS v3
 
-> **Architecture**: Decoupled Frontend + Backend API  
-> **Runtime**: Easypanel (Docker/VPS) — Self-Hosted  
-> **Auth**: Supabase Auth (native, no Clerk)  
+> **Architecture**: Decoupled Frontend + Backend API
+> **Runtime**: Easypanel (Docker/VPS) — Self-Hosted
+> **Auth**: Supabase Auth (native, no Clerk)
+> **Framework**: Next.js 16.2.4 (both services - strictly required per deployment log)
 > **Last Updated**: 2026-04-30
 
 ---
 
 ## 1. Technology Stack
 
-| Layer       | Technology                            | Service           | Rationale                                    |
-| :---------- | :------------------------------------ | :---------------- | :------------------------------------------- |
-| Framework   | Next.js 16 (App Router)               | Both              | SSR/SSG + API Routes + Server Actions        |
-| Auth        | Supabase Auth                         | Frontend (SSR)    | Native auth, RLS integration, free tier      |
-| Database    | Supabase PostgreSQL                   | Backend only      | Managed Postgres, connection pooling         |
-| ORM         | Prisma 7 + `@prisma/adapter-pg`       | Backend only      | Type-safe queries, ESM support               |
-| Validation  | Zod v4                                | Both              | Runtime + compile-time type safety           |
-| Styling     | Tailwind CSS v4 + Lucide Icons        | Frontend only     | Utility-first, tree-shakeable                |
-| Deployment  | Easypanel (Docker on VPS)             | Both              | Self-hosted, webhook-driven CI/CD            |
+| Layer       | Technology                            | Version  | Service           | Rationale                                    |
+| :---------- | :------------------------------------ | :------- | :---------------- | :------------------------------------------- |
+| Framework   | Next.js (App Router)                  | 16.2.4   | Both              | SSR/SSG + API Routes + Server Actions        |
+| Runtime     | React                                 | 19.2.4   | Both              | Concurrent features, Server Components       |
+| Auth        | Supabase Auth                         | 2.105.1  | Frontend (SSR)    | Native auth, RLS integration, free tier      |
+| Database    | Supabase PostgreSQL                   | —        | Backend only      | Managed Postgres, connection pooling         |
+| ORM         | Prisma + `@prisma/adapter-pg`         | 7.8.0    | Backend only      | Type-safe queries, ESM support, pg adapter   |
+| Validation  | Zod                                   | 4.3.6    | Both              | Runtime + compile-time type safety           |
+| Styling     | Tailwind CSS + Lucide Icons           | v4       | Frontend only     | Utility-first, tree-shakeable                |
+| Deployment  | Easypanel (Docker on VPS)             | —        | Both              | Self-hosted, webhook-driven CI/CD            |
 
 ## 2. Service Architecture
 
 ### 2.1 Service Boundary
 
-| Service              | Repository              | Easypanel App        | Port | Responsibility                               |
-| :------------------- | :---------------------- | :------------------- | :--- | :------------------------------------------- |
-| **interpreters**     | `free-interpreters-os`  | `interpreters`       | 3000 | UI rendering, auth sessions, static assets   |
-| **interpreters-api** | `interpreters-api`      | `interpreters-api`   | 4000 | Business logic, DB access, webhooks, payroll |
+| Service              | Repository              | Easypanel App        | Port | Build Output   | Responsibility                               |
+| :------------------- | :---------------------- | :------------------- | :--- | :------------- | :------------------------------------------- |
+| **interpreters**     | `free-interpreters-os`  | `interpreters`       | 3000 | standalone     | UI rendering, auth sessions, static assets   |
+| **interpreters-api** | `interpreters-api`      | `interpreters-api`   | 4000 | standalone     | Business logic, DB access, webhooks, payroll |
 
 ### 2.2 Communication Flow
 
@@ -62,26 +64,56 @@
 └─────────────────┘                                   └──────────────┘
 ```
 
-## 3. Authentication & Authorization (Supabase RBAC)
+> **Memory Constraint**: The Easypanel VPS allocates ~457 MB to the API container. The `pg.Pool` is configured with `max: 20` connections and `connectionTimeoutMillis: 2000` to stay within budget. Always use port **6543** (transaction pooler) for `DATABASE_URL` in production.
+
+## 3. Breaking Changes Log (Next.js 16.2.4)
+
+### 3.1 Async Dynamic Route Parameters
+
+In Next.js 16+, `params` in dynamic API route handlers are delivered as a **Promise**. All `[id]`-style routes must `await params` before accessing fields.
+
+```typescript
+// ✅ Required pattern for all dynamic routes
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const resolvedParams = await params;
+  const id = parseInt(resolvedParams.id, 10);
+  // ...
+}
+```
+
+### 3.2 Middleware Convention
+
+As documented by the successful Easypanel deployment logs, the traditional `middleware.ts` file is **deprecated for proxy/rewrite logic** in Next.js 16. The current implementation at `src/middleware.ts` is retained **exclusively** for Supabase session refresh. Proxy rules (API forwarding, URL rewrites) must use the new proxy convention via `next.config.ts` `rewrites()`.
+
+### 3.3 Configuration Surface
+
+`outputFileTracingIncludes` has been promoted from `experimental` to a top-level property in `next.config.ts`. The `serverExternalPackages` property replaces `experimental.serverComponentsExternalPackages`.
+
+## 4. Authentication & Authorization (Supabase RBAC)
 
 ### Roles
 
 | Role              | Permissions                                           |
 | :---------------- | :---------------------------------------------------- |
-| admin           | Full CRUD on all modules + payroll approval           |
-| qa_auditor      | Read interpreters, CRUD on qa_scores                  |
-| payroll_manager | Read interpreters/logs, manage payroll_records        |
-| interpreter     | Read own profile, own logs, own QA scores, call timer |
+| admin             | Full CRUD on all modules + payroll approval           |
+| qa_auditor        | Read interpreters, CRUD on qa_scores                  |
+| payroll_manager   | Read interpreters/logs, manage payroll_records        |
+| interpreter       | Read own profile, own logs, own QA scores, call timer |
 
 ### Middleware Flow (Frontend)
 
 ```text
 Request → Supabase Middleware (SSR) → Session Refresh → Page Render
                │
-               ├─ Public: /login, /register
+               ├─ Public: /login, /register, /api/health
                ├─ Interpreter: /dashboard/*
                └─ Admin: /admin/*, /payroll/*, /qa/*
 ```
+
+> **Note**: The middleware gracefully degrades if `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` are missing at runtime — it logs a warning and passes the request through instead of crashing the container with a 502.
 
 ### API Auth Flow (Backend)
 
@@ -89,7 +121,7 @@ Request → Supabase Middleware (SSR) → Session Refresh → Page Render
 Request → CORS Check → Bearer Token Extraction → Supabase Token Verify → Route Handler
 ```
 
-## 4. Caching Strategy
+## 5. Caching Strategy
 
 | Data Type        | Strategy          | TTL  | Invalidation                   |
 | :--------------- | :---------------- | :--- | :----------------------------- |
@@ -99,7 +131,7 @@ Request → CORS Check → Bearer Token Extraction → Supabase Token Verify →
 | Payroll Records  | On-demand         | 0    | Always fresh (financial)       |
 | System Config    | Server-side cache | 300s | Manual revalidation            |
 
-## 5. Map of Services
+## 6. Map of Services
 
 1. **Interpreter Hub**: Master roster CRUD (Backend API).
 2. **Production Telemetry**: CSV import + real-time call tracking (Backend API).

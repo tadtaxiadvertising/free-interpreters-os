@@ -7,6 +7,7 @@ Este directorio contiene la documentación oficial, estandarizada y profesionali
 ### [01_Administrative](./01_Administrative)
 
 Documentos legales, contratos, políticas y formatos administrativos esenciales.
+
 * Carta de Bienvenida, Contrato Freelance, Código de Conducta, Reglamento Interno, etc.
 
 ### [02_SOPs](./02_SOPs)

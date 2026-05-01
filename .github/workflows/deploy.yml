@@ -74,7 +74,7 @@ jobs:
     steps:
       - name: 🔔 Trigger Easypanel Deploy
         env:
-          EASYPANEL_WEBHOOK_URL: ${{ secrets['EASYPANEL_WEBHOOK_URL'] }}
+          EASYPANEL_WEBHOOK_URL: "${{ secrets.EASYPANEL_WEBHOOK_URL }}"
         run: |
           if [ -z "$EASYPANEL_WEBHOOK_URL" ]; then
             echo "❌ Error: EASYPANEL_WEBHOOK_URL secret is not configured in GitHub Secrets"

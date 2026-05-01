@@ -26,13 +26,13 @@ Reemplazar las bases de datos remotas (Neon.tech/Supabase) por servicios locales
 2. Seleccionar **Postgres** de la lista de templates.
 3. Configurar:
 
-| Campo         | Valor                           |
-| :------------ | :------------------------------ |
-| Service Name  | `db`                            |
-| Image         | `postgres:16-alpine`            |
-| Password      | (Easypanel genera una automática) |
+| Campo        | Valor                             |
+| :----------- | :-------------------------------- |
+| Service Name | `db`                              |
+| Image        | `postgres:16-alpine`              |
+| Password     | (Easypanel genera una automática) |
 
-4. Click **Create**.
+1. Click **Create**.
 
 ### 1.2 Verificar Conexión Interna
 
@@ -47,6 +47,7 @@ Password: <generado por Easypanel>
 ```
 
 La connection string interna será:
+
 ```text
 postgresql://postgres:<PASSWORD>@free-interp-os_db:5432/postgres
 ```
@@ -60,8 +61,8 @@ Easypanel configura volúmenes automáticamente para PostgreSQL. Verificar:
 1. Servicio `db` → **Advanced** → **Volumes**.
 2. Confirmar que existe un mount:
 
-| Mount Path (Container) | Tipo     | Descripción                     |
-| :---------------------- | :------- | :------------------------------ |
+| Mount Path (Container)     | Tipo   | Descripción                      |
+| :------------------------- | :----- | :------------------------------- |
 | `/var/lib/postgresql/data` | Volume | Datos persistentes de PostgreSQL |
 
 > Los datos sobreviven a reinicios del contenedor, updates de imagen, y re-deployments.
@@ -80,6 +81,7 @@ CREATE DATABASE freeinterpreters;
 ```
 
 O usando la terminal integrada en Easypanel:
+
 1. Servicio `db` → **Terminal**.
 2. Ejecutar: `psql -U postgres -c "CREATE DATABASE freeinterpreters;"`
 
@@ -142,10 +144,10 @@ Easypanel crea automáticamente una red Docker para cada proyecto. Todos los ser
 
 ### 3.2 Resolución de Nombres
 
-| Desde `app` | Destino              | Ejemplo                              |
-| :---------- | :------------------- | :----------------------------------- |
-| DB          | `free-interp-os_db`  | `postgresql://postgres:pw@free-interp-os_db:5432/freeinterpreters` |
-| Redis       | `free-interp-os_redis` | `redis://:pw@free-interp-os_redis:6379` |
+| Desde `app` | Destino                | Ejemplo                                                              |
+| :---------- | :--------------------- | :------------------------------------------------------------------- |
+| DB          | `free-interp-os_db`    | `postgresql://postgres:pw@free-interp-os_db:5432/freeinterpreters`   |
+| Redis       | `free-interp-os_redis` | `redis://:pw@free-interp-os_redis:6379`                              |
 
 ### 3.3 Verificar Conectividad (desde el contenedor app)
 
@@ -337,6 +339,7 @@ EOF
 ```
 
 Para montar en Easypanel:
+
 1. Servicio `db` → **Advanced** → **Volumes**.
 2. Agregar bind mount:
    - **Host Path**: `/opt/config/postgresql/custom.conf`

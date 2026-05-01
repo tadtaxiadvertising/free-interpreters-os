@@ -6,6 +6,21 @@
 
 All endpoints reside and execute **exclusively** in the `interpreters-api` service. The Frontend (`interpreters`) communicates with these endpoints via `NEXT_PUBLIC_API_URL`. Endpoints are designed for fast `< 10s` execution.
 
+## Dynamic Routes in Next.js 16.2.4
+
+> **Critical**: Based on the updated architecture, all dynamic API routes (e.g., `[id]`) must handle parameters asynchronously.
+
+```typescript
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const resolvedParams = await params;
+  const id = resolvedParams.id;
+  // ...
+}
+```
+
 ## 1. Recruitment Inbound Webhook
 
 **Endpoint:** `POST /api/v1/webhooks/recruitment`  

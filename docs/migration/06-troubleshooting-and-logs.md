@@ -79,11 +79,13 @@ gzip /tmp/app-logs-*.txt
 sudo docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}\t{{.Image}}"
 
 # Output esperado:
-# NAMES                    STATUS          PORTS                    IMAGE
-# free-interp-os_app-1     Up 2 hours      3000/tcp                 ...
-# free-interp-os_db-1      Up 2 hours      5432/tcp                 postgres:16
-# traefik                  Up 3 days       80/tcp, 443/tcp          traefik:v3
-# easypanel                Up 3 days       3000/tcp                 easypanel/...
+
+| NAMES                | STATUS     | PORTS           | IMAGE         |
+| :------------------- | :--------- | :-------------- | :------------ |
+| free-interp-os_app-1 | Up 2 hours | 3000/tcp        | ...           |
+| free-interp-os_db-1  | Up 2 hours | 5432/tcp        | postgres:16   |
+| traefik              | Up 3 days  | 80/tcp, 443/tcp | traefik:v3    |
+| easypanel            | Up 3 days  | 3000/tcp        | easypanel/... |
 ```
 
 ### 2.2 Inspeccionar un Contenedor Específico
@@ -225,24 +227,24 @@ sudo docker stats
 
 ### 4.3 Soluciones para OOM
 
-| Causa                              | Solución                                           |
-| :--------------------------------- | :------------------------------------------------- |
-| Build de Next.js consume mucha RAM | Agregar swap al VPS (`fallocate -l 8G /swapfile`)  |
-| Node.js heap overflow              | `NODE_OPTIONS=--max-old-space-size=1024` en env    |
-| PostgreSQL shared_buffers muy alto | Reducir a 2GB si el VPS tiene < 16GB RAM           |
+| Causa                              | Solución                                             |
+| :--------------------------------- | :--------------------------------------------------- |
+| Build de Next.js consume mucha RAM | Agregar swap al VPS (`fallocate -l 8G /swapfile`)    |
+| Node.js heap overflow              | `NODE_OPTIONS=--max-old-space-size=1024` en env      |
+| PostgreSQL shared_buffers muy alto | Reducir a 2GB si el VPS tiene < 16GB RAM             |
 | Memory leak en la app              | Reiniciar periódicamente o debuggear con `--inspect` |
-| Demasiados contenedores            | Reducir servicios innecesarios                     |
+| Demasiados contenedores            | Reducir servicios innecesarios                       |
 
 ### 4.4 Configurar Límites de Memoria en Easypanel
 
 1. Servicio `app` → **Advanced** → **Resources**.
 2. Configurar:
 
-| Recurso | Valor        |
-| :------ | :----------- |
-| Memory  | 1024 MB      |
-| Swap    | 512 MB       |
-| CPU     | 1 core       |
+| Recurso | Valor   |
+| :------ | :------ |
+| Memory  | 1024 MB |
+| Swap    | 512 MB  |
+| CPU     | 1 core  |
 
 > Easypanel traduce esto a `--memory=1024m --memory-swap=1536m` en Docker.
 
@@ -274,10 +276,12 @@ sudo systemctl restart docker
 ### 5.3 Reinicio Automático (Restart Policy)
 
 Docker/Easypanel configura por defecto `--restart=unless-stopped`. Si un contenedor crashea:
+
 - Se reinicia automáticamente.
 - Si crashea repetidamente, Docker aplica back-off exponencial (espera progresiva).
 
 Verificar:
+
 ```bash
 sudo docker inspect $(sudo docker ps -q -f "name=free-interp-os_app") \
   --format '{{.HostConfig.RestartPolicy.Name}}'
@@ -337,14 +341,14 @@ sudo docker start $(sudo docker ps -q -f "name=free-interp-os_app")
 
 ### 6.1 Errores Comunes en Producción
 
-| Síntoma                           | Causa Probable                          | Solución                                  |
-| :-------------------------------- | :-------------------------------------- | :---------------------------------------- |
-| Página muestra "500 Internal"     | Variable de entorno faltante            | Verificar env vars en Easypanel           |
-| "ECONNREFUSED" en logs            | DB no está corriendo                    | `docker restart` del servicio db          |
-| "Prisma Client not generated"     | Dockerfile no ejecuta `prisma generate` | Verificar Dockerfile stage `deps`         |
-| Página en blanco (blank page)     | Error en build de Next.js               | Verificar logs del build en Easypanel     |
-| "ENOMEM" o "JavaScript heap OOM"  | Poca memoria                            | Aumentar `--max-old-space-size`           |
-| Lentitud extrema                  | Swap exhausto                           | Verificar `free -h`, aumentar RAM o swap  |
+| Síntoma                          | Causa Probable                          | Solución                                 |
+| :------------------------------- | :-------------------------------------- | :--------------------------------------- |
+| Página muestra "500 Internal"    | Variable de entorno faltante            | Verificar env vars en Easypanel          |
+| "ECONNREFUSED" en logs           | DB no está corriendo                    | `docker restart` del servicio db         |
+| "Prisma Client not generated"    | Dockerfile no ejecuta `prisma generate` | Verificar Dockerfile stage `deps`        |
+| Página en blanco (blank page)    | Error en build de Next.js               | Verificar logs del build en Easypanel    |
+| "ENOMEM" o "JavaScript heap OOM" | Poca memoria                            | Aumentar `--max-old-space-size`          |
+| Lentitud extrema                 | Swap exhausto                           | Verificar `free -h`, aumentar RAM o swap |
 
 ### 6.2 Habilitar Debug Mode Temporalmente
 

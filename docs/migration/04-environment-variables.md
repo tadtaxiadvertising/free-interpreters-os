@@ -77,18 +77,18 @@ LOG_LEVEL=info
 
 Las siguientes variables **ya no se usan** y deben eliminarse de cualquier archivo `.env`:
 
-| Variable                              | Servicio Eliminado | Reemplazo                         |
-| :------------------------------------ | :----------------- | :-------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`            | Supabase           | N/A — eliminado                   |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`       | Supabase           | N/A — eliminado                   |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`   | Clerk              | N/A — JWT nativo                  |
-| `CLERK_SECRET_KEY`                    | Clerk              | `JWT_SECRET`                      |
-| `CLERK_WEBHOOK_SECRET`               | Clerk              | N/A — eliminado                   |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL`       | Clerk              | Hardcoded en app (`/login`)       |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_URL`       | Clerk              | Hardcoded en app (`/register`)    |
-| `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` | Clerk              | Hardcoded en app (`/dashboard`)   |
-| `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` | Clerk              | Hardcoded en app (`/dashboard`)   |
-| `DIRECT_URL`                          | Neon.tech           | N/A — conexión TCP directa local  |
+| Variable                              | Servicio Eliminado | Reemplazo                        |
+| :------------------------------------ | :----------------- | :------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`            | Supabase           | N/A — eliminado                  |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`       | Supabase           | N/A — eliminado                  |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`   | Clerk              | N/A — JWT nativo                 |
+| `CLERK_SECRET_KEY`                    | Clerk              | `JWT_SECRET`                     |
+| `CLERK_WEBHOOK_SECRET`                | Clerk              | N/A — eliminado                  |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL`       | Clerk              | Hardcoded en app (`/login`)      |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL`       | Clerk              | Hardcoded en app (`/register`)   |
+| `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` | Clerk              | Hardcoded en app (`/dashboard`)  |
+| `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` | Clerk              | Hardcoded en app (`/dashboard`)  |
+| `DIRECT_URL`                          | Neon.tech          | N/A — conexión TCP directa local |
 
 ---
 
@@ -111,7 +111,7 @@ NEXT_PUBLIC_APP_URL = https://app.freeinterpreters.com
 LOG_LEVEL           = info
 ```
 
-4. Click **Save** → el servicio se reiniciará automáticamente con las nuevas variables.
+1. Click **Save** → el servicio se reiniciará automáticamente con las nuevas variables.
 
 ### 3.2 Variables Automáticas de Easypanel
 
@@ -157,10 +157,10 @@ node -e "console.log(require('crypto').randomBytes(64).toString('base64'))"
 
 ### Diferencia Crítica en Next.js
 
-| Prefijo            | Disponibilidad     | Inyección            | Seguridad         |
-| :----------------- | :----------------- | :------------------- | :---------------- |
-| `NEXT_PUBLIC_*`    | Cliente + Servidor | **Build-time** (embebido en el JS bundle) | ⚠️ Pública       |
-| Sin prefijo        | Solo Servidor      | **Runtime** (process.env) | ✅ Privada        |
+| Prefijo         | Disponibilidad     | Inyección                                 | Seguridad  |
+| :-------------- | :----------------- | :---------------------------------------- | :--------- |
+| `NEXT_PUBLIC_*` | Cliente + Servidor | **Build-time** (embebido en el JS bundle) | ⚠️ Pública |
+| Sin prefijo     | Solo Servidor      | **Runtime** (process.env)                 | ✅ Privada |
 
 ### Implicaciones para Docker
 
@@ -177,17 +177,17 @@ ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 ### Tabla de Clasificación
 
-| Variable                    | Tipo      | Momento     | Sensible |
-| :-------------------------- | :-------- | :---------- | :------- |
-| `DATABASE_URL`              | Runtime   | Container start | ✅ Sí   |
-| `JWT_SECRET`                | Runtime   | Container start | ✅ Sí   |
-| `JWT_EXPIRATION_SECONDS`    | Runtime   | Container start | ❌ No   |
-| `NODE_ENV`                  | Runtime   | Container start | ❌ No   |
-| `PORT`                      | Runtime   | Container start | ❌ No   |
-| `NEXT_PUBLIC_APP_URL`       | Build     | Docker build    | ❌ No   |
-| `NEXT_TELEMETRY_DISABLED`   | Build     | Docker build    | ❌ No   |
-| `REDIS_URL`                 | Runtime   | Container start | ✅ Sí   |
-| `LOG_LEVEL`                 | Runtime   | Container start | ❌ No   |
+| Variable                  | Tipo    | Momento         | Sensible |
+| :------------------------ | :------ | :-------------- | :------- |
+| `DATABASE_URL`            | Runtime | Container start | ✅ Sí    |
+| `JWT_SECRET`              | Runtime | Container start | ✅ Sí    |
+| `JWT_EXPIRATION_SECONDS`  | Runtime | Container start | ❌ No    |
+| `NODE_ENV`                | Runtime | Container start | ❌ No    |
+| `PORT`                    | Runtime | Container start | ❌ No    |
+| `NEXT_PUBLIC_APP_URL`     | Build   | Docker build    | ❌ No    |
+| `NEXT_TELEMETRY_DISABLED` | Build   | Docker build    | ❌ No    |
+| `REDIS_URL`               | Runtime | Container start | ✅ Sí    |
+| `LOG_LEVEL`               | Runtime | Container start | ❌ No    |
 
 ---
 
@@ -242,7 +242,7 @@ export const env = validateEnv();
 | Usar el mismo JWT_SECRET en dev y prod       | Generar uno diferente por entorno           |
 | Loguear variables sensibles                  | Enmascarar en logs: `DB: ***@host:port`     |
 
-### `.gitignore` — Verificar que incluye:
+### `.gitignore` — Verificar que incluye
 
 ```gitignore
 # Environment variables

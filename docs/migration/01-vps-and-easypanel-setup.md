@@ -23,13 +23,13 @@ Configurar la infraestructura base sobre la cual correrá toda la plataforma Fre
 
 ### 1.1 Especificaciones del Free Tier ARM
 
-| Recurso    | Valor                           |
-| :--------- | :------------------------------ |
-| Shape      | `VM.Standard.A1.Flex` (ARM)     |
+| Recurso    | Valor                          |
+| :--------- | :----------------------------- |
+| Shape      | `VM.Standard.A1.Flex` (ARM)    |
 | OCPUs      | Hasta 4 vCPUs (Ampere A1)      |
-| RAM        | Hasta 24 GB                     |
-| Disco      | 200 GB Block Volume (boot)      |
-| Networking | 1 Gbps, IP pública estática     |
+| RAM        | Hasta 24 GB                    |
+| Disco      | 200 GB Block Volume (boot)     |
+| Networking | 1 Gbps, IP pública estática    |
 | OS         | Ubuntu 22.04 Minimal (aarch64) |
 
 ### 1.2 Procedimiento
@@ -126,6 +126,7 @@ curl -sSL https://get.easypanel.io | sudo bash
 ```
 
 Este script:
+
 - Instala Docker CE si no está presente.
 - Configura la red Docker interna (`easypanel`).
 - Levanta Traefik como reverse proxy.
@@ -202,8 +203,8 @@ curl -I https://panel.freeinterpreters.com
 
 Dentro del proyecto, crearemos los siguientes servicios (en documentos posteriores):
 
-| Servicio | Tipo         | Documento de Referencia         |
-| :------- | :----------- | :------------------------------ |
+| Servicio | Tipo         | Documento de Referencia          |
+| :------- | :----------- | :------------------------------- |
 | app      | App (Docker) | `02-dockerization-and-builds.md` |
 | db       | PostgreSQL   | `03-database-and-services.md`    |
 | redis    | Redis        | `03-database-and-services.md`    |
