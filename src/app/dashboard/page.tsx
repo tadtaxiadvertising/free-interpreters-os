@@ -1,7 +1,8 @@
 import React from 'react';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { Phone, Clock, DollarSign, TrendingUp } from 'lucide-react';
+import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { StatusToggle } from '../../components/StatusToggle';
 import { CallTimer } from '../../components/CallTimer';
 import { CallHistory } from '../../components/CallHistory';
@@ -86,6 +87,16 @@ export default async function InterpreterDashboard() {
   const todayEarnings = todayCalls.reduce((sum: number, c: any) => sum + (Number(c.callCost) || 0), 0);
   const todayCallCount = todayCalls.length;
 
+  // Gamification Metrics
+  const mtdMinutes = interpreter?.productionLogs?.reduce((sum: number, log: any) => sum + (log.interpretedMinutes || 0), 0) || 0;
+  const monthlyGoal = 2000;
+  const mtdProgress = Math.min((mtdMinutes / monthlyGoal) * 100, 100);
+  
+  const latestQaScore = interpreter?.qaScores?.[0]?.totalScore ? Number(interpreter.qaScores[0].totalScore) : 0;
+  const isQaExcellent = latestQaScore >= 90;
+  
+  const mtdEarnings = (mtdMinutes / 60) * Number(interpreter.tariffPerMinute || 0) * 60; // Approximate MTD earnings
+
   if (!profile || !interpreter) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -106,37 +117,82 @@ export default async function InterpreterDashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      {/* Header */}
-      <header className="flex justify-between items-start">
-        <div>
-          <h2 className="text-3xl font-bold text-white">Welcome, {interpreter.name}</h2>
-          <p className="text-gray-400 mt-1">
-            {interpreter.languageA} ↔ {interpreter.languageB}
-            {interpreter.campaign && <span className="ml-3 text-blue-400">• {interpreter.campaign}</span>}
-          </p>
-        </div>
-        <StatusToggle
-          currentStatus={interpreter.realtimeStatus as any}
-        />
-      </header>
-
-      {/* Today's Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[
-          { label: 'Today\'s Calls', value: todayCallCount, icon: Phone, color: 'text-green-400' },
-          { label: 'Minutes Interpreted', value: `${todayMinutes}m`, icon: Clock, color: 'text-blue-400' },
-          { label: 'Earnings Today', value: `$${todayEarnings.toFixed(2)}`, icon: DollarSign, color: 'text-purple-400' },
-        ].map((stat, i) => (
-          <div key={i} className="glass p-6 rounded-3xl">
-            <div className="flex items-center gap-3 mb-3">
-              <div className={`p-2 rounded-xl bg-white/5 ${stat.color}`}>
-                <stat.icon size={20} />
-              </div>
-              <span className="text-sm text-gray-400">{stat.label}</span>
+      {/* Hero Section & Gamification */}
+      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-indigo-900/50 to-slate-900 border border-indigo-500/20 p-8 shadow-2xl">
+        <div className="absolute top-0 right-0 p-32 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-0 left-0 p-32 bg-emerald-500/10 blur-[100px] rounded-full pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <h2 className="text-3xl font-bold text-white tracking-tight">Hello, {interpreter.name}</h2>
+              {isQaExcellent && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                  Top Tier QA ✨
+                </span>
+              )}
             </div>
-            <p className="text-2xl font-bold text-white">{stat.value}</p>
+            <p className="text-slate-400 font-medium">
+              {interpreter.languageA} ↔ {interpreter.languageB}
+              {interpreter.campaign && <span className="ml-3 text-indigo-400">• {interpreter.campaign}</span>}
+            </p>
           </div>
-        ))}
+          <StatusToggle currentStatus={interpreter.realtimeStatus as any} />
+        </div>
+
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          {/* MTD Progress */}
+          <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm">
+            <div className="flex justify-between items-end mb-4">
+              <div>
+                <p className="text-sm text-slate-400 font-medium mb-1">MTD Minutes</p>
+                <p className="text-3xl font-bold text-white">{mtdMinutes}<span className="text-lg text-slate-500"> / {monthlyGoal}</span></p>
+              </div>
+              <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400">
+                <Clock size={24} />
+              </div>
+            </div>
+            <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400 rounded-full relative"
+                style={{ width: `${mtdProgress}%` }}
+              >
+                <div className="absolute inset-0 bg-white/20 animate-pulse" />
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 mt-2 text-right">{mtdProgress.toFixed(1)}% of monthly goal</p>
+          </div>
+
+          {/* QA Score */}
+          <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm flex flex-col justify-center">
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-sm text-slate-400 font-medium">Latest QA Score</p>
+              <div className={cn("p-2 rounded-xl", isQaExcellent ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-400")}>
+                <ShieldCheck size={20} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className={cn("text-4xl font-bold", isQaExcellent ? "text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "text-white")}>
+                {latestQaScore}%
+              </p>
+              {isQaExcellent && <span className="text-sm font-medium text-emerald-500">Excellent!</span>}
+            </div>
+          </div>
+
+          {/* Earnings */}
+          <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm flex flex-col justify-center">
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-sm text-slate-400 font-medium">MTD Est. Earnings</p>
+              <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
+                <DollarSign size={20} />
+              </div>
+            </div>
+            <p className="text-4xl font-bold text-white tracking-tight">
+              ${mtdEarnings.toFixed(2)}
+            </p>
+            <p className="text-xs text-slate-400 mt-2">Based on ${Number(interpreter.tariffPerMinute || 0).toFixed(2)}/min rate</p>
+          </div>
+        </div>
       </div>
 
       {/* Call Timer */}

@@ -46,85 +46,98 @@ export default async function InterpretersPage() {
       </header>
 
       {/* Filters & Search */}
-      <div className="flex gap-4 items-center">
-        <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+      <div className="flex flex-col md:flex-row gap-4 items-center">
+        <div className="flex-1 relative w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
           <input 
             type="text" 
             placeholder="Search by name, ID or campaign..." 
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500/50 transition-colors"
+            className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-white focus:outline-none focus:border-indigo-500/50 transition-colors backdrop-blur-sm"
           />
         </div>
-        <button className="flex items-center gap-2 px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-gray-300 hover:bg-white/10 transition-colors">
-          <Filter size={18} />
-          Filters
-        </button>
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
+          <button className="whitespace-nowrap px-4 py-2 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-full text-sm font-medium transition-colors">
+            All
+          </button>
+          <button className="whitespace-nowrap px-4 py-2 bg-slate-900/50 text-slate-300 border border-slate-800 hover:bg-slate-800 rounded-full text-sm font-medium transition-colors">
+            OPI Medical
+          </button>
+          <button className="whitespace-nowrap px-4 py-2 bg-slate-900/50 text-slate-300 border border-slate-800 hover:bg-slate-800 rounded-full text-sm font-medium transition-colors">
+            Spanish
+          </button>
+          <button className="flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-slate-900/50 text-slate-300 border border-slate-800 hover:bg-slate-800 rounded-full text-sm font-medium transition-colors ml-auto md:ml-2">
+            <Filter size={16} />
+            More Filters
+          </button>
+        </div>
       </div>
 
-      {/* Interpreters Grid/Table */}
-      <div className="glass rounded-3xl overflow-visible">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="text-gray-500 text-xs uppercase tracking-wider border-b border-white/5">
-              <th className="py-6 px-8">Interpreter</th>
-              <th className="py-6 px-4">Status</th>
-              <th className="py-6 px-4">Campaign</th>
-              <th className="py-6 px-4 text-center">Hourly / Min</th>
-              <th className="py-6 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {interpreters.map((interpreter) => (
-              <tr key={interpreter.id} className="group hover:bg-white/5 transition-colors">
-                <td className="py-6 px-8">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center text-blue-400 font-bold text-lg border border-white/5">
-                      {interpreter.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="font-bold text-white group-hover:text-blue-400 transition-colors">
-                        {interpreter.name}
-                      </p>
-                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                        ID: {interpreter.externalId}
-                      </p>
-                    </div>
+      {/* Interpreters Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {interpreters.map((interpreter) => {
+          const isActive = interpreter.status === 'Activo';
+          return (
+            <div key={interpreter.id} className="group bg-slate-900/40 border border-slate-800 rounded-3xl p-6 hover:bg-slate-800/50 hover:border-indigo-500/30 transition-all duration-300 relative overflow-hidden backdrop-blur-sm">
+              <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <InterpreterActions interpreter={interpreter} />
+              </div>
+              
+              <div className="flex items-start gap-4 mb-4">
+                <div className="relative">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-indigo-400 font-bold text-xl border border-white/5">
+                    {interpreter.name.charAt(0)}
                   </div>
-                </td>
-                <td className="py-6 px-4">
+                  {isActive && (
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-slate-900 rounded-full flex items-center justify-center">
+                      <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-lg group-hover:text-indigo-400 transition-colors line-clamp-1">
+                    {interpreter.name}
+                  </h3>
+                  <p className="text-sm text-slate-500 flex items-center gap-1 font-mono">
+                    ID: {interpreter.externalId}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-400">Status</span>
                   <span className={cn(
                     "px-3 py-1 rounded-full text-xs font-bold",
-                    interpreter.status === 'Activo' ? "bg-green-500/10 text-green-400" :
-                    interpreter.status === 'Probation' ? "bg-yellow-500/10 text-yellow-400" :
-                    "bg-gray-500/10 text-gray-400"
+                    isActive ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                    interpreter.status === 'Probation' ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                    "bg-slate-500/10 text-slate-400 border border-slate-500/20"
                   )}>
                     {interpreter.status}
                   </span>
-                </td>
-                <td className="py-6 px-4 text-gray-300">
-                  <span className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500/50" />
-                    {interpreter.campaign || 'N/A'}
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-400">Campaign</span>
+                  <span className="text-sm text-slate-300 font-medium truncate max-w-[120px] text-right">
+                    {interpreter.campaign || 'Unassigned'}
                   </span>
-                </td>
-                <td className="py-6 px-4 text-center">
-                  <div className="flex flex-col items-center">
-                    <span className="text-white font-mono font-bold">${(parseFloat(interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}/hr</span>
-                    <span className="text-[10px] text-gray-500 font-mono tracking-tight">${interpreter.tariffPerMinute.toString()}/min</span>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-800/50">
+                  <span className="text-sm text-slate-400">Rate</span>
+                  <div className="text-right">
+                    <p className="text-white font-mono font-bold">${(parseFloat(interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}<span className="text-xs text-slate-500">/hr</span></p>
                   </div>
-                </td>
-                <td className="py-6 px-4 text-right">
-                  <InterpreterActions interpreter={interpreter} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              </div>
+            </div>
+          );
+        })}
         
         {interpreters.length === 0 && (
-          <div className="p-20 text-center">
-            <Users size={48} className="mx-auto text-gray-700 mb-4" />
-            <p className="text-gray-500">No interpreters found in the database.</p>
+          <div className="col-span-full p-20 text-center bg-slate-900/20 border border-slate-800 rounded-3xl border-dashed">
+            <Users size={48} className="mx-auto text-slate-700 mb-4" />
+            <p className="text-slate-500 font-medium">No interpreters found in the database.</p>
           </div>
         )}
       </div>

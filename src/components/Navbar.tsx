@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { User, LogOut, Settings } from 'lucide-react';
+import { User, LogOut, Settings, ShieldCheck } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { NotificationBell } from './NotificationBell';
+import { cn } from '@/lib/utils';
 
 interface NavbarProps {
   email?: string;
@@ -12,9 +13,10 @@ interface NavbarProps {
 
 export function Navbar({ email, notifications = [] }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const initials = email ? email[0].toUpperCase() : 'U';
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-white/10 bg-[#0f172a]/80 backdrop-blur-md px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-slate-800 bg-[#0a0f1c]/80 backdrop-blur-md px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
       <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
         <div className="flex flex-1"></div>
         <div className="flex items-center gap-x-4 lg:gap-x-6">
@@ -22,41 +24,52 @@ export function Navbar({ email, notifications = [] }: NavbarProps) {
           <NotificationBell initialNotifications={notifications} />
 
           {/* Separator */}
-          <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-white/10" aria-hidden="true" />
+          <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-slate-800" aria-hidden="true" />
 
-          {/* Profile dropdown */}
+          {/* User Button (Clerk-like) */}
           <div className="relative">
             <button
               type="button"
-              className="-m-1.5 flex items-center p-1.5 focus:outline-none"
+              className="flex items-center gap-x-3 p-1 rounded-full hover:bg-slate-800/50 transition-colors focus:outline-none"
               onClick={() => setIsOpen(!isOpen)}
             >
-              <span className="sr-only">Open user menu</span>
-              <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold glow shadow-lg ring-2 ring-white/10">
-                {email ? email[0].toUpperCase() : <User size={16} />}
+              <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold text-sm shadow-sm ring-2 ring-transparent hover:ring-indigo-500 transition-all">
+                {initials}
               </div>
-              <span className="hidden lg:flex lg:items-center">
-                <span className="ml-4 text-sm font-semibold leading-6 text-white" aria-hidden="true">
-                  {email ? email.split('@')[0] : 'User Profile'}
-                </span>
-              </span>
             </button>
             {isOpen && (
-              <div className="absolute right-0 z-10 mt-2.5 w-48 origin-top-right rounded-xl bg-gray-900/95 backdrop-blur-xl border border-white/10 py-2 shadow-2xl ring-1 ring-white/5 focus:outline-none transition-all">
-                {email && (
-                  <div className="px-4 py-2 border-b border-white/5 mb-1">
-                    <p className="text-xs text-gray-400 truncate">{email}</p>
+              <div className="absolute right-0 z-10 mt-2 w-64 origin-top-right rounded-2xl bg-slate-900 border border-slate-800 py-2 shadow-2xl ring-1 ring-white/5 focus:outline-none transition-all">
+                <div className="px-4 py-3 border-b border-slate-800 flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold shadow-sm">
+                    {initials}
                   </div>
-                )}
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/5 transition-colors flex items-center gap-2">
-                  <Settings size={14} /> Settings
-                </button>
-                <button 
-                  onClick={async () => await logout()}
-                  className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2"
-                >
-                  <LogOut size={14} /> Sign out
-                </button>
+                  <div className="flex flex-col overflow-hidden">
+                    <span className="text-sm font-medium text-white truncate">
+                      {email ? email.split('@')[0] : 'User Profile'}
+                    </span>
+                    <span className="text-xs text-slate-400 truncate">
+                      {email}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="px-2 py-2">
+                  <button className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-300 hover:bg-slate-800 transition-colors flex items-center gap-3">
+                    <Settings size={16} className="text-slate-400" /> Manage Account
+                  </button>
+                  <button className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-300 hover:bg-slate-800 transition-colors flex items-center gap-3">
+                    <ShieldCheck size={16} className="text-slate-400" /> Security
+                  </button>
+                </div>
+                
+                <div className="px-2 pt-2 border-t border-slate-800">
+                  <button 
+                    onClick={async () => await logout()}
+                    className="w-full text-left px-3 py-2 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-3"
+                  >
+                    <LogOut size={16} /> Sign out
+                  </button>
+                </div>
               </div>
             )}
           </div>
