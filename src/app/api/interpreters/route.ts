@@ -151,8 +151,9 @@ export async function POST(request: Request) {
 
     // Handle unique constraint violations
     if (error.code === 'P2002') {
+      const field = error.meta?.target?.[0] || 'external ID or email';
       const response = NextResponse.json(
-        { error: `Interpreter with this ${error.meta?.target?.[0]} already exists.` },
+        { error: `Interpreter with this ${field} already exists.` },
         { status: 409 }
       );
       response.headers.set('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');

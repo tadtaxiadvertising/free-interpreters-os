@@ -108,7 +108,7 @@ export default async function InterpreterDashboard() {
   const isQaExcellent = latestQaScore >= 90;
   
   const mtdEarnings = monthCalls.reduce((sum: number, c: any) => sum + (Number(c.callCost) || 0), 0) + 
-    (logMinutes * Number(interpreter.tariffPerMinute || 0));
+    (logMinutes * Number(interpreter?.tariffPerMinute || 0));
 
   if (!profile || !interpreter) {
     return (
