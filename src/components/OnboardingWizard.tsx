@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useTransition, useCallback } from 'react';
-import { FileText, CreditCard, Compass, ChevronRight, ChevronLeft, Check, Loader2, Landmark, Hash, IdCard } from 'lucide-react';
+import { FileText, CreditCard, Compass, ChevronRight, ChevronLeft, Check, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { acceptTerms, saveBankingDetails, completeOnboarding } from '@/app/actions/onboarding';
+import { BankFormRD, type BankFormData } from './BankFormRD';
 
 // ── Freelance Contract content (embedded so it works offline) ──
 const LEGAL_CONTENT = `# Contrato de Prestación de Servicios Profesionales (Freelance)
@@ -69,10 +70,13 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   const scrollBoxRef = useRef<HTMLDivElement>(null);
 
-  // Step 2 – Banking
-  const [bankName, setBankName] = useState('');
-  const [bankAccount, setBankAccount] = useState('');
-  const [bankCedula, setBankCedula] = useState('');
+  // Step 2 – Banking (managed by BankFormRD)
+  const [bankData, setBankData] = useState<BankFormData>({
+    bankName: '',
+    bankAccount: '',
+    bankAccountType: '',
+    bankCedula: '',
+  });
 
   // Step 3 – Tutorial
   const [tutorialStep, setTutorialStep] = useState(0);
@@ -104,7 +108,7 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
 
   function handleNextBanking() {
     startTransition(async () => {
-      const result = await saveBankingDetails({ bankName, bankAccount, bankCedula });
+      const result = await saveBankingDetails(bankData);
       if (result.success) setCurrentStep(2);
     });
   }
@@ -116,12 +120,16 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
     });
   }
 
-  const isBankingValid = bankName.trim() && bankAccount.trim() && bankCedula.trim();
+  const isBankingValid =
+    bankData.bankName.trim() &&
+    bankData.bankAccount.trim() &&
+    bankData.bankAccountType.trim() &&
+    bankData.bankCedula.trim();
 
   const tutorialHighlights = [
     {
       title: '⏱️ Temporizador de Llamadas',
-      description: 'Tu herramienta principal. Presiona "Start Call" cuando comiences una interpretación. El tiempo se registra automáticamente, incluso si cambias de pestaña.',
+      description: 'Tu herramienta principal. Presiona "Iniciar Llamada" cuando comiences una interpretación. El tiempo se registra automáticamente, incluso si cambias de pestaña.',
     },
     {
       title: '📊 Tu Ranking',
@@ -232,68 +240,29 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
               </div>
             )}
 
-            {/* STEP 2: Banking */}
+            {/* STEP 2: Banking — uses the BankFormRD component */}
             {currentStep === 1 && (
               <div className="flex-1 flex flex-col animate-in fade-in slide-in-from-right-4 duration-500">
                 <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
                   <CreditCard size={20} className="text-blue-400" />
-                  Datos de Pago (Transferencia RD)
+                  Datos de Pago (Transferencia Bancaria RD)
                 </h3>
                 <p className="text-sm text-slate-400 mb-6">
-                  Ingresa los datos bancarios para recibir tus pagos por transferencia.
+                  Ingresa los datos bancarios dominicanos para recibir tus pagos por transferencia.
                 </p>
 
-                <div className="space-y-4 flex-1">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Banco</label>
-                    <div className="relative">
-                      <Landmark className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                      <select
-                        value={bankName}
-                        onChange={(e) => setBankName(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 pl-12 pr-10 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all appearance-none"
-                      >
-                        <option value="">Selecciona tu banco</option>
-                        <option value="Banreservas">Banreservas</option>
-                        <option value="Popular">Banco Popular</option>
-                        <option value="BHD">BHD León</option>
-                        <option value="Scotiabank">Scotiabank</option>
-                        <option value="Santa Cruz">Banco Santa Cruz</option>
-                        <option value="BDI">BDI</option>
-                        <option value="Promerica">Promerica</option>
-                        <option value="Caribe">Banco Caribe</option>
-                        <option value="Otro">Otro</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">No. de Cuenta</label>
-                    <div className="relative">
-                      <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                      <input
-                        type="text"
-                        value={bankAccount}
-                        onChange={(e) => setBankAccount(e.target.value)}
-                        placeholder="Ej: 0123456789"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Cédula / RNC</label>
-                    <div className="relative">
-                      <IdCard className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                      <input
-                        type="text"
-                        value={bankCedula}
-                        onChange={(e) => setBankCedula(e.target.value)}
-                        placeholder="Ej: 001-1234567-8"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                      />
-                    </div>
-                  </div>
+                <div className="flex-1">
+                  <BankFormRD
+                    initialData={bankData}
+                    onSubmit={(data) => {
+                      setBankData(data);
+                      handleNextBanking();
+                    }}
+                    isLoading={isPending}
+                    standalone={true}
+                  />
+                  {/* Live update bank data on field changes via controlled state */}
+                  <BankDataSync bankData={bankData} setBankData={setBankData} />
                 </div>
 
                 <div className="flex justify-between mt-6">
@@ -375,4 +344,49 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
       </div>
     </div>
   );
+}
+
+/**
+ * Internal helper: Syncs BankFormRD field values back to OnboardingWizard state.
+ * BankFormRD uses its own internal state, but on mount we pre-fill from parent.
+ * This component listens for DOM changes to keep parent state in sync.
+ */
+function BankDataSync({
+  bankData: _,
+  setBankData,
+}: {
+  bankData: BankFormData;
+  setBankData: React.Dispatch<React.SetStateAction<BankFormData>>;
+}) {
+  useEffect(() => {
+    // Observe select/input changes via event delegation
+    function handleChange(e: Event) {
+      const target = e.target as HTMLInputElement | HTMLSelectElement;
+      if (!target?.id) return;
+
+      setBankData((prev) => {
+        switch (target.id) {
+          case 'bank-name-select':
+            return { ...prev, bankName: target.value };
+          case 'bank-account-type-select':
+            return { ...prev, bankAccountType: target.value };
+          case 'bank-account-input':
+            return { ...prev, bankAccount: target.value };
+          case 'bank-cedula-input':
+            return { ...prev, bankCedula: target.value };
+          default:
+            return prev;
+        }
+      });
+    }
+
+    document.addEventListener('input', handleChange);
+    document.addEventListener('change', handleChange);
+    return () => {
+      document.removeEventListener('input', handleChange);
+      document.removeEventListener('change', handleChange);
+    };
+  }, [setBankData]);
+
+  return null;
 }

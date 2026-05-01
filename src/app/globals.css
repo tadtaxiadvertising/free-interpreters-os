@@ -7,6 +7,14 @@
   --primary-glow: rgba(59, 130, 246, 0.5);
   --card-bg: rgba(15, 23, 42, 0.6);
   --border: rgba(255, 255, 255, 0.08);
+
+  /* ── CONTRAST TOKENS ──────────────────────────────────────────── */
+  /* Improved legibility on dark backgrounds (WCAG AA compliant)    */
+  --text-primary: #f1f5f9;       /* slate-100 — main text */
+  --text-secondary: #cbd5e1;     /* slate-300 — secondary text (was slate-400) */
+  --text-tertiary: #94a3b8;      /* slate-400 — labels, hints */
+  --text-muted: #64748b;         /* slate-500 — least important */
+  --text-on-dark-accent: #e2e8f0; /* slate-200 — over dark gradients */
 }
 
 body {
@@ -63,6 +71,18 @@ body {
   animation: fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* ── TIMER CONTRAST — High legibility on dark backgrounds ── */
+/* Ensures the "$0.08/min" rate text pops against dark cards */
+.timer-rate {
+  color: var(--text-on-dark-accent);
+  font-weight: 500;
+}
+
+.timer-rate strong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
 /* Table Utilities */
 .table-container {
   scrollbar-gutter: stable;
@@ -98,3 +118,11 @@ select {
   color: var(--primary);
 }
 
+/* ── Scrollbar for OnboardingWizard legal text ── */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+}

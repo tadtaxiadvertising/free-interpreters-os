@@ -39,18 +39,14 @@ export function QuickLogButton({ inline = false }: { inline?: boolean }) {
 
   return (
     <>
+      {/* Always inline — FAB mode has been eliminated (see ADR / CallTimer refactor) */}
       <button
         onClick={() => setIsOpen(true)}
         id="btn-quick-log"
-        className={cn(
-          "flex items-center gap-2 text-white font-bold transition-all group",
-          inline
-            ? "px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl shadow-lg shadow-blue-600/20 hover:from-blue-500 hover:to-blue-400 hover:shadow-blue-500/30"
-            : "fixed bottom-8 right-8 z-50 px-5 py-3 bg-blue-600 hover:bg-blue-500 rounded-full shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:shadow-[0_0_25px_rgba(59,130,246,0.6)] hover:-translate-y-1"
-        )}
+        className="flex items-center gap-2 text-white font-bold transition-all group px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl shadow-lg shadow-blue-600/20 hover:from-blue-500 hover:to-blue-400 hover:shadow-blue-500/30 hover:-translate-y-0.5"
       >
         <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-        <span className={inline ? "" : "hidden md:inline"}>Registro Rápido</span>
+        <span>Registro Rápido</span>
       </button>
 
       {isOpen && (

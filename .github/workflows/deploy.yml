@@ -70,10 +70,10 @@ jobs:
     needs: validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 5
-    env:
-      EASYPANEL_WEBHOOK_URL: ${{ secrets.EASYPANEL_WEBHOOK_URL }}
     steps:
       - name: 🔔 Trigger Easypanel Deploy
+        env:
+          EASYPANEL_WEBHOOK_URL: ${{ secrets.EASYPANEL_WEBHOOK_URL }}
         run: |
           if [ -z "$EASYPANEL_WEBHOOK_URL" ]; then
             echo "❌ Error: EASYPANEL_WEBHOOK_URL secret is not configured in GitHub Secrets"

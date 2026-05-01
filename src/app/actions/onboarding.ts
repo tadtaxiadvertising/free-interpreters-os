@@ -36,6 +36,7 @@ export async function acceptTerms(): Promise<ActionResult> {
 export async function saveBankingDetails(data: {
   bankName: string;
   bankAccount: string;
+  bankAccountType?: string;
   bankCedula: string;
 }): Promise<ActionResult> {
   const supabase = await createClient();
@@ -51,6 +52,7 @@ export async function saveBankingDetails(data: {
     .update({
       bank_name: data.bankName.trim(),
       bank_account: data.bankAccount.trim(),
+      bank_account_type: data.bankAccountType?.trim() || null,
       bank_cedula: data.bankCedula.trim(),
     })
     .eq('id', user.id);
@@ -100,7 +102,7 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
 
   const { data: profile, error } = await supabase
     .from('user_profiles')
-    .select('terms_accepted_at, bank_name, bank_account, bank_cedula, onboarding_complete')
+    .select('terms_accepted_at, bank_name, bank_account, bank_account_type, bank_cedula, onboarding_complete')
     .eq('id', user.id)
     .single();
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -8,21 +8,32 @@ import {
   Users,
   DollarSign,
   ChevronRight,
-  Clock,
   ShieldCheck,
   UserPlus,
   Settings,
   Menu,
   ChevronLeft,
   Trophy,
-  TrendingUp,
   Award,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/types';
 
-const adminMenu = [
-  { icon: LayoutDashboard, label: 'Command Center', href: '/admin' },
+// ── Menu Definitions ──────────────────────────────────────────────
+// Each item has an `href` and an optional `exact` flag.
+// When `exact: true`, only `pathname === href` activates the item.
+// When `exact: false` (default), `pathname.startsWith(href)` is used
+// but ONLY if no other item has a more specific (longer) prefix match.
+
+interface MenuItem {
+  icon: React.ElementType;
+  label: string;
+  href: string;
+  exact?: boolean;
+}
+
+const adminMenu: MenuItem[] = [
+  { icon: LayoutDashboard, label: 'Command Center', href: '/admin', exact: true },
   { icon: Users, label: 'Interpreter Roster', href: '/interpreters' },
   { icon: UserPlus, label: 'Recruitment', href: '/recruitment' },
   { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
@@ -30,13 +41,14 @@ const adminMenu = [
   { icon: Settings, label: 'System Settings', href: '/settings' },
 ];
 
-const interpreterMenu = [
-  { icon: LayoutDashboard, label: 'Mi Dashboard', href: '/dashboard' },
+const interpreterMenu: MenuItem[] = [
+  { icon: LayoutDashboard, label: 'Mi Dashboard', href: '/dashboard', exact: true },
   { icon: Trophy, label: 'Mi Ranking', href: '/dashboard/ranking' },
   { icon: DollarSign, label: 'Mis Ganancias', href: '/dashboard/earnings' },
   { icon: Settings, label: 'Configuración', href: '/dashboard/settings' },
 ];
 
+// ── Ranking data shape ──
 interface RankingData {
   position: number;
   totalInterpreters: number;
@@ -53,20 +65,33 @@ interface SidebarProps {
 }
 
 /**
- * Determines the SINGLE active menu item using mutually exclusive logic:
- * 1. Exact match always wins
- * 2. For prefix matches (e.g. /dashboard/earnings matches /dashboard), 
- *    only the MOST SPECIFIC match is active
+ * Determines the SINGLE active menu item using strict matching:
+ *
+ * 1. Items with `exact: true` → only `pathname === href`
+ * 2. Items without `exact` → `pathname.startsWith(href)`
+ * 3. When multiple prefix matches exist, the LONGEST href wins.
+ *
+ * This guarantees exactly 0 or 1 items are active at any time.
+ * NO residual `.active` state — purely derived from `usePathname()`.
  */
-function getActiveIndex(pathname: string, items: typeof adminMenu): number {
-  // First pass: check for exact match
-  const exactIdx = items.findIndex(item => pathname === item.href);
+function getActiveIndex(pathname: string, items: MenuItem[]): number {
+  // Pass 1: Strict exact match (highest priority)
+  const exactIdx = items.findIndex(
+    (item) => item.exact === true && pathname === item.href
+  );
   if (exactIdx !== -1) return exactIdx;
 
-  // Second pass: longest prefix match (most specific wins)
+  // Pass 2: Exact match for non-exact items
+  const nonExactExact = items.findIndex(
+    (item) => item.exact !== true && pathname === item.href
+  );
+  if (nonExactExact !== -1) return nonExactExact;
+
+  // Pass 3: Longest prefix match among non-exact items only
   let bestIdx = -1;
   let bestLen = 0;
   items.forEach((item, i) => {
+    if (item.exact) return; // Skip exact-only items for prefix matching
     if (pathname.startsWith(item.href) && item.href.length > bestLen) {
       bestLen = item.href.length;
       bestIdx = i;
@@ -95,7 +120,7 @@ export function Sidebar({ role, isCollapsed, onToggle, notifications = [], ranki
             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent truncate">
               Free Interpreters
             </h1>
-            <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-widest font-bold">
+            <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">
               {role === 'admin' ? 'Admin OS' : 'Portal'}
             </p>
           </div>
@@ -103,7 +128,7 @@ export function Sidebar({ role, isCollapsed, onToggle, notifications = [], ranki
         <button 
           onClick={onToggle}
           className={cn(
-            "p-2 hover:bg-white/5 rounded-xl text-gray-400 hover:text-white transition-all",
+            "p-2 hover:bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all",
             isCollapsed && "hover:scale-110"
           )}
         >
@@ -114,6 +139,7 @@ export function Sidebar({ role, isCollapsed, onToggle, notifications = [], ranki
       <nav className="mt-6 px-4 space-y-2 flex-1">
         {menuItems.map((item, i) => {
           const Icon = item.icon;
+          // Active state is 100% derived from pathname — zero residual state
           const isActive = i === activeIndex;
 
           return (
@@ -125,7 +151,7 @@ export function Sidebar({ role, isCollapsed, onToggle, notifications = [], ranki
                 "flex items-center p-3 rounded-xl transition-all duration-300 group relative",
                 isActive
                   ? "bg-blue-600/20 text-blue-400 glow"
-                  : "text-gray-400 hover:bg-white/5 hover:text-white",
+                  : "text-slate-400 hover:bg-white/5 hover:text-white",
                 isCollapsed ? "justify-center" : "justify-between"
               )}
             >
@@ -175,17 +201,17 @@ export function Sidebar({ role, isCollapsed, onToggle, notifications = [], ranki
         </div>
       )}
 
-      {/* Bottom section */}
+      {/* Bottom section — System Status */}
       <div className={cn("p-4 transition-all duration-500", isCollapsed ? "px-2" : "px-4")}>
         <div className={cn(
           "rounded-2xl bg-gradient-to-br from-blue-600/10 to-transparent border border-blue-500/10 transition-all duration-500",
           isCollapsed ? "p-2 flex flex-col items-center" : "p-4"
         )}>
-          {!isCollapsed && <p className="text-xs text-gray-500 animate-in fade-in duration-500">System Status</p>}
+          {!isCollapsed && <p className="text-xs text-slate-500 animate-in fade-in duration-500">System Status</p>}
           <div className={cn("flex items-center gap-2", !isCollapsed && "mt-2")}>
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
             {!isCollapsed && (
-              <span className="text-sm font-medium text-gray-300 animate-in fade-in duration-500 truncate">
+              <span className="text-sm font-medium text-slate-300 animate-in fade-in duration-500 truncate">
                 Edge API Online
               </span>
             )}

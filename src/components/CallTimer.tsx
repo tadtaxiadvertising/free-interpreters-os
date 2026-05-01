@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
-import { Play, Square, DollarSign, Clock, Loader2 } from 'lucide-react';
+import { Play, Square, DollarSign, Clock, Loader2, Plus } from 'lucide-react';
 import { startCall, endCall } from '@/app/actions/calls';
 import type { TimerLocalState } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,16 @@ function formatTime(totalSeconds: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
+/**
+ * CallTimerDashboard — Unified call control panel.
+ *
+ * Integrates the timer display with BOTH action buttons:
+ * - "Iniciar Llamada" (Green) — starts a timed session
+ * - "Registro Rápido" (Blue) — logs minutes manually
+ *
+ * The floating action button (FAB) has been ELIMINATED.
+ * All call-related actions are co-located in this single component.
+ */
 export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
   const [isActive, setIsActive] = useState(!!activeCall);
   const [elapsed, setElapsed] = useState(0);
@@ -35,7 +45,7 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
   const startedAtRef = useRef<string | null>(activeCall?.startedAt ?? null);
   const workerRef = useRef<Worker | null>(null);
 
-  // Initialize Web Worker
+  // Initialize Web Worker for background-safe timing
   useEffect(() => {
     workerRef.current = new Worker('/timer-worker.js');
     workerRef.current.onmessage = (e) => {
@@ -122,7 +132,7 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
 
   return (
     <div className="flex flex-col items-center">
-      {/* Timer Display */}
+      {/* Timer Display — Large circular dial */}
       <div className={cn(
         'relative w-64 h-64 rounded-full flex items-center justify-center mb-8 transition-all duration-500',
         isActive
@@ -137,45 +147,50 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
             {formatTime(elapsed)}
           </p>
           {isActive && (
-            <div className="flex items-center justify-center gap-1 mt-3 text-green-400">
+            <div className="flex items-center justify-center gap-1 mt-3 text-emerald-400">
               <DollarSign size={14} />
-              <span className="text-sm font-medium">${estimatedCost.toFixed(2)}</span>
-              <span className="text-xs text-gray-500 ml-1">est.</span>
+              <span className="text-sm font-semibold">${estimatedCost.toFixed(2)}</span>
+              <span className="text-xs text-slate-400 ml-1">est.</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Rate info */}
-      <div className="flex items-center gap-2 mb-6 text-slate-300 text-sm">
-        <Clock size={14} />
-        <span>Tarifa: ${(tariff * 60).toFixed(2)}/hr (${tariff.toFixed(2)}/min)</span>
+      {/* Rate info — IMPROVED CONTRAST: text-slate-200 instead of text-slate-300 */}
+      <div className="flex items-center gap-2 mb-6 text-slate-200 text-sm font-medium">
+        <Clock size={14} className="text-blue-400" />
+        <span>
+          Tarifa: <span className="text-white font-bold">${(tariff * 60).toFixed(2)}/hr</span>
+          <span className="text-slate-400 ml-1">(${tariff.toFixed(2)}/min)</span>
+        </span>
       </div>
 
-      {/* Control Buttons — Start Call (green) + Registro Rápido (blue) side by side */}
-      <div className="flex gap-4">
+      {/* ── Control Buttons ──────────────────────────────────────── */}
+      {/* "Iniciar Llamada" (Green) + "Registro Rápido" (Blue) side by side */}
+      {/* When a call is active, only the "Finalizar" (Red) button shows */}
+      <div className="flex gap-4 flex-wrap justify-center">
         {!isActive ? (
-          <div className="flex gap-4">
+          <>
             <button
               onClick={handleStart}
               disabled={isPending}
               id="btn-start-call"
-              className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-green-600 to-green-500 text-white font-bold rounded-2xl hover:from-green-500 hover:to-green-400 transition-all duration-300 disabled:opacity-50 shadow-lg shadow-green-600/20"
+              className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-green-600 to-green-500 text-white font-bold rounded-2xl hover:from-green-500 hover:to-green-400 transition-all duration-300 disabled:opacity-50 shadow-lg shadow-green-600/20 hover:shadow-green-500/30 hover:-translate-y-0.5"
             >
               {isPending ? <Loader2 size={20} className="animate-spin" /> : <Play size={20} />}
               Iniciar Llamada
             </button>
-            {/* QuickLogButton (blue style) next to Start Call */}
+            {/* QuickLogButton rendered INLINE — no more floating FAB */}
             <div className="relative z-[60]">
               <QuickLogButton inline={true} />
             </div>
-          </div>
+          </>
         ) : (
           <button
             onClick={handleEnd}
             disabled={isPending}
             id="btn-end-call"
-            className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-red-600 to-red-500 text-white font-bold rounded-2xl hover:from-red-500 hover:to-red-400 transition-all duration-300 disabled:opacity-50 shadow-lg shadow-red-600/20"
+            className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-red-600 to-red-500 text-white font-bold rounded-2xl hover:from-red-500 hover:to-red-400 transition-all duration-300 disabled:opacity-50 shadow-lg shadow-red-600/20 hover:shadow-red-500/30 hover:-translate-y-0.5"
           >
             {isPending ? <Loader2 size={20} className="animate-spin" /> : <Square size={20} />}
             Finalizar Llamada
@@ -183,17 +198,17 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
         )}
       </div>
 
-      {/* Call Result */}
+      {/* Call Result card — slides in from bottom after ending a call */}
       {callResult && (
         <div className="mt-8 glass rounded-2xl p-6 w-full max-w-sm border border-green-500/20 animate-in slide-in-from-bottom-4 duration-500">
           <h4 className="text-sm font-bold text-green-400 mb-3">Llamada Completada ✓</h4>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-gray-500">Duración</p>
+              <p className="text-xs text-slate-400">Duración</p>
               <p className="text-lg font-bold text-white">{formatTime(callResult.duration)}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Ganancia</p>
+              <p className="text-xs text-slate-400">Ganancia</p>
               <p className="text-lg font-bold text-green-400">${callResult.cost.toFixed(2)}</p>
             </div>
           </div>
