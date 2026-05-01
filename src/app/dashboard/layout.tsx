@@ -32,7 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       const endOfMonth = new Date();
       endOfMonth.setMonth(endOfMonth.getMonth() + 1, 0);
 
-      // Get all interpreters' monthly minutes for ranking
+      // Get all interpreters' monthly minutes and latest QA for ranking
       const allInterpreters = await db.interpreter.findMany({
         where: { status: 'Activo' },
         select: {
@@ -50,10 +50,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
             },
             select: { interpretedMinutes: true },
           },
+          qaScores: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { totalScore: true }
+          }
         },
       });
 
-      // Calculate total minutes for each interpreter
+      // Calculate total minutes and get latest QA for each interpreter
       const rankings = allInterpreters.map((interp: any) => {
         const sessionMin = Math.round(
           (interp.callSessions || []).reduce((s: number, c: any) => s + (c.durationSeconds || 0), 0) / 60
@@ -61,11 +66,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
         const logMin = (interp.productionLogs || []).reduce(
           (s: number, l: any) => s + (l.interpretedMinutes || 0), 0
         );
-        return { id: interp.id, totalMinutes: sessionMin + logMin };
+        const latestQa = interp.qaScores?.[0]?.totalScore ? Number(interp.qaScores[0].totalScore) : 0;
+        
+        return { 
+          id: interp.id, 
+          totalMinutes: sessionMin + logMin,
+          qaScore: latestQa
+        };
       });
 
-      // Sort descending
-      rankings.sort((a: any, b: any) => b.totalMinutes - a.totalMinutes);
+      // Sort descending (Minutes desc, then QA Score desc as tiebreaker)
+      rankings.sort((a: any, b: any) => {
+        if (b.totalMinutes !== a.totalMinutes) {
+          return b.totalMinutes - a.totalMinutes;
+        }
+        return b.qaScore - a.qaScore;
+      });
 
       const myEntry = rankings.find((r: any) => r.id === profile.interpreter_id);
       const myPosition = rankings.findIndex((r: any) => r.id === profile.interpreter_id) + 1;

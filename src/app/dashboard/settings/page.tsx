@@ -11,6 +11,7 @@ import {
   Shield,
   Info
 } from 'lucide-react';
+import { getCurrentProfile } from '@/app/actions/auth';
 import prisma from '@/lib/prisma';
 import { updateInterpreterProfile } from '@/app/actions/profile';
 
@@ -20,17 +21,19 @@ export default async function SettingsPage() {
   const { userId } = await auth();
   if (!userId) redirect('/login');
 
-  const profile = await (prisma as any).userProfile.findFirst({
-    where: { 
-      id: userId
-    },
-    include: {
-      interpreter: true
-    }
-  });
+  const profile = await getCurrentProfile();
+  if (!profile) redirect('/login');
 
-  const interpreter = profile?.interpreter;
-  if (!interpreter) redirect('/dashboard');
+  // We still need to fetch some info from the interpreter table via Prisma
+  const db = prisma as any;
+  const interpreter = profile.interpreter_id 
+    ? await db.interpreter.findUnique({ where: { id: profile.interpreter_id } })
+    : null;
+
+  if (!interpreter && profile.role === 'interpreter') {
+    // If they should have an interpreter record but don't
+    console.error('❌ SETTINGS: Interpreter record missing for user', profile.id);
+  }
 
   return (
     <div className="max-w-4xl space-y-8 animate-in fade-in duration-700">
@@ -47,11 +50,10 @@ export default async function SettingsPage() {
         const data = {
           phone: formData.get('phone') as string,
           country: formData.get('country') as string,
-          metodoPago: 'Transferencia Bancaria',
-          banco: formData.get('banco') as string,
-          tipoCuenta: formData.get('tipoCuenta') as string,
-          cuentaPago: formData.get('cuentaPago') as string,
-          cedulaRnc: formData.get('cedulaRnc') as string,
+          bankName: formData.get('bankName') as string,
+          bankAccount: formData.get('bankAccount') as string,
+          bankAccountType: formData.get('bankAccountType') as string,
+          bankCedula: formData.get('bankCedula') as string,
           notes: formData.get('notes') as string,
         };
         await updateInterpreterProfile(data);
@@ -70,7 +72,7 @@ export default async function SettingsPage() {
               <input 
                 type="text" 
                 disabled 
-                value={interpreter.name}
+                value={interpreter?.name || profile.display_name}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-400 cursor-not-allowed"
               />
             </div>
@@ -79,7 +81,7 @@ export default async function SettingsPage() {
               <input 
                 type="text" 
                 disabled 
-                value={interpreter.emailCorporativo || ''}
+                value={interpreter?.emailCorporativo || profile.email || ''}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-400 cursor-not-allowed"
               />
             </div>
@@ -90,7 +92,7 @@ export default async function SettingsPage() {
                 <input 
                   name="phone"
                   type="text" 
-                  defaultValue={interpreter.telefono || ''}
+                  defaultValue={interpreter?.telefono || ''}
                   placeholder="+1 234 567 890"
                   className="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-xl px-12 py-3 text-white focus:outline-none transition-all"
                 />
@@ -103,8 +105,8 @@ export default async function SettingsPage() {
                 <input 
                   name="country"
                   type="text" 
-                  defaultValue={interpreter.pais || ''}
-                  placeholder="e.g. Colombia"
+                  defaultValue={interpreter?.pais || ''}
+                  placeholder="e.g. Dominican Republic"
                   className="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-xl px-12 py-3 text-white focus:outline-none transition-all"
                 />
               </div>
@@ -116,24 +118,15 @@ export default async function SettingsPage() {
         <div className="glass p-8 rounded-3xl border border-white/5 space-y-6">
           <div className="flex items-center gap-3 pb-4 border-b border-white/5">
             <CreditCard className="text-green-400" size={20} />
-            <h3 className="text-lg font-bold text-white">Payment Preferences</h3>
+            <h3 className="text-lg font-bold text-white">Payment Preferences (RD Only)</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Método de Pago</label>
-              <input 
-                type="text" 
-                disabled 
-                value="Transferencia Bancaria"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-400 cursor-not-allowed"
-              />
-            </div>
-            <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Banco</label>
               <select 
-                name="banco"
-                defaultValue={interpreter.banco || ''}
+                name="bankName"
+                defaultValue={profile.bank_name || ''}
                 className="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-xl px-4 py-3 text-white focus:outline-none transition-all appearance-none"
               >
                 <option value="" disabled>Seleccionar Banco</option>
@@ -147,8 +140,8 @@ export default async function SettingsPage() {
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo de Cuenta</label>
               <select 
-                name="tipoCuenta"
-                defaultValue={interpreter.tipoCuenta || ''}
+                name="bankAccountType"
+                defaultValue={profile.bank_account_type || ''}
                 className="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-xl px-4 py-3 text-white focus:outline-none transition-all appearance-none"
               >
                 <option value="" disabled>Seleccionar Tipo</option>
@@ -159,20 +152,20 @@ export default async function SettingsPage() {
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Número de Cuenta</label>
               <input 
-                name="cuentaPago"
+                name="bankAccount"
                 type="text" 
-                defaultValue={interpreter.cuentaPago || ''}
+                defaultValue={profile.bank_account || ''}
                 placeholder="Número de cuenta bancaria"
                 className="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-xl px-4 py-3 text-white focus:outline-none transition-all"
               />
             </div>
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cédula / RNC</label>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cédula del Titular</label>
               <input 
-                name="cedulaRnc"
+                name="bankCedula"
                 type="text" 
-                defaultValue={interpreter.cedulaRnc || ''}
-                placeholder="Documento de identidad"
+                defaultValue={profile.bank_cedula || ''}
+                placeholder="XXX-XXXXXXX-X"
                 className="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-xl px-4 py-3 text-white focus:outline-none transition-all"
               />
             </div>
@@ -181,7 +174,7 @@ export default async function SettingsPage() {
           <div className="p-4 rounded-2xl bg-blue-500/5 border border-blue-500/10 flex gap-4">
             <Info className="text-blue-400 shrink-0" size={20} />
             <p className="text-xs text-gray-400 leading-relaxed">
-              Please ensure your payment details are accurate. Payments are processed every 15 days based on your verified interpretations. If you use a bank account, include SWIFT/IBAN if applicable.
+              Payments are processed every 15 days in Dominican Pesos (DOP). Ensure the Cédula matches the bank account holder's identity to avoid payment rejection.
             </p>
           </div>
         </div>
@@ -201,7 +194,7 @@ export default async function SettingsPage() {
       {/* Security Info */}
       <footer className="flex items-center justify-center gap-2 text-gray-600 text-xs py-8">
         <Shield size={14} />
-        Your data is encrypted and managed according to GDPR standards.
+        Your data is encrypted and managed according to GDPR and Dominican Banking standards.
       </footer>
     </div>
   );

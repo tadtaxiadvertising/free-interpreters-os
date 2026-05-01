@@ -134,9 +134,17 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
 
   return {
     id: profile.id,
+    email: profile.email,
     role: profile.role as any,
     interpreter_id: profile.interpreter_id,
     display_name: profile.display_name || '',
+    terms_accepted_at: profile.terms_accepted_at,
+    signature_date: profile.signature_date,
+    bank_name: profile.bank_name,
+    bank_account: profile.bank_account,
+    bank_account_type: profile.bank_account_type,
+    bank_cedula: profile.bank_cedula,
+    onboarding_complete: profile.onboarding_complete || false,
     created_at: profile.created_at,
   };
 }

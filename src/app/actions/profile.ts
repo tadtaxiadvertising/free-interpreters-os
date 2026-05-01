@@ -6,11 +6,10 @@ import { revalidatePath } from 'next/cache';
 export type ProfileUpdateInput = {
   phone?: string;
   country?: string;
-  metodoPago?: string;
-  banco?: string;
-  tipoCuenta?: string;
-  cuentaPago?: string;
-  cedulaRnc?: string;
+  bankName?: string;
+  bankAccount?: string;
+  bankAccountType?: string;
+  bankCedula?: string;
   notes?: string;
 };
 
@@ -21,42 +20,49 @@ export async function updateInterpreterProfile(input: ProfileUpdateInput) {
   if (!user) return { success: false, error: 'Unauthorized' };
 
   try {
+    // 1. Update UserProfile (New SSOT for banking)
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('interpreter_id')
+      .update({
+        bank_name: input.bankName,
+        bank_account: input.bankAccount,
+        bank_account_type: input.bankAccountType,
+        bank_cedula: input.bankCedula,
+      })
       .eq('id', user.id)
+      .select('interpreter_id')
       .single();
 
-    if (profileError || !profile?.interpreter_id) {
-      return { success: false, error: 'No interpreter profile found' };
+    if (profileError) {
+      console.error('User Profile Update Error:', profileError.message);
+      return { success: false, error: profileError.message };
     }
 
-    const { data: updated, error: updateError } = await supabase
-      .from('interpreters')
-      .update({
-        telefono: input.phone,
-        pais: input.country,
-        metodo_pago: input.metodoPago,
-        banco: input.banco,
-        tipo_cuenta: input.tipoCuenta,
-        cuenta_pago: input.cuentaPago,
-        cedula_rnc: input.cedulaRnc,
-        notas: input.notes
-      })
-      .eq('id', profile.interpreter_id)
-      .select()
-      .single();
+    // 2. Sync with Interpreters table (Legacy compatibility)
+    if (profile?.interpreter_id) {
+      const { error: interpError } = await supabase
+        .from('interpreters')
+        .update({
+          telefono: input.phone,
+          pais: input.country,
+          banco: input.bankName,
+          cuenta_pago: input.bankAccount,
+          tipo_cuenta: input.bankAccountType,
+          cedula_rnc: input.bankCedula,
+          notas: input.notes
+        })
+        .eq('id', profile.interpreter_id);
 
-    if (updateError) {
-      console.error('Profile Update Error:', updateError.message);
-      return { success: false, error: updateError.message };
+      if (interpError) {
+        console.warn('Sync with interpreters table failed:', interpError.message);
+      }
     }
 
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/settings');
     revalidatePath('/dashboard/earnings');
     
-    return { success: true, data: updated };
+    return { success: true };
   } catch (error: any) {
     console.error('Unexpected Profile Update Error:', error);
     return { success: false, error: 'An unexpected error occurred while updating profile.' };

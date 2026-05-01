@@ -8,9 +8,17 @@ export type RealtimeStatus = 'Online' | 'Offline' | 'Busy';
 
 export interface UserProfile {
   id: string;
+  email: string;
   role: UserRole;
   interpreter_id: number | null;
   display_name: string;
+  terms_accepted_at: string | null;
+  signature_date: string | null;
+  bank_name: string | null;
+  bank_account: string | null;
+  bank_account_type: string | null;
+  bank_cedula: string | null;
+  onboarding_complete: boolean;
   created_at: string;
 }
 
