@@ -106,14 +106,33 @@ export async function completeOnboarding(): Promise<ActionResult> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-    const { error } = await supabase
+    // Update user profile
+    const { data: profile, error } = await supabase
       .from('user_profiles')
       .update({ onboarding_complete: true })
-      .eq('id', user.id);
+      .eq('id', user.id)
+      .select('interpreter_id')
+      .single();
 
     if (error) {
       console.error('[ONBOARDING] completeOnboarding error:', error.message);
       return { success: false, error: `Error al completar el proceso: ${error.message}`, code: 'INTERNAL_ERROR' };
+    }
+
+    // Sync with interpreter record
+    if (profile?.interpreter_id) {
+      const { error: intError } = await supabase
+        .from('interpreters')
+        .update({
+          documentos_completo: true,
+          metodo_pago: 'Transferencia Bancaria',
+          status: 'Activo'
+        })
+        .eq('id', profile.interpreter_id);
+
+      if (intError) {
+        console.warn('[ONBOARDING] Sync interpreter error:', intError.message);
+      }
     }
 
     revalidatePath('/dashboard');

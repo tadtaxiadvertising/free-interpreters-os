@@ -16,8 +16,8 @@ const prismaClientSingleton = (): PrismaClient => {
   }
   
   const pool = new pg.Pool({ 
-    connectionString: process.env.DATABASE_URL,
-    max: process.env.NODE_ENV === 'production' ? 1 : 10,
+    connectionString: process.env.DATABASE_URL, // Ensure this uses port 6543 (Connection Pooler)
+    max: process.env.NODE_ENV === 'production' ? 3 : 10, // Optimized for 457MB VPS on Easypanel
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
   });
