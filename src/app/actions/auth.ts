@@ -121,11 +121,12 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile, error } = await supabase
+  const { data: profiles, error } = await supabase
     .from('user_profiles')
     .select('*')
-    .eq('id', user.id)
-    .maybeSingle();
+    .eq('id', user.id);
+    
+  const profile = profiles && profiles.length > 0 ? profiles[0] : null;
 
   if (error || !profile) {
     console.error('Error fetching profile:', error?.message);

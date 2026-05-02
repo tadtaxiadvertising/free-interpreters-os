@@ -8,21 +8,19 @@ import { cn } from '@/lib/utils';
 import { AddInterpreterButton } from '@/components/AddInterpreterButton';
 import { InterpreterActions } from '@/components/InterpreterActions';
 import { ExportInterpretersButton } from '@/components/ExportInterpretersButton';
+import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 async function getInterpreters() {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-    const res = await fetch(`${apiUrl}/api/interpreters`, { cache: 'no-store' });
-    if (!res.ok) {
-      console.warn(`API returned status ${res.status}`);
-      return [];
-    }
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    const interpreters = await prisma.interpreter.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    // Cast to any[] to avoid strict type mismatch with components expecting string dates
+    return interpreters as any[];
   } catch (error) {
-    console.error('Error fetching interpreters:', error);
+    console.error('Error fetching interpreters from DB:', error);
     return [];
   }
 }

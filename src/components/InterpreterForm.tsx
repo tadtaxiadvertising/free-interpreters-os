@@ -37,8 +37,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
     }
 
     try {
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
-      const url = isEditing ? `${apiUrl}/api/interpreters/${interpreterId}` : `${apiUrl}/api/interpreters`;
+      const url = isEditing ? `/api/interpreters/${interpreterId}` : '/api/interpreters';
       const method = isEditing ? 'PATCH' : 'POST';
 
       const response = await fetch(url, {

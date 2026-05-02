@@ -27,8 +27,8 @@ export function ScorecardForm({ onSuccess, onCancel, preselectedInterpreterId }:
   useEffect(() => {
     async function fetchInterpreters() {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-        const res = await fetch(`${apiUrl}/api/interpreters`);
+        // Use relative URL for client-side and robust SSR
+        const res = await fetch('/api/interpreters');
         if (res.ok) {
           const data = await res.json();
           setInterpreters(data);
@@ -65,8 +65,7 @@ export function ScorecardForm({ onSuccess, onCancel, preselectedInterpreterId }:
     };
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/qa`, {
+      const response = await fetch('/api/qa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

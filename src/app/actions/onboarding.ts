@@ -176,11 +176,12 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-  const { data: profile, error } = await supabase
+  const { data: profiles, error } = await supabase
     .from('user_profiles')
     .select('terms_accepted_at, bank_name, bank_account, bank_account_type, bank_cedula, onboarding_complete')
-    .eq('id', user.id)
-    .maybeSingle();
+    .eq('id', user.id);
+    
+  const profile = profiles && profiles.length > 0 ? profiles[0] : null;
 
   if (error || !profile) {
     return { success: false, error: 'Profile not found', code: 'NOT_FOUND' };

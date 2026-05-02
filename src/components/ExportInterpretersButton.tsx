@@ -11,7 +11,7 @@ interface Interpreter {
   status: string;
   campaign: string | null;
   tariffPerMinute: any;
-  createdAt: string;
+  createdAt: string | Date;
 }
 
 interface ExportInterpretersButtonProps {

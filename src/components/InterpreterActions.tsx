@@ -21,6 +21,7 @@ interface InterpreterActionsProps {
     id: number;
     name: string;
     emailCorporativo: string | null;
+    [key: string]: any;
   };
 }
 

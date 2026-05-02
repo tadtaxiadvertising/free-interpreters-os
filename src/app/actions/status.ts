@@ -14,11 +14,12 @@ export async function updateInterpreterStatus(
 
   try {
     // 1. Get the interpreter ID linked to this user
-    const { data: profile, error: profileError } = await supabase
+    const { data: profiles, error: profileError } = await supabase
       .from('user_profiles')
       .select('interpreter_id')
-      .eq('id', user.id)
-      .single();
+      .eq('id', user.id);
+    
+    const profile = profiles && profiles.length > 0 ? profiles[0] : null;
 
     if (profileError || !profile?.interpreter_id) {
       return { success: false, error: 'No interpreter linked to this account', code: 'NOT_FOUND' };
