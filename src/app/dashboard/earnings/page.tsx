@@ -56,7 +56,7 @@ export default async function EarningsPage() {
         <div className="glass p-6 rounded-3xl border border-white/5 bg-gradient-to-br from-green-500/5 to-transparent">
           <p className="text-sm text-gray-500 font-medium">Your Base Rate</p>
           <div className="flex items-center gap-3 mt-2">
-            <h3 className="text-3xl font-bold text-white">${(Number(interpreter.tariffPerMinute) * 60).toFixed(2)}</h3>
+            <h3 className="text-3xl font-bold text-white">RD${(Number(interpreter.tariffPerMinute) * 60).toFixed(2)}</h3>
             <span className="text-xs text-gray-400">per interpreted hour</span>
           </div>
           <TrendingUp size={24} className="mt-4 text-green-500" />
@@ -66,7 +66,7 @@ export default async function EarningsPage() {
           <p className="text-sm text-gray-500 font-medium">Last Payment</p>
           <div className="flex items-center gap-3 mt-2">
             <h3 className="text-3xl font-bold text-white">
-              {interpreter.payrollRecords[0] ? `$${interpreter.payrollRecords[0].netTotal.toString()}` : '$0.00'}
+              {interpreter.payrollRecords[0] ? `RD$${interpreter.payrollRecords[0].netTotal.toString()}` : 'RD$0.00'}
             </h3>
           </div>
           <Calendar size={24} className="mt-4 text-blue-400" />
@@ -109,12 +109,12 @@ export default async function EarningsPage() {
                     </div>
                   </td>
                   <td className="p-6 text-gray-400">{(record.totalMinutes / 60).toFixed(2)}h</td>
-                  <td className="p-6 text-gray-400">${record.grossTotal.toString()}</td>
+                  <td className="p-6 text-gray-400">RD${record.grossTotal.toString()}</td>
                   <td className="p-6">
-                    <span className="text-green-400 text-xs">+${record.qualityBonus.toString()}</span>
-                    <span className="text-red-400 text-xs ml-2">-${record.penalidades.toString()}</span>
+                    <span className="text-green-400 text-xs">+RD$${record.qualityBonus.toString()}</span>
+                    <span className="text-red-400 text-xs ml-2">-RD$${record.penalidades.toString()}</span>
                   </td>
-                  <td className="p-6 text-white font-bold">${record.netTotal.toString()}</td>
+                  <td className="p-6 text-white font-bold">RD${record.netTotal.toString()}</td>
                   <td className="p-6">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
                       record.status === 'Pagado' ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'

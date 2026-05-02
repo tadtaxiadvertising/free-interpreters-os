@@ -108,7 +108,7 @@ export default async function RankingPage() {
         <Trophy size={28} className="text-amber-400" />
         <div>
           <h1 className="text-2xl font-bold text-white capitalize">Ranking — {monthName}</h1>
-          <p className="text-sm text-slate-300">Posiciones basadas en minutos interpretados y QA Score</p>
+          <p className="text-sm text-slate-300">Posiciones basadas en horas interpretadas y QA Score</p>
         </div>
       </div>
 
@@ -120,14 +120,14 @@ export default async function RankingPage() {
           <p className="text-xs text-slate-300 mt-1">de {rankings.length} intérpretes</p>
         </div>
         <div className="glass rounded-2xl p-5 border border-white/5">
-          <p className="text-xs text-slate-300 mb-1 uppercase tracking-wide font-bold">Tus Minutos</p>
-          <p className="text-3xl font-bold text-white">{myIdx >= 0 ? rankings[myIdx].totalMinutes : 0}</p>
-          <p className="text-xs text-slate-300 mt-1">min este mes</p>
+          <p className="text-xs text-slate-300 mb-1 uppercase tracking-wide font-bold">Tus Horas</p>
+          <p className="text-3xl font-bold text-white">{(myIdx >= 0 ? rankings[myIdx].totalMinutes / 60 : 0).toFixed(1)}</p>
+          <p className="text-xs text-slate-300 mt-1">hrs este mes</p>
         </div>
         <div className="glass rounded-2xl p-5 border border-white/5">
           <p className="text-xs text-slate-300 mb-1 uppercase tracking-wide font-bold">Promedio</p>
-          <p className="text-3xl font-bold text-slate-200">{avg}</p>
-          <p className="text-xs text-slate-300 mt-1">min promedio global</p>
+          <p className="text-3xl font-bold text-slate-200">{(avg / 60).toFixed(1)}</p>
+          <p className="text-xs text-slate-300 mt-1">hrs promedio global</p>
         </div>
       </div>
 
@@ -184,8 +184,8 @@ export default async function RankingPage() {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <p className={cn("text-lg font-bold", isMe ? "text-blue-400" : "text-white")}>{entry.totalMinutes}</p>
-                    <p className="text-xs text-slate-400">min</p>
+                    <p className={cn("text-lg font-bold", isMe ? "text-blue-400" : "text-white")}>{(entry.totalMinutes / 60).toFixed(1)}</p>
+                    <p className="text-xs text-slate-400">hrs</p>
                   </div>
                   {/* Goal progress mini-bar */}
                   <div className="w-24 hidden sm:block">

@@ -57,7 +57,7 @@ export default async function PayrollPage() {
           <div className="absolute top-0 right-0 p-16 bg-indigo-500/10 blur-[50px] rounded-full pointer-events-none" />
           <p className="text-sm text-indigo-200/70 font-medium tracking-wide uppercase">Total Payout (Lifetime)</p>
           <div className="flex items-center gap-3 mt-2 relative z-10">
-            <h3 className="text-4xl font-black text-white tracking-tight">${totalPayout.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+            <h3 className="text-4xl font-black text-white tracking-tight">RD${totalPayout.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
           </div>
           <TrendingUp size={24} className="mt-4 text-indigo-400 relative z-10" />
         </div>
@@ -78,7 +78,7 @@ export default async function PayrollPage() {
           <div className="absolute top-0 right-0 p-16 bg-purple-500/10 blur-[50px] rounded-full pointer-events-none" />
           <p className="text-sm text-purple-200/70 font-medium tracking-wide uppercase">Last Cycle Avg.</p>
           <div className="flex items-center gap-3 mt-2 relative z-10">
-            <h3 className="text-4xl font-black text-white tracking-tight">$450.00</h3>
+            <h3 className="text-4xl font-black text-white tracking-tight">RD$450.00</h3>
             <span className="text-xs font-bold text-purple-400 bg-purple-400/10 px-3 py-1 rounded-full border border-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]">Per Int.</span>
           </div>
           <DollarSign size={24} className="mt-4 text-purple-400 relative z-10" />
@@ -101,7 +101,7 @@ export default async function PayrollPage() {
             <tr className="text-slate-500 text-xs uppercase tracking-wider border-b border-white/5">
               <th className="py-6 px-8 font-semibold">Interpreter</th>
               <th className="py-6 px-4 font-semibold">Period</th>
-              <th className="py-6 px-4 font-semibold">Minutes</th>
+              <th className="py-6 px-4 font-semibold">Hours</th>
               <th className="py-6 px-4 text-center font-semibold">Rate (Hr/Min)</th>
               <th className="py-6 px-4 font-semibold">Net Total</th>
               <th className="py-6 px-4 font-semibold">Status</th>
@@ -129,17 +129,16 @@ export default async function PayrollPage() {
                   </span>
                 </td>
                 <td className="py-6 px-4 text-white font-mono">
-                  {record.totalMinutes}m
+                  {(record.totalMinutes / 60).toFixed(2)}h
                 </td>
                 <td className="py-6 px-4 text-center">
                   <div className="flex flex-col items-center">
-                    <span className="text-white text-sm font-bold font-mono">${(parseFloat(record.interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">${record.interpreter.tariffPerMinute.toString()}/m</span>
+                    <span className="text-white text-sm font-bold font-mono">RD${(parseFloat(record.interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}</span>
                   </div>
                 </td>
                 <td className="py-6 px-4">
                   <span className="text-emerald-400 font-bold text-lg tracking-tight">
-                    ${parseFloat(record.netTotal).toFixed(2)}
+                    RD${parseFloat(record.netTotal).toFixed(2)}
                   </span>
                 </td>
                 <td className="py-6 px-4">

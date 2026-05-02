@@ -122,11 +122,11 @@ export default async function InterpretersPage() {
                 <div className="flex items-center justify-between pt-3 border-t border-slate-800/50">
                   <div className="flex flex-col">
                     <span className="text-xs text-slate-500 font-bold uppercase tracking-tighter">Rate</span>
-                    <p className="text-white font-mono font-bold">${(parseFloat(interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}<span className="text-xs text-slate-500">/h</span></p>
+                    <p className="text-white font-mono font-bold">RD${(parseFloat(interpreter.tariffPerMinute.toString()) * 60).toFixed(2)}<span className="text-xs text-slate-500">/h</span></p>
                   </div>
                   <div className="text-right">
                     <span className="text-xs text-slate-500 font-bold uppercase tracking-tighter">Target</span>
-                    <p className="text-indigo-400 font-mono font-bold">{interpreter.monthlyGoal || 2000}m<span className="text-xs text-slate-500">/mo</span></p>
+                    <p className="text-indigo-400 font-mono font-bold">{Math.round((interpreter.monthlyGoal || 2000) / 60)}h<span className="text-xs text-slate-500">/mo</span></p>
                   </div>
                 </div>
 

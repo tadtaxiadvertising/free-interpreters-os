@@ -149,7 +149,7 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
           {isActive && (
             <div className="flex items-center justify-center gap-1 mt-3 text-emerald-400">
               <DollarSign size={14} />
-              <span className="text-sm font-semibold">${estimatedCost.toFixed(2)}</span>
+              <span className="text-sm font-semibold">RD${estimatedCost.toFixed(2)}</span>
               <span className="text-xs text-slate-400 ml-1">est.</span>
             </div>
           )}
@@ -160,7 +160,7 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
       <div className="flex items-center gap-2 mb-6 text-slate-200 text-sm font-medium">
         <Clock size={14} className="text-blue-400" />
         <span>
-          Tarifa: <span className="text-white font-bold">${(tariff * 60).toFixed(2)}/hr</span>
+          Tarifa: <span className="text-white font-bold">RD${(tariff * 60).toFixed(2)}/hr</span>
         </span>
       </div>
 
@@ -208,7 +208,7 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
             </div>
             <div>
               <p className="text-xs text-slate-400">Ganancia</p>
-              <p className="text-lg font-bold text-green-400">${callResult.cost.toFixed(2)}</p>
+              <p className="text-lg font-bold text-green-400">RD${callResult.cost.toFixed(2)}</p>
             </div>
           </div>
         </div>

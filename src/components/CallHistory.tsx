@@ -84,12 +84,12 @@ export function CallHistory({ calls }: { calls: Call[] }) {
                 </td>
                 <td className="py-4 px-2 text-center">
                   <div className="flex flex-col items-center justify-center">
-                    <span className="text-slate-300 text-sm font-medium">${(Number(call.tariff_snapshot) * 60).toFixed(2)}/hr</span>
+                    <span className="text-slate-300 text-sm font-medium">RD${(Number(call.tariff_snapshot) * 60).toFixed(2)}/hr</span>
                   </div>
                 </td>
                 <td className="py-4 px-2 text-right">
                   <span className="text-emerald-400 font-bold text-sm tracking-tight">
-                    ${call.call_cost ? Number(call.call_cost).toFixed(2) : '0.00'}
+                    RD${call.call_cost ? Number(call.call_cost).toFixed(2) : '0.00'}
                   </span>
                 </td>
               </tr>

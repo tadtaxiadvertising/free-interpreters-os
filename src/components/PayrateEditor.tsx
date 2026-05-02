@@ -25,7 +25,7 @@ export function PayrateEditor({ interpreter }: Props) {
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [rate, setRate] = useState(interpreter.tariffPerMinute);
-  const [inputValue, setInputValue] = useState(interpreter.tariffPerMinute.toFixed(2));
+  const [inputValue, setInputValue] = useState((interpreter.tariffPerMinute * 60).toFixed(2));
   const [isPending, startTransition] = useTransition();
   const [flash, setFlash] = useState<'success' | 'error' | null>(null);
 
@@ -38,9 +38,10 @@ export function PayrateEditor({ interpreter }: Props) {
     }
 
     startTransition(async () => {
-      const result = await updatePayrate(interpreter.id, newRate);
+      const perMinuteRate = newRate / 60;
+      const result = await updatePayrate(interpreter.id, perMinuteRate);
       if (result.success) {
-        setRate(newRate);
+        setRate(perMinuteRate);
         setEditing(false);
         setFlash('success');
         setTimeout(() => setFlash(null), 2000);
@@ -52,7 +53,7 @@ export function PayrateEditor({ interpreter }: Props) {
   }
 
   function handleCancel() {
-    setInputValue(rate.toFixed(2));
+    setInputValue((rate * 60).toFixed(2));
     setEditing(false);
   }
 
@@ -91,7 +92,7 @@ export function PayrateEditor({ interpreter }: Props) {
         <td className="py-4 px-2">
           {editing ? (
             <div className="flex items-center gap-1">
-              <span className="text-gray-500">$</span>
+              <span className="text-gray-500">RD$</span>
               <input
                 type="number"
                 step="0.01"
@@ -99,7 +100,7 @@ export function PayrateEditor({ interpreter }: Props) {
                 max="999.99"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                className="w-24 px-2 py-1 bg-white/10 border border-blue-500/30 rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-28 px-2 py-1 bg-white/10 border border-blue-500/30 rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSave();
@@ -113,7 +114,7 @@ export function PayrateEditor({ interpreter }: Props) {
                 'text-blue-400 font-bold transition-all',
                 flash === 'success' && 'text-green-400'
               )}>
-                ${rate.toFixed(2)}/min
+                RD${(rate * 60).toFixed(2)}/hr
               </span>
               {interpreter.accountRates.length > 0 && (
                 <span className="text-[10px] text-purple-400 flex items-center gap-1 mt-1">

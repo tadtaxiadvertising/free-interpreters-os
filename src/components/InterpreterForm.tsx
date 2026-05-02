@@ -30,7 +30,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
       tariffPerMinute: parseFloat(formData.get('hourlyTariff') as string) / 60,
       status: formData.get('status'),
       campaign: formData.get('campaign'),
-      monthlyGoal: parseInt(formData.get('monthlyGoal') as string || '2000'),
+      monthlyGoal: Math.round(parseFloat(formData.get('monthlyGoal') as string || '33.3') * 60),
     };
 
     const password = formData.get('password');
@@ -143,7 +143,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Tarifa por Hora ($)</label>
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Tarifa por Hora (RD$)</label>
           <div className="relative">
             <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
@@ -189,16 +189,16 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
           </div>
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Meta Mensual (Minutos)</label>
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Meta Mensual (Horas)</label>
           <div className="relative">
             <Target className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
               required
               type="number"
               name="monthlyGoal"
-              defaultValue={initialData?.monthlyGoal || 2000}
+              defaultValue={initialData?.monthlyGoal ? Math.round(initialData.monthlyGoal / 60) : 33}
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
-              placeholder="2000"
+              placeholder="33"
             />
           </div>
         </div>

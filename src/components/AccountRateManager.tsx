@@ -90,7 +90,7 @@ export function AccountRateManager({ interpreterId, initialRates }: Props) {
             <div key={rate.accountId} className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors">
               <span className="text-sm text-gray-300">{account?.name || 'Unknown Account'}</span>
               <div className="flex items-center gap-4">
-                <span className="font-mono text-white font-bold">${rate.tariffPerHour.toFixed(2)}/hr</span>
+                <span className="font-mono text-white font-bold">RD${rate.tariffPerHour.toFixed(2)}/hr</span>
                 <button 
                   className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                   onClick={() => handleDeleteRate(rate.accountId)}
@@ -117,14 +117,14 @@ export function AccountRateManager({ interpreterId, initialRates }: Props) {
             ))}
           </select>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">RD$</span>
             <input 
               type="number"
               step="0.01"
               placeholder="0.00/hr"
               value={newRateValue}
               onChange={(e) => setNewRateValue(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl pl-6 pr-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50"
+              className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50"
             />
           </div>
         </div>

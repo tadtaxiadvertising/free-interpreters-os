@@ -274,11 +274,11 @@ export default async function InterpreterDashboard() {
               </div>
               <div className="flex items-baseline gap-2">
                 <p className="text-4xl font-bold text-white tracking-tight">
-                  ${mtdEarnings.toFixed(2)}
+                  RD${mtdEarnings.toFixed(2)}
                 </p>
                 <span className="text-slate-300 text-sm font-medium">({(mtdMinutes / 60).toFixed(1)} hrs)</span>
               </div>
-              <p className="text-xs text-slate-200 mt-2 font-medium">Tarifa: ${(Number(interpreter.tariffPerMinute || 0) * 60).toFixed(2)}/hr</p>
+              <p className="text-xs text-slate-200 mt-2 font-medium">Tarifa: RD${(Number(interpreter.tariffPerMinute || 0) * 60).toFixed(2)}/hr</p>
             </div>
           </div>
         </div>
