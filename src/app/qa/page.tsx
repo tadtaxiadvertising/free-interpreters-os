@@ -51,7 +51,7 @@ async function getQAData() {
 }
 
 export default async function QAPage() {
-  const { scores, pendingCalls } = await getQAData();
+  const { scores, pendingCalls, interpreters } = await getQAData();
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
