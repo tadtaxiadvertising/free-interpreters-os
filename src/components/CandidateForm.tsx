@@ -31,8 +31,7 @@ export function CandidateForm({ onSuccess, onCancel }: CandidateFormProps) {
     };
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/recruitment`, {
+      const response = await fetch('/api/recruitment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

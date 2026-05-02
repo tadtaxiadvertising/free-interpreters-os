@@ -7,11 +7,12 @@ interface ScorecardFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
   preselectedInterpreterId?: number;
+  interpreters?: any[];
 }
 
-export function ScorecardForm({ onSuccess, onCancel, preselectedInterpreterId }: ScorecardFormProps) {
+export function ScorecardForm({ onSuccess, onCancel, preselectedInterpreterId, interpreters: initialInterpreters = [] }: ScorecardFormProps) {
   const [loading, setLoading] = useState(false);
-  const [interpreters, setInterpreters] = useState<any[]>([]);
+  const [interpreters, setInterpreters] = useState<any[]>(initialInterpreters);
   const [error, setError] = useState<string | null>(null);
   
   const [scores, setScores] = useState({
@@ -25,20 +26,10 @@ export function ScorecardForm({ onSuccess, onCancel, preselectedInterpreterId }:
   const [criticalError, setCriticalError] = useState(false);
 
   useEffect(() => {
-    async function fetchInterpreters() {
-      try {
-        // Use relative URL for client-side and robust SSR
-        const res = await fetch('/api/interpreters');
-        if (res.ok) {
-          const data = await res.json();
-          setInterpreters(data);
-        }
-      } catch (err) {
-        console.error('Error fetching interpreters:', err);
-      }
+    if (initialInterpreters.length > 0) {
+      setInterpreters(initialInterpreters);
     }
-    fetchInterpreters();
-  }, []);
+  }, [initialInterpreters]);
 
   const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
 

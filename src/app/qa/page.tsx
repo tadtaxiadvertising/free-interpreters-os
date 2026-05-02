@@ -20,27 +20,33 @@ export const dynamic = 'force-dynamic';
 
 async function getQAData() {
   try {
-    const [scores, pendingCalls] = await Promise.all([
+    const [scores, pendingCalls, interpreters] = await Promise.all([
       prisma.qAScore.findMany({
         include: { interpreter: true },
         orderBy: { createdAt: 'desc' },
         take: 50
       }),
       prisma.callSession.findMany({
-        where: { endedAt: { not: null } }, // Simplified logic for pending audit
+        where: { endedAt: { not: null } },
         include: { interpreter: true },
         orderBy: { startedAt: 'desc' },
         take: 10
+      }),
+      prisma.interpreter.findMany({
+        where: { status: 'Activo' },
+        select: { id: true, name: true, externalId: true },
+        orderBy: { name: 'asc' }
       })
     ]);
 
     return { 
       scores: JSON.parse(JSON.stringify(scores)), 
-      pendingCalls: JSON.parse(JSON.stringify(pendingCalls)) 
+      pendingCalls: JSON.parse(JSON.stringify(pendingCalls)),
+      interpreters: JSON.parse(JSON.stringify(interpreters))
     };
   } catch (error) {
     console.error('Error fetching QA data from DB:', error);
-    return { scores: [], pendingCalls: [] };
+    return { scores: [], pendingCalls: [], interpreters: [] };
   }
 }
 
@@ -56,7 +62,7 @@ export default async function QAPage() {
         </div>
         <div className="flex gap-3">
           <ExportQAScoresButton data={scores} />
-          <NewEvaluationButton />
+          <NewEvaluationButton interpreters={interpreters} />
         </div>
       </header>
 
