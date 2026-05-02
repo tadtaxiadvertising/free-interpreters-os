@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useTransition, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { FileText, CreditCard, Compass, ChevronRight, ChevronLeft, Check, Loader2, Sparkles, ChevronDown, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { acceptTerms, saveBankingDetails, completeOnboarding } from '@/app/actions/onboarding';
@@ -300,7 +300,7 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
                 <BankFormRD
                   initialData={bankData}
                   onChange={(data) => setBankData(data)}
-                  isLoading={isPending}
+                  isLoading={isLoading}
                   standalone={true}
                 />
 
