@@ -2,6 +2,7 @@ import React from 'react';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck, RefreshCw, LogIn } from 'lucide-react';
+import { getSystemConfig } from '@/app/actions/settings';
 import { cn } from '@/lib/utils';
 import { StatusToggle } from '@/components/StatusToggle';
 import { CallTimer } from '@/components/CallTimer';
@@ -131,7 +132,8 @@ export default async function InterpreterDashboard() {
 
   // ── 📊 METRICS CALCULATION ──
   const mtdMinutes = (monthCalls || []).reduce((acc: number, call: any) => acc + (call.durationSeconds || 0), 0) / 60;
-  const monthlyGoal = interpreter?.monthlyGoal || 2000;
+  const globalGoalHours = parseFloat(await getSystemConfig('standard_monthly_goal_hours', '120'));
+  const monthlyGoal = interpreter?.monthlyGoal || (globalGoalHours * 60);
   const mtdProgress = Math.min((mtdMinutes / monthlyGoal) * 100, 100);
   
   const latestQaScore = interpreter?.qaScores?.[0]?.totalScore ? Number(interpreter.qaScores[0].totalScore) : 0;

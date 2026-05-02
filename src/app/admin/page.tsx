@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import prismaClient from '@/lib/prisma';
+import { GlobalGoalsButton } from '@/components/GlobalGoalsButton';
+import { getSystemConfig } from '@/app/actions/settings';
 const prisma = prismaClient as any;
 
 export const dynamic = 'force-dynamic';
@@ -63,6 +65,10 @@ export default async function AdminDashboard() {
     console.error('❌ ADMIN: Database fetch failed:', error);
   }
 
+  // Fetch Global Goal
+  const globalGoalHours = parseFloat(await getSystemConfig('standard_monthly_goal_hours', '120'));
+  const globalGoalMinutes = globalGoalHours * 60;
+
   // Calculate Ranking
   const interpreterStats = interpreters.map(interp => {
     const sessionMinutes = Math.round(
@@ -109,9 +115,7 @@ export default async function AdminDashboard() {
           </p>
         </div>
         <div className="flex gap-3">
-           <button className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-indigo-500/20">
-             Set Global Goals
-           </button>
+           <GlobalGoalsButton initialGoal={globalGoalHours} />
         </div>
       </header>
 
@@ -119,7 +123,7 @@ export default async function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           { label: 'MTD Hours', value: (totalMinutesMonth / 60).toFixed(1), sub: `Today: ${(totalMinutesToday / 60).toFixed(1)}h`, icon: Activity, color: 'text-blue-400' },
-          { label: 'MTD Payout', value: `$${totalCostMonth.toLocaleString()}`, sub: `Today: $${totalCostToday.toFixed(2)}`, icon: DollarSign, color: 'text-green-400' },
+          { label: 'MTD Payout', value: `RD$${totalCostMonth.toLocaleString()}`, sub: `Today: RD$${totalCostToday.toFixed(2)}`, icon: DollarSign, color: 'text-green-400' },
           { label: 'Active Roster', value: interpreters.length, sub: `${onlineCount} Online Now`, icon: Users, color: 'text-purple-400' },
           { label: 'Live Traffic', value: activeCalls.length, sub: 'Call Sessions', icon: Phone, color: 'text-orange-400' },
         ].map((stat, i) => (
@@ -184,7 +188,7 @@ export default async function AdminDashboard() {
                           <p className="text-[10px] text-gray-500 font-mono">{interp.externalId}</p>
                         </td>
                         <td className="py-4 px-4 text-gray-400 text-xs">{interp.campaign || '—'}</td>
-                        <td className="py-4 px-4 text-indigo-400 font-medium text-sm font-mono">${(Number(interp.tariffPerMinute) * 60).toFixed(2)}/h</td>
+                        <td className="py-4 px-4 text-indigo-400 font-medium text-sm font-mono">RD${(Number(interp.tariffPerMinute) * 60).toFixed(2)}/h</td>
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-2">
                             <div className={cn(
@@ -238,7 +242,7 @@ export default async function AdminDashboard() {
                   </div>
                   <div className="text-right">
                     <p className="text-white font-bold text-xs">{interp.totalHours.toFixed(1)}h</p>
-                    <p className="text-[10px] text-indigo-400 font-bold">{interp.totalMinutes} min</p>
+                    <p className="text-[10px] text-indigo-400 font-bold">Total hrs</p>
                   </div>
                 </div>
               ))}
@@ -258,7 +262,7 @@ export default async function AdminDashboard() {
             <div className="space-y-4">
                <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
                   <p className="text-xs text-gray-400 mb-1">Standard Monthly Goal</p>
-                  <p className="text-xl font-bold text-white">40.0 Hours</p>
+                  <p className="text-xl font-bold text-white">{globalGoalHours.toFixed(1)} Hours</p>
                </div>
                <a 
                  href="/interpreters"

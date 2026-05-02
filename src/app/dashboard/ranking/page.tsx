@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { Trophy, TrendingUp, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import prismaClient from '@/lib/prisma';
+import { getSystemConfig } from '@/app/actions/settings';
 const prisma = prismaClient as any;
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,9 @@ export default async function RankingPage() {
   } catch (e) {
     console.error('❌ RANKING: Profile fetch failed:', e);
   }
+
+  const globalGoalHours = parseFloat(await getSystemConfig('standard_monthly_goal_hours', '120'));
+  const globalGoalMinutes = globalGoalHours * 60;
 
   // Fetch all active interpreters with monthly data + latest QA score
   let rankings: any[] = [];
@@ -73,7 +77,7 @@ export default async function RankingPage() {
         );
         const totalMinutes = sessionMin + logMin;
         const qaScore = interp.qaScores?.[0]?.totalScore ? Number(interp.qaScores[0].totalScore) : 0;
-        const monthlyGoal = interp.monthlyGoal ?? 2000;
+        const monthlyGoal = interp.monthlyGoal ?? globalGoalMinutes;
         const goalProgress = Math.min((totalMinutes / monthlyGoal) * 100, 100);
 
         return {
