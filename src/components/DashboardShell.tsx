@@ -38,6 +38,37 @@ export function DashboardShell({ children, role, userName, notifications = [], r
     localStorage.setItem('sidebar-collapsed', String(newState));
   };
 
+  // 🛰️ PRESENCE LOGIC: Set offline when tab closes
+  useEffect(() => {
+    if (role !== 'interpreter') return;
+
+    const setOffline = () => {
+      // Use keepalive to ensure the request completes during unload
+      fetch('/api/presence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Offline' }),
+        keepalive: true
+      });
+    };
+
+    window.addEventListener('beforeunload', setOffline);
+
+    // Heartbeat every 45 seconds
+    const interval = setInterval(() => {
+      fetch('/api/presence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'heartbeat' }),
+      });
+    }, 45000);
+
+    return () => {
+      window.removeEventListener('beforeunload', setOffline);
+      clearInterval(interval);
+    };
+  }, [role]);
+
   return (
     <div className="flex min-h-screen w-full bg-[#0a0f1c] overflow-hidden">
       <Sidebar 

@@ -101,7 +101,14 @@ export default async function AdminDashboard() {
   const totalMinutesMonth = interpreterStats.reduce((sum, i) => sum + i.totalMinutes, 0);
   const totalCostMonth = monthSessions.reduce((sum: number, s: any) => sum + Number(s.callCost || 0), 0);
 
-  const onlineCount = interpreters.filter((i: any) => i.realtimeStatus === 'Online').length;
+  const STALE_THRESHOLD = 2 * 60 * 1000; // 2 minutes
+  const nowTime = new Date().getTime();
+
+  const onlineCount = interpreters.filter((i: any) => 
+    i.realtimeStatus === 'Online' && 
+    (nowTime - new Date(i.lastActive || i.createdAt).getTime() < STALE_THRESHOLD)
+  ).length;
+
   const busyCount = interpreters.filter((i: any) => i.realtimeStatus === 'Busy').length;
 
   return (
@@ -190,14 +197,22 @@ export default async function AdminDashboard() {
                         <td className="py-4 px-4 text-gray-400 text-xs">{interp.campaign || '—'}</td>
                         <td className="py-4 px-4 text-indigo-400 font-medium text-sm font-mono">RD${(Number(interp.tariffPerMinute) * 60).toFixed(2)}/h</td>
                         <td className="py-4 px-4">
-                          <div className="flex items-center gap-2">
-                            <div className={cn(
-                              "w-2 h-2 rounded-full",
-                              interp.realtimeStatus === 'Online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
-                              interp.realtimeStatus === 'Busy' ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]' : 'bg-gray-600'
-                            )} />
-                            <span className="text-[10px] text-gray-400 font-bold uppercase">{interp.realtimeStatus}</span>
-                          </div>
+                          {(() => {
+                            const isStale = (nowTime - new Date(interp.lastActive || interp.createdAt).getTime() > STALE_THRESHOLD);
+                            const status = isStale && interp.realtimeStatus !== 'Offline' ? 'Disconnected' : interp.realtimeStatus;
+                            
+                            return (
+                              <div className="flex items-center gap-2">
+                                <div className={cn(
+                                  "w-2 h-2 rounded-full",
+                                  status === 'Online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                                  status === 'Busy' ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]' : 
+                                  status === 'Disconnected' ? 'bg-red-500 animate-pulse' : 'bg-gray-600'
+                                )} />
+                                <span className="text-[10px] text-gray-400 font-bold uppercase">{status}</span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="py-4 px-6 text-right">
                           {isActive ? (
