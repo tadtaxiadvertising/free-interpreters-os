@@ -64,7 +64,7 @@ interface OnboardingWizardProps {
 
 export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [isPending, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Step 1 – Legal
@@ -100,52 +100,55 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
   }, [currentStep, handleScroll]);
 
   // ── Step handlers ──
-  function handleNextLegal() {
+  async function handleNextLegal() {
     setError(null);
-    startTransition(async () => {
-      try {
-        const result = await acceptTerms();
-        if (result.success) {
-          setCurrentStep(1);
-        } else {
-          setError(result.error || 'Error al aceptar términos');
-        }
-      } catch (err: any) {
-        setError('Error de conexión al servidor');
+    setIsLoading(true);
+    try {
+      const result = await acceptTerms();
+      if (result.success) {
+        setCurrentStep(1);
+      } else {
+        setError(result.error || 'Error al aceptar términos');
       }
-    });
+    } catch (err: any) {
+      setError('Error de conexión al servidor');
+    } finally {
+      setIsLoading(false);
+    }
   }
 
-  function handleNextBanking() {
+  async function handleNextBanking() {
     setError(null);
-    startTransition(async () => {
-      try {
-        const result = await saveBankingDetails(bankData);
-        if (result.success) {
-          setCurrentStep(2);
-        } else {
-          setError(result.error || 'Error al guardar datos bancarios');
-        }
-      } catch (err: any) {
-        setError('Error de conexión al servidor');
+    setIsLoading(true);
+    try {
+      const result = await saveBankingDetails(bankData);
+      if (result.success) {
+        setCurrentStep(2);
+      } else {
+        setError(result.error || 'Error al guardar datos bancarios');
       }
-    });
+    } catch (err: any) {
+      setError('Error de conexión al servidor');
+    } finally {
+      setIsLoading(false);
+    }
   }
 
-  function handleFinish() {
+  async function handleFinish() {
     setError(null);
-    startTransition(async () => {
-      try {
-        const result = await completeOnboarding();
-        if (result.success) {
-          onComplete();
-        } else {
-          setError(result.error || 'Error al finalizar onboarding');
-        }
-      } catch (err: any) {
-        setError('Error de conexión al servidor');
+    setIsLoading(true);
+    try {
+      const result = await completeOnboarding();
+      if (result.success) {
+        onComplete();
+      } else {
+        setError(result.error || 'Error al finalizar onboarding');
       }
-    });
+    } catch (err: any) {
+      setError('Error de conexión al servidor');
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   const isBankingValid = isBankFormValid(bankData);
@@ -377,17 +380,17 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
               {currentStep === 0 && (
                 <button
                   onClick={handleNextLegal}
-                  disabled={!hasScrolledToBottom || isPending}
+                  disabled={!hasScrolledToBottom || isLoading}
                   className={cn(
                     "group relative flex items-center gap-2 px-8 py-4 rounded-2xl font-bold transition-all duration-500 overflow-hidden",
-                    hasScrolledToBottom && !isPending
+                    hasScrolledToBottom && !isLoading
                       ? "bg-blue-600 text-white shadow-xl shadow-blue-600/30 hover:scale-[1.02] active:scale-95"
                       : "bg-slate-800 text-slate-500 cursor-not-allowed"
                   )}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <span className="relative z-10 flex items-center gap-2">
-                    {isPending ? <Loader2 size={20} className="animate-spin" /> : <>Entendido y Acepto <ChevronRight size={20} /></>}
+                    {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>Entendido y Acepto <ChevronRight size={20} /></>}
                   </span>
                 </button>
               )}
@@ -395,30 +398,42 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
               {currentStep === 1 && (
                 <button
                   onClick={handleNextBanking}
-                  disabled={!isBankingValid || isPending}
+                  disabled={!isBankingValid || isLoading}
                   className={cn(
                     "group relative flex items-center gap-2 px-10 py-4 rounded-2xl font-bold transition-all duration-500 overflow-hidden",
-                    isBankingValid && !isPending
+                    isBankingValid && !isLoading
                       ? "bg-blue-600 text-white shadow-xl shadow-blue-600/30 hover:scale-[1.02] active:scale-95"
                       : "bg-slate-800 text-slate-500 cursor-not-allowed"
                   )}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <span className="relative z-10 flex items-center gap-2">
-                    {isPending ? <Loader2 size={20} className="animate-spin" /> : <>Confirmar Datos <ChevronRight size={20} /></>}
+                    {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>Confirmar Datos <ChevronRight size={20} /></>}
                   </span>
                 </button>
               )}
 
-              {currentStep === 2 && (
+              {currentStep === 2 && tutorialStep < tutorialHighlights.length - 1 && (
+                <button
+                  onClick={() => setTutorialStep(prev => prev + 1)}
+                  className="group relative flex items-center gap-2 px-8 py-4 rounded-2xl font-bold transition-all duration-500 overflow-hidden bg-blue-600 text-white shadow-xl shadow-blue-600/30 hover:scale-[1.02] active:scale-95"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <span className="relative z-10 flex items-center gap-2">
+                    Siguiente Tip <ChevronRight size={20} />
+                  </span>
+                </button>
+              )}
+
+              {currentStep === 2 && tutorialStep === tutorialHighlights.length - 1 && (
                 <button
                   onClick={handleFinish}
-                  disabled={isPending}
+                  disabled={isLoading}
                   className="group relative flex items-center gap-3 px-10 py-4 rounded-2xl font-black text-lg transition-all duration-500 overflow-hidden bg-emerald-600 text-white shadow-xl shadow-emerald-600/30 hover:scale-[1.05] active:scale-95"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <span className="relative z-10 flex items-center gap-2">
-                    {isPending ? <Loader2 size={20} className="animate-spin" /> : <>¡LISTO PARA EMPEZAR! 🚀</>}
+                    {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>¡LISTO PARA EMPEZAR! 🚀</>}
                   </span>
                 </button>
               )}
