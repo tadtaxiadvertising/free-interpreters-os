@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import prismaClient from '@/lib/prisma';
 import { GlobalGoalsButton } from '@/components/GlobalGoalsButton';
 import { getSystemConfig } from '@/app/actions/settings';
-const prisma = prismaClient as any;
+const prisma = prismaClient;
 
 export const dynamic = 'force-dynamic';
 

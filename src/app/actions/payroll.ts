@@ -5,7 +5,7 @@ import { createPayrollRecord } from '@/lib/payroll';
 import { revalidatePath } from 'next/cache';
 import type { ActionResult } from '@/lib/types';
 
-const db = prisma as any;
+const db = prisma;
 
 export async function generatePayrollPeriod(
   startDate?: Date,

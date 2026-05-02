@@ -6,7 +6,7 @@ import { InterpreterSchema, InterpreterInput } from '@/lib/validators';
 import { ActionResult } from '@/lib/types';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-const db = prisma as any;
+const db = prisma;
 
 /**
  * ACTION: Create Interpreter
@@ -153,9 +153,6 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
   }
 }
 
-/**
- * ACTION: Reset Interpreter Password
- */
 export async function resetInterpreterPassword(id: number, password: string): Promise<ActionResult> {
   try {
     const interpreter = await db.interpreter.findUnique({
@@ -163,17 +160,79 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
       include: { userProfile: true }
     });
 
-    if (!interpreter?.userProfile) {
-      return { success: false, error: 'No access account linked to this interpreter', code: 'NOT_FOUND' };
+    if (!interpreter) {
+      return { success: false, error: 'Interpreter not found', code: 'NOT_FOUND' };
     }
 
-    const supabaseAdmin = createAdminClient();
-    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-      interpreter.userProfile.id,
-      { password }
-    );
+    let userProfileId = interpreter.userProfile?.id;
 
-    if (authError) throw authError;
+    // If no userProfile exists, attempt to create a linked account
+    if (!userProfileId) {
+      if (!interpreter.emailCorporativo) {
+        return { 
+          success: false, 
+          error: 'No access account linked to this Interpreter and no corporate email is configured to create one.',
+          code: 'VALIDATION_ERROR'
+        };
+      }
+
+      const supabaseAdmin = createAdminClient();
+      
+      // 1. Check if Auth user already exists but isn't linked
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+      let authUser = existingUsers.users.find(u => u.email === interpreter.emailCorporativo);
+
+      if (!authUser) {
+        // 2. Create new Auth user
+        const { data: newUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+          email: interpreter.emailCorporativo,
+          password: password,
+          email_confirm: true,
+          user_metadata: { display_name: interpreter.name }
+        });
+
+        if (authError) throw authError;
+        authUser = newUser.user;
+      } else {
+        // 3. Update existing Auth user password
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+          authUser.id,
+          { password }
+        );
+        if (updateError) throw updateError;
+      }
+
+      if (authUser) {
+        // 4. Link UserProfile via Prisma
+        const profile = await db.userProfile.upsert({
+          where: { id: authUser.id },
+          update: {
+            email: interpreter.emailCorporativo,
+            displayName: interpreter.name,
+            interpreterId: interpreter.id,
+            onboardingComplete: true
+          } as any,
+          create: {
+            id: authUser.id,
+            email: interpreter.emailCorporativo,
+            displayName: interpreter.name,
+            role: 'interpreter',
+            interpreterId: interpreter.id,
+            onboardingComplete: true
+          } as any
+        });
+        userProfileId = profile.id;
+      }
+    } else {
+      // Normal flow: Account exists, just update password
+      const supabaseAdmin = createAdminClient();
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+        userProfileId,
+        { password }
+      );
+
+      if (authError) throw authError;
+    }
 
     return { success: true };
   } catch (error: any) {

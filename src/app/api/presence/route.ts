@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
 
-const db = prisma as any;
+const db = prisma;
 
 export async function POST(req: Request) {
   try {
