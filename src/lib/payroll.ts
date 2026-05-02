@@ -29,7 +29,7 @@ export async function calculatePayroll(
   const interpreter = await db.interpreter.findUnique({
     where: { id: interpreterId },
     include: {
-      interpreterAccountRates: true
+      accountRates: true
     }
   });
 
@@ -98,7 +98,7 @@ export async function calculatePayroll(
   for (const log of (productionLogs || [])) {
     let ratePerMinute = baseRatePerMinute;
     if (log.accountId) {
-      const specificRate = interpreter.interpreterAccountRates.find((r: any) => r.accountId === log.accountId);
+      const specificRate = interpreter.accountRates.find((r: any) => r.accountId === log.accountId);
       if (specificRate) {
         ratePerMinute = parseFloat(specificRate.tariffPerHour.toString()) / 60;
       }
