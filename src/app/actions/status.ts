@@ -29,7 +29,8 @@ export async function updateInterpreterStatus(
     // 2. Update the status in the interpreters table via Prisma
     await db.interpreter.update({
       where: { id: profile.interpreterId },
-      data: { realtimeStatus: newStatus }
+      data: { realtimeStatus: newStatus },
+      select: { id: true }
     });
 
     revalidatePath('/dashboard');

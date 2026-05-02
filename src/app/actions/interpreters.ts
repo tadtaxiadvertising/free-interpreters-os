@@ -93,6 +93,7 @@ export async function updateInterpreter(id: number, data: Partial<InterpreterInp
     const interpreter = await db.interpreter.update({
       where: { id },
       data: validated,
+      select: { id: true, name: true }
     });
 
     revalidatePath('/interpreters');
@@ -116,7 +117,11 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
     // 1. Get interpreter and profile via Prisma
     const interpreter = await db.interpreter.findUnique({
       where: { id },
-      include: { userProfile: true }
+      include: { 
+        userProfile: {
+          select: { id: true }
+        } 
+      }
     });
 
     if (!interpreter) {

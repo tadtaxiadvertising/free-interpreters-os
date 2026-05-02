@@ -10,7 +10,7 @@ import { CallHistory } from '@/components/CallHistory';
 import { OnboardingGate } from '@/components/OnboardingGate';
 import { getCurrentProfile } from '@/app/actions/auth';
 import prismaClient from '@/lib/prisma';
-const prisma = prismaClient as any;
+const prisma = prismaClient;
 
 export const dynamic = 'force-dynamic';
 
@@ -31,17 +31,17 @@ export default async function InterpreterDashboard() {
         select: { id: true }
       });
 
-      const newProfile = await prisma.userProfile.upsert({
+      const newProfile: any = await prisma.userProfile.upsert({
         where: { id: userId },
         update: {
-          email: user.email,
+          email: user.email || '',
           displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
           role: 'interpreter',
           interpreterId: interpreter?.id || null,
         },
         create: {
           id: userId,
-          email: user.email,
+          email: user.email || '',
           displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
           role: 'interpreter',
           interpreterId: interpreter?.id || null,
@@ -93,11 +93,27 @@ export default async function InterpreterDashboard() {
     try {
       interpreter = await prisma.interpreter.findUnique({
         where: { id: profile.interpreter_id },
-        include: {
-          productionLogs: { where: { date: { gte: startOfMonth, lte: endOfMonth } } },
-          qaScores: { take: 5, orderBy: { createdAt: 'desc' } }
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          realtimeStatus: true,
+          campaign: true,
+          languageA: true,
+          languageB: true,
+          tariffPerMinute: true,
+          monthlyGoal: true,
+          productionLogs: { 
+            where: { date: { gte: startOfMonth, lte: endOfMonth } },
+            select: { interpretedMinutes: true } 
+          },
+          qaScores: { 
+            take: 5, 
+            orderBy: { createdAt: 'desc' },
+            select: { totalScore: true } 
+          }
         }
-      });
+      } as any);
 
       if (interpreter) {
         const todayStart = new Date();

@@ -23,7 +23,12 @@ export default async function EarningsPage() {
   // Fetch the interpreter profile linked to this user
   const interpreter = await prisma.interpreter.findFirst({
     where: { emailCorporativo: user.email },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      tariffPerMinute: true,
+      metodoPago: true,
+      cuentaPago: true,
       payrollRecords: {
         orderBy: { periodStart: 'desc' },
         take: 12

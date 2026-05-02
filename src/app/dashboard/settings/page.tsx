@@ -25,9 +25,18 @@ export default async function SettingsPage() {
   if (!profile) redirect('/login');
 
   // We still need to fetch some info from the interpreter table via Prisma
-  const db = prisma as any;
+  const db = prisma;
   const interpreter = profile.interpreter_id 
-    ? await db.interpreter.findUnique({ where: { id: profile.interpreter_id } })
+    ? await db.interpreter.findUnique({ 
+        where: { id: profile.interpreter_id },
+        select: {
+          id: true,
+          name: true,
+          emailCorporativo: true,
+          telefono: true,
+          pais: true
+        }
+      })
     : null;
 
   if (!interpreter && profile.role === 'interpreter') {

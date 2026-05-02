@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import type { UserProfile } from '@/lib/types';
 import prismaClient from '@/lib/prisma';
 
-const prisma = prismaClient as any;
+const prisma = prismaClient;
 
 export async function login(formData: FormData) {
   const email = formData.get('email') as string;
@@ -133,7 +133,32 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
   try {
     const profile = await prisma.userProfile.findUnique({
       where: { id: user.id },
-      include: { interpreter: true }
+      include: { 
+        interpreter: {
+          select: {
+            id: true,
+            externalId: true,
+            name: true,
+            status: true,
+            realtimeStatus: true,
+            campaign: true,
+            languageA: true,
+            languageB: true,
+            tariffPerMinute: true,
+            emailCorporativo: true,
+            pais: true,
+            metodoPago: true,
+            cuentaPago: true,
+            documentosCompleto: true,
+            notas: true,
+            banco: true,
+            tipoCuenta: true,
+            cedulaRnc: true,
+            updatedAt: true,
+            createdAt: true,
+          }
+        } 
+      }
     });
 
     if (!profile) {

@@ -17,14 +17,16 @@ export const dynamic = 'force-dynamic';
 
 async function getProductionLogs() {
   try {
-    const logs = await prisma.productionLog.findMany({
-      orderBy: {
-        date: 'desc'
-      },
-      include: {
-        interpreter: true
-      }
-    });
+      const logs = await prisma.productionLog.findMany({
+        orderBy: {
+          date: 'desc'
+        },
+        include: {
+          interpreter: {
+            select: { id: true, name: true, campaign: true }
+          }
+        }
+      });
     return logs;
   } catch (error) {
     console.error('Error fetching production logs:', error);

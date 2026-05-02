@@ -79,7 +79,8 @@ export async function saveBankingDetails(data: {
             cuentaPago: data.bankAccount.trim(),
             tipoCuenta: data.bankAccountType?.trim() || null,
             cedulaRnc: data.bankCedula.trim(),
-          }
+          },
+          select: { id: true }
         });
       } catch (intError: any) {
         console.warn('[ONBOARDING] Sync interpreter error:', intError.message);
@@ -123,7 +124,8 @@ export async function completeOnboarding(): Promise<ActionResult> {
             documentosCompleto: true,
             metodoPago: 'Transferencia Bancaria',
             status: 'Activo'
-          }
+          },
+          select: { id: true }
         });
       } catch (intError: any) {
         console.warn('[ONBOARDING] Sync interpreter error:', intError.message);

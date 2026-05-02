@@ -54,9 +54,43 @@ export default async function AdminDashboard() {
     [interpreters, activeCalls, todaySessions, monthSessions, allProductionLogs] = await Promise.all([
       prisma.interpreter.findMany({ 
         orderBy: { name: 'asc' },
-        include: { productionLogs: { where: { date: { gte: monthStart } } } }
+        select: {
+          id: true,
+          externalId: true,
+          name: true,
+          status: true,
+          realtimeStatus: true,
+          campaign: true,
+          languageA: true,
+          languageB: true,
+          tariffPerMinute: true,
+          emailCorporativo: true,
+          pais: true,
+          metodoPago: true,
+          cuentaPago: true,
+          documentosCompleto: true,
+          notas: true,
+          banco: true,
+          tipoCuenta: true,
+          cedulaRnc: true,
+          updatedAt: true,
+          createdAt: true,
+          productionLogs: { where: { date: { gte: monthStart } } }
+        }
       }),
-      prisma.callSession.findMany({ where: { endedAt: null }, include: { interpreter: true } }),
+      prisma.callSession.findMany({ 
+        where: { endedAt: null }, 
+        include: { 
+          interpreter: {
+            select: {
+              id: true,
+              name: true,
+              externalId: true,
+              realtimeStatus: true
+            }
+          } 
+        } 
+      }),
       prisma.callSession.findMany({ where: { startedAt: { gte: todayStart } } }),
       prisma.callSession.findMany({ where: { startedAt: { gte: monthStart }, endedAt: { not: null } } }),
       prisma.productionLog.findMany({ where: { date: { gte: monthStart } } })

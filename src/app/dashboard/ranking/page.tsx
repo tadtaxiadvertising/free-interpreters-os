@@ -65,7 +65,7 @@ export default async function RankingPage() {
           select: { totalScore: true },
         },
       },
-    });
+    } as any);
 
     rankings = allInterpreters
       .map((interp: any) => {

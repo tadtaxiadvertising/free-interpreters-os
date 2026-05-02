@@ -43,7 +43,8 @@ export async function POST(req: Request) {
 
     await db.interpreter.update({
       where: { id: profile.interpreterId },
-      data: updateData
+      data: updateData,
+      select: { id: true }
     });
 
     return NextResponse.json({ success: true });

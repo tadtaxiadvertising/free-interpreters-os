@@ -28,7 +28,9 @@ export async function calculatePayroll(
   // 1. Obtener datos del intérprete y sus tasas por cuenta via Prisma
   const interpreter = await db.interpreter.findUnique({
     where: { id: interpreterId },
-    include: {
+    select: {
+      id: true,
+      tariffPerMinute: true,
       accountRates: true
     }
   });

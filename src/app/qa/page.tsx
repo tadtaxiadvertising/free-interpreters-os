@@ -22,13 +22,21 @@ async function getQAData() {
   try {
     const [scores, pendingCalls, interpreters] = await Promise.all([
       prisma.qAScore.findMany({
-        include: { interpreter: true },
+        include: { 
+          interpreter: {
+            select: { id: true, name: true, campaign: true }
+          } 
+        },
         orderBy: { createdAt: 'desc' },
         take: 50
       }),
       prisma.callSession.findMany({
         where: { endedAt: { not: null } },
-        include: { interpreter: true },
+        include: { 
+          interpreter: {
+            select: { id: true, name: true, campaign: true }
+          } 
+        },
         orderBy: { startedAt: 'desc' },
         take: 10
       }),

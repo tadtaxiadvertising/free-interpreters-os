@@ -16,7 +16,30 @@ async function getInterpreters() {
   try {
     const interpreters = await prisma.interpreter.findMany({
       orderBy: { createdAt: 'desc' },
-    });
+      select: {
+        id: true,
+        externalId: true,
+        name: true,
+        status: true,
+        realtimeStatus: true,
+        campaign: true,
+        languageA: true,
+        languageB: true,
+        tariffPerMinute: true,
+        monthlyGoal: true,
+        emailCorporativo: true,
+        pais: true,
+        metodoPago: true,
+        cuentaPago: true,
+        documentosCompleto: true,
+        notas: true,
+        banco: true,
+        tipoCuenta: true,
+        cedulaRnc: true,
+        updatedAt: true,
+        createdAt: true,
+      }
+    } as any);
     // Cast to any[] to avoid strict type mismatch with components expecting string dates
     return interpreters as any[];
   } catch (error) {
