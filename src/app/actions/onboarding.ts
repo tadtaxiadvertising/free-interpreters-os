@@ -57,7 +57,14 @@ export async function saveBankingDetails(data: {
 
     // 1. Update User Profile using Admin Client to bypass RLS during onboarding
     const supabaseAdmin = createAdminClient();
-    const { data: profile, error: profileError } = await supabaseAdmin
+    
+    // Debug: check for duplicates
+    const { data: checkData } = await supabaseAdmin.from('user_profiles').select('id').eq('id', user.id);
+    if (checkData && checkData.length > 1) {
+      console.warn(`[ONBOARDING] CRITICAL: Found ${checkData.length} duplicate profiles for user ${user.id}`);
+    }
+
+    const { data: updateResults, error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .update({
         bank_name: data.bankName.trim(),
@@ -66,13 +73,14 @@ export async function saveBankingDetails(data: {
         bank_cedula: data.bankCedula.trim(),
       })
       .eq('id', user.id)
-      .select('interpreter_id')
-      .maybeSingle();
+      .select('interpreter_id');
 
     if (profileError) {
-      console.error('[ONBOARDING] saveBankingDetails (profile) error:', profileError.message);
+      console.error('[ONBOARDING] saveBankingDetails (profile) error:', profileError.message, profileError.details);
       return { success: false, error: `Error al actualizar perfil: ${profileError.message}`, code: 'INTERNAL_ERROR' };
     }
+
+    const profile = updateResults && updateResults.length > 0 ? updateResults[0] : null;
 
     if (!profile) {
       return { success: false, error: 'No se encontró tu perfil de usuario. Por favor, contacta a soporte.', code: 'NOT_FOUND' };
@@ -115,17 +123,18 @@ export async function completeOnboarding(): Promise<ActionResult> {
 
     // Update user profile using Admin Client
     const supabaseAdmin = createAdminClient();
-    const { data: profile, error } = await supabaseAdmin
+    const { data: updateResults, error } = await supabaseAdmin
       .from('user_profiles')
       .update({ onboarding_complete: true })
       .eq('id', user.id)
-      .select('interpreter_id')
-      .maybeSingle();
+      .select('interpreter_id');
 
     if (error) {
       console.error('[ONBOARDING] completeOnboarding error:', error.message);
       return { success: false, error: `Error al completar el proceso: ${error.message}`, code: 'INTERNAL_ERROR' };
     }
+
+    const profile = updateResults && updateResults.length > 0 ? updateResults[0] : null;
 
     if (!profile) {
       return { success: false, error: 'Perfil no encontrado al intentar finalizar.', code: 'NOT_FOUND' };
