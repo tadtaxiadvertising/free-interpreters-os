@@ -72,8 +72,8 @@ export function CallHistory({ calls }: { calls: Call[] }) {
               <tr key={call.id} className="group hover:bg-white/5 transition-all duration-300">
                 <td className="py-4 px-2">
                   <div className="flex flex-col">
-                    <span className="text-slate-200 text-sm font-medium">{formatDate(call.started_at)}</span>
-                    <span className="text-slate-500 text-xs">{formatTime(call.started_at)}</span>
+                    <span suppressHydrationWarning className="text-slate-200 text-sm font-medium">{formatDate(call.started_at)}</span>
+                    <span suppressHydrationWarning className="text-slate-500 text-xs">{formatTime(call.started_at)}</span>
                   </div>
                 </td>
                 <td className="py-4 px-2 text-center">

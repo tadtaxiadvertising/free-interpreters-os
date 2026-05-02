@@ -193,7 +193,7 @@ export function Sidebar({ role, isCollapsed, onToggle, notifications = [], ranki
               <div className="mt-2 h-1.5 bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full"
-                  style={{ width: `${Math.min((ranking.myMinutes / Math.max(ranking.avgMinutes, 1)) * 50, 100)}%` }}
+                  style={{ width: `${Math.round(Math.min((ranking.myMinutes / Math.max(ranking.avgMinutes, 1)) * 50, 100))}%` }}
                 />
               </div>
             </div>

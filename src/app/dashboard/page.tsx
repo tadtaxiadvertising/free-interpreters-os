@@ -221,7 +221,10 @@ export default async function InterpreterDashboard() {
               <div className="flex justify-between items-end mb-4">
                 <div>
                   <p className="text-sm text-white font-semibold mb-1">Actas de MTD</p>
-                  <p className="text-3xl font-bold text-white">{mtdMinutes}<span className="text-lg text-slate-300"> / {monthlyGoal}</span></p>
+                  <p className="text-3xl font-bold text-white">
+                    <span suppressHydrationWarning>{Math.round(mtdMinutes)}</span>
+                    <span className="text-lg text-slate-300"> / {monthlyGoal}</span>
+                  </p>
                 </div>
                 <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400">
                   <Clock size={24} />
@@ -235,7 +238,7 @@ export default async function InterpreterDashboard() {
                   <div className="absolute inset-0 bg-white/20 animate-pulse" />
                 </div>
               </div>
-              <p className="text-xs text-slate-200 mt-2 text-right font-medium">{mtdProgress.toFixed(1)}% de la meta mensual</p>
+              <p suppressHydrationWarning className="text-xs text-slate-200 mt-2 text-right font-medium">{mtdProgress.toFixed(1)}% de la meta mensual</p>
             </div>
 
             {/* QA Score — IMPROVED CONTRAST */}
