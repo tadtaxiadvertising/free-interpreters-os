@@ -1,26 +1,12 @@
 import React from 'react';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { StatusToggle } from '../../components/StatusToggle';
-import { CallTimer } from '../../components/CallTimer';
-import { CallHistory } from '../../components/CallHistory';
-import { OnboardingGate } from '../../components/OnboardingGate';
-import prismaClient from '@/lib/prisma';
-const prisma = prismaClient as any;
-
-export const dynamic = 'force-dynamic';
-
-import React from 'react';
-import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
 import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck, RefreshCw, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { StatusToggle } from '../../components/StatusToggle';
-import { CallTimer } from '../../components/CallTimer';
-import { CallHistory } from '../../components/CallHistory';
-import { OnboardingGate } from '../../components/OnboardingGate';
+import { StatusToggle } from '@/components/StatusToggle';
+import { CallTimer } from '@/components/CallTimer';
+import { CallHistory } from '@/components/CallHistory';
+import { OnboardingGate } from '@/components/OnboardingGate';
 import { getCurrentProfile } from '@/app/actions/auth';
 import prismaClient from '@/lib/prisma';
 const prisma = prismaClient as any;
@@ -135,6 +121,17 @@ export default async function InterpreterDashboard() {
       console.error('❌ DASHBOARD: Data fetch failed:', error);
     }
   }
+
+  // ── 📊 METRICS CALCULATION ──
+  const mtdMinutes = (monthCalls || []).reduce((acc: number, call: any) => acc + (call.durationSeconds || 0), 0) / 60;
+  const monthlyGoal = interpreter?.monthlyGoal || 2000;
+  const mtdProgress = Math.min((mtdMinutes / monthlyGoal) * 100, 100);
+  
+  const latestQaScore = interpreter?.qaScores?.[0]?.totalScore ? Number(interpreter.qaScores[0].totalScore) : 0;
+  const isQaExcellent = latestQaScore >= 95;
+  
+  const mtdEarnings = (monthCalls || []).reduce((acc: number, call: any) => acc + Number(call.callCost || 0), 0);
+  const onboardingComplete = profile?.onboarding_complete || false;
 
   if (!profile || !interpreter) {
     return (

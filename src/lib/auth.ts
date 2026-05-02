@@ -10,7 +10,8 @@ export async function auth() {
   const { data: { user } } = await supabase.auth.getUser();
   
   return { 
-    userId: user?.id || null 
+    userId: user?.id || null,
+    user: user
   };
 }
 
