@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, X, Clock, Send } from 'lucide-react';
+import { Plus, X, Clock, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function QuickLogButton({ inline = false }: { inline?: boolean }) {
