@@ -13,9 +13,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. Get interpreter data
-    const { status, type } = await req.json();
-    
+    // 1. Parse body first
+    const { status } = await req.json();
+
+    // 2. Get interpreter ID
     const profile = await db.userProfile.findUnique({
       where: { id: user.id },
       select: { interpreterId: true }
@@ -24,10 +25,20 @@ export async function POST(req: Request) {
     if (!profile?.interpreterId) {
       return NextResponse.json({ error: 'Interpreter not found' }, { status: 404 });
     }
-    
-    const updateData: any = { lastActive: new Date() };
+
+    // 3. Update status
+    // For explicit status changes (Online/Offline/Busy), set the provided status.
+    // For heartbeat pulses (no status), touch updatedAt by re-writing the current status.
+    const updateData: any = {};
     if (status) {
       updateData.realtimeStatus = status;
+    } else {
+      // Heartbeat: read current status and write it back to bump updatedAt
+      const current = await db.interpreter.findUnique({
+        where: { id: profile.interpreterId },
+        select: { realtimeStatus: true }
+      });
+      updateData.realtimeStatus = current?.realtimeStatus ?? 'Online';
     }
 
     await db.interpreter.update({

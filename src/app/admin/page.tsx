@@ -106,7 +106,7 @@ export default async function AdminDashboard() {
 
   const onlineCount = interpreters.filter((i: any) => 
     i.realtimeStatus === 'Online' && 
-    (nowTime - new Date(i.lastActive || i.createdAt).getTime() < STALE_THRESHOLD)
+    (nowTime - new Date(i.updatedAt).getTime() < STALE_THRESHOLD)
   ).length;
 
   const busyCount = interpreters.filter((i: any) => i.realtimeStatus === 'Busy').length;
@@ -198,7 +198,7 @@ export default async function AdminDashboard() {
                         <td className="py-4 px-4 text-indigo-400 font-medium text-sm font-mono">RD${(Number(interp.tariffPerMinute) * 60).toFixed(2)}/h</td>
                         <td className="py-4 px-4">
                           {(() => {
-                            const isStale = (nowTime - new Date(interp.lastActive || interp.createdAt).getTime() > STALE_THRESHOLD);
+                            const isStale = (nowTime - new Date(interp.updatedAt).getTime() > STALE_THRESHOLD);
                             const status = isStale && interp.realtimeStatus !== 'Offline' ? 'Disconnected' : interp.realtimeStatus;
                             
                             return (

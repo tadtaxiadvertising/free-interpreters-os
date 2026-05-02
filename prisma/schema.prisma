@@ -27,7 +27,6 @@ model Interpreter {
   notas              String?  @db.Text
   tariffPerMinute    Decimal  @db.Decimal(10, 2) @map("tariff_per_minute")
   monthlyGoal        Int      @default(2000) @map("monthly_goal")
-  lastActive         DateTime @default(now()) @map("last_active")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
