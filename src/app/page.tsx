@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import prismaClient from '@/lib/prisma';
+
+const prisma = prismaClient as any;
 
 export const dynamic = 'force-dynamic';
 
@@ -11,11 +14,12 @@ export default async function RootPage() {
     redirect('/login');
   }
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  // Use Prisma for profile lookup to avoid internal fetch/DNS issues
+  const profile = await prisma.userProfile.findUnique({
+    where: { id: user.id },
+    select: { role: true }
+  });
 
   redirect(profile?.role === 'admin' ? '/admin' : '/dashboard');
 }
+

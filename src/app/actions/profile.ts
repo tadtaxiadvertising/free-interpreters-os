@@ -1,7 +1,10 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+
+const db = prisma as any;
 
 export type ProfileUpdateInput = {
   phone?: string;
@@ -20,40 +23,38 @@ export async function updateInterpreterProfile(input: ProfileUpdateInput) {
   if (!user) return { success: false, error: 'Unauthorized' };
 
   try {
-    // 1. Update UserProfile (New SSOT for banking)
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .update({
-        bank_name: input.bankName,
-        bank_account: input.bankAccount,
-        bank_account_type: input.bankAccountType,
-        bank_cedula: input.bankCedula,
-      })
-      .eq('id', user.id)
-      .select('interpreter_id')
-      .single();
+    // 1. Update UserProfile via Prisma
+    const profile = await db.userProfile.update({
+      where: { id: user.id },
+      data: {
+        bankName: input.bankName,
+        bankAccount: input.bankAccount,
+        bankAccountType: input.bankAccountType,
+        bankCedula: input.bankCedula,
+      },
+      select: { interpreterId: true }
+    });
 
-    if (profileError) {
-      console.error('User Profile Update Error:', profileError.message);
-      return { success: false, error: profileError.message };
+    if (!profile) {
+      return { success: false, error: 'User profile not found' };
     }
 
-    // 2. Sync with Interpreters table (Legacy compatibility)
-    if (profile?.interpreter_id) {
-      const { error: interpError } = await supabase
-        .from('interpreters')
-        .update({
-          telefono: input.phone,
-          pais: input.country,
-          banco: input.bankName,
-          cuenta_pago: input.bankAccount,
-          tipo_cuenta: input.bankAccountType,
-          cedula_rnc: input.bankCedula,
-          notas: input.notes
-        })
-        .eq('id', profile.interpreter_id);
-
-      if (interpError) {
+    // 2. Sync with Interpreters table via Prisma
+    if (profile.interpreterId) {
+      try {
+        await db.interpreter.update({
+          where: { id: profile.interpreterId },
+          data: {
+            telefono: input.phone,
+            pais: input.country,
+            banco: input.bankName,
+            cuentaPago: input.bankAccount,
+            tipoCuenta: input.bankAccountType,
+            cedulaRnc: input.bankCedula,
+            notas: input.notes
+          }
+        });
+      } catch (interpError: any) {
         console.warn('Sync with interpreters table failed:', interpError.message);
       }
     }
@@ -64,7 +65,8 @@ export async function updateInterpreterProfile(input: ProfileUpdateInput) {
     
     return { success: true };
   } catch (error: any) {
-    console.error('Unexpected Profile Update Error:', error);
+    console.error('Unexpected Profile Update Error:', error.message);
     return { success: false, error: 'An unexpected error occurred while updating profile.' };
   }
 }
+

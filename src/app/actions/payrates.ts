@@ -1,8 +1,11 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+
+const db = prisma as any;
 
 export async function updatePayrate(
   interpreterId: number,
@@ -14,12 +17,11 @@ export async function updatePayrate(
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
   try {
-    // 1. Verify admin role using user_profiles table (RLS will also handle this if configured)
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
+    // 1. Verify admin role using user_profiles table via Prisma
+    const profile = await db.userProfile.findUnique({
+      where: { id: user.id },
+      select: { role: true }
+    });
 
     if (profile?.role !== 'admin') {
       return { success: false, error: 'Admin access required', code: 'UNAUTHORIZED' };
@@ -29,38 +31,33 @@ export async function updatePayrate(
       return { success: false, error: 'Rate must be between $0.01 and $999.99', code: 'VALIDATION_ERROR' };
     }
 
-    // 2. Get current rate
-    const { data: interpreter } = await supabase
-      .from('interpreters')
-      .select('tariff_per_minute')
-      .eq('id', interpreterId)
-      .single();
+    // 2. Get current rate via Prisma
+    const interpreter = await db.interpreter.findUnique({
+      where: { id: interpreterId },
+      select: { tariffPerMinute: true }
+    });
 
     if (!interpreter) {
       return { success: false, error: 'Interpreter not found', code: 'NOT_FOUND' };
     }
 
-    const oldRate = Number(interpreter.tariff_per_minute);
+    const oldRate = Number(interpreter.tariffPerMinute);
 
-    // 3. Update rate
-    const { error: updateError } = await supabase
-      .from('interpreters')
-      .update({ tariff_per_minute: newRate })
-      .eq('id', interpreterId);
+    // 3. Update rate via Prisma
+    await db.interpreter.update({
+      where: { id: interpreterId },
+      data: { tariffPerMinute: newRate }
+    });
 
-    if (updateError) throw updateError;
-
-    // 4. Write audit log
-    const { error: auditError } = await supabase
-      .from('payrate_audit_log')
-      .insert({
-        interpreter_id: interpreterId,
-        old_rate: oldRate,
-        new_rate: newRate,
-        changed_by: user.id,
-      });
-
-    if (auditError) throw auditError;
+    // 4. Write audit log via Prisma
+    await db.payrateAuditLog.create({
+      data: {
+        interpreterId: interpreterId,
+        oldRate: oldRate,
+        newRate: newRate,
+        changedBy: user.id,
+      }
+    });
 
     revalidatePath('/admin');
     revalidatePath('/admin/payrates');
@@ -81,17 +78,15 @@ export async function getPayrateHistory(
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
   try {
-    const { data: history, error } = await supabase
-      .from('payrate_audit_log')
-      .select('*')
-      .eq('interpreter_id', interpreterId)
-      .order('changed_at', { ascending: false })
-      .limit(20);
-
-    if (error) throw error;
+    const history = await db.payrateAuditLog.findMany({
+      where: { interpreterId: interpreterId },
+      orderBy: { changedAt: 'desc' },
+      take: 20
+    });
 
     return { success: true, data: history ?? [] };
   } catch (error: any) {
     return { success: false, error: error.message, code: 'SERVICE_UNAVAILABLE' };
   }
 }
+

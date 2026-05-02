@@ -1,8 +1,11 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { createNotification } from './notifications';
+
+const db = prisma as any;
 
 export type QAScoreInput = {
   productionLogId: number;
@@ -43,63 +46,60 @@ export async function submitQAEvaluation(input: QAScoreInput) {
 
   const { data: { user } } = await supabase.auth.getUser();
   
-  const { data, error } = await supabase
-    .from('qa_scores')
-    .insert({
-      production_log_id: input.productionLogId,
-      interpreter_id: input.interpreterId,
-      audit_date: new Date().toISOString(),
-      auditor: user?.email || 'System',
-      protocol_score: input.protocolScore,
-      interpretation_score: input.interpretationScore,
-      language_score: input.languageScore,
-      service_score: input.serviceScore,
-      technical_score: input.technicalScore,
-      critical_error: input.criticalError,
-      comentarios: input.comments,
-      accion_requerida: actionRequired
-    })
-    .select()
-    .single();
+  try {
+    const data = await db.qAScore.create({
+      data: {
+        productionLogId: input.productionLogId,
+        interpreterId: input.interpreterId,
+        auditDate: new Date(),
+        auditor: user?.email || 'System',
+        protocolScore: input.protocolScore,
+        interpretationScore: input.interpretationScore,
+        languageScore: input.languageScore,
+        serviceScore: input.serviceScore,
+        technicalScore: input.technicalScore,
+        criticalError: input.criticalError,
+        comentarios: input.comments,
+        accionRequerida: actionRequired
+      }
+    });
 
-  if (error) {
+    // Notify Interpreter
+    try {
+      // 1. Get the interpreter via Prisma
+      const interpreter = await db.interpreter.findUnique({
+        where: { id: input.interpreterId },
+        select: { emailCorporativo: true }
+      });
+
+      if (interpreter?.emailCorporativo) {
+        // 2. Find the auth user linked to this email via Prisma
+        const profile = await db.userProfile.findUnique({
+          where: { email: interpreter.emailCorporativo },
+          select: { id: true }
+        });
+
+        if (profile) {
+          await createNotification({
+            userId: profile.id,
+            title: 'Evaluación QA Lista',
+            message: `Tu puntaje de sesión: ${totalScore.toFixed(1)}%. Acción: ${actionRequired}`,
+            type: totalScore >= 85 ? 'success' : (totalScore >= 70 ? 'info' : 'warning'),
+            link: '/dashboard/earnings'
+          });
+        }
+      }
+    } catch (notifyErr: any) {
+      console.error('Notification failed but QA saved:', notifyErr.message);
+    }
+
+    revalidatePath('/qa');
+    revalidatePath(`/dashboard`);
+    
+    return { success: true, data };
+  } catch (error: any) {
     console.error('QA Submission Error:', error.message);
     return { success: false, error: error.message };
   }
-
-  // Notify Interpreter
-  try {
-    // 1. Get the interpreter's email
-    const { data: interpreter } = await supabase
-      .from('interpreters')
-      .select('email_corporativo')
-      .eq('id', input.interpreterId)
-      .single();
-
-    if (interpreter?.email_corporativo) {
-      // 2. Find the auth user linked to this email
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .eq('email', interpreter.email_corporativo)
-        .single();
-
-      if (profile) {
-        await createNotification({
-          userId: profile.id,
-          title: 'Evaluación QA Lista',
-          message: `Tu puntaje de sesión: ${totalScore.toFixed(1)}%. Acción: ${actionRequired}`,
-          type: totalScore >= 85 ? 'success' : (totalScore >= 70 ? 'info' : 'warning'),
-          link: '/dashboard/earnings'
-        });
-      }
-    }
-  } catch (notifyErr) {
-    console.error('Notification failed but QA saved:', notifyErr);
-  }
-
-  revalidatePath('/qa');
-  revalidatePath(`/dashboard`);
-  
-  return { success: true, data };
 }
+

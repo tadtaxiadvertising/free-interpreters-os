@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { InterpreterForm } from './InterpreterForm';
 import { Modal } from './Modal';
+import { deleteInterpreter, resetInterpreterPassword } from '@/app/actions/interpreters';
 
 interface InterpreterActionsProps {
   interpreter: {
@@ -39,17 +40,14 @@ export function InterpreterActions({ interpreter }: InterpreterActionsProps) {
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/interpreters/${interpreter.id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) throw new Error('Failed to delete');
+      const result = await deleteInterpreter(interpreter.id);
+      if (!result.success) throw new Error(result.error);
       
       setShowDeleteConfirm(false);
       router.refresh();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert('Error deleting interpreter');
+      alert(`Error deleting interpreter: ${error.message}`);
     } finally {
       setIsDeleting(false);
     }
@@ -61,16 +59,8 @@ export function InterpreterActions({ interpreter }: InterpreterActionsProps) {
     setResetError(null);
 
     try {
-      const response = await fetch(`/api/interpreters/${interpreter.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: newPassword }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to reset password');
-      }
+      const result = await resetInterpreterPassword(interpreter.id, newPassword);
+      if (!result.success) throw new Error(result.error);
 
       setShowResetModal(false);
       setNewPassword('');
@@ -81,6 +71,7 @@ export function InterpreterActions({ interpreter }: InterpreterActionsProps) {
       setIsResetting(false);
     }
   };
+
 
   return (
     <div className="relative">

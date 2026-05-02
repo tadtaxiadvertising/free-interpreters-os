@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { deleteCandidate, hireCandidate } from '@/app/actions/recruitment';
 
 interface CandidateActionsProps {
   candidate: {
@@ -25,33 +26,42 @@ interface CandidateActionsProps {
 export function CandidateActions({ candidate }: CandidateActionsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isHiring, setIsHiring] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const router = useRouter();
 
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/recruitment/${candidate.id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) throw new Error('Failed to delete');
+      const result = await deleteCandidate(candidate.id);
+      if (!result.success) throw new Error(result.error);
       
       setIsOpen(false);
       router.refresh();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert('Error deleting candidate');
+      alert(`Error deleting candidate: ${error.message}`);
     } finally {
       setIsDeleting(false);
     }
   };
 
   const handleHire = async () => {
-    // Logic to convert candidate to interpreter
-    alert(`Converting ${candidate.name} to interpreter... (Feature coming soon)`);
-    setIsOpen(false);
+    setIsHiring(true);
+    try {
+      const result = await hireCandidate(candidate.id);
+      if (!result.success) throw new Error(result.error);
+      
+      alert(`Candidate ${candidate.name} marked as hired!`);
+      setIsOpen(false);
+      router.refresh();
+    } catch (error: any) {
+      alert(`Error hiring candidate: ${error.message}`);
+    } finally {
+      setIsHiring(false);
+    }
   };
+
 
   return (
     <div className="relative">

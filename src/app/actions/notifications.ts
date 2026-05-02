@@ -1,7 +1,10 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+
+const db = prisma as any;
 
 export type CreateNotificationInput = {
   userId: string;
@@ -12,45 +15,37 @@ export type CreateNotificationInput = {
 };
 
 export async function createNotification(input: CreateNotificationInput) {
-  const supabase = await createClient();
-  
   try {
-    const { data: notification, error } = await supabase
-      .from('notifications')
-      .insert({
-        user_id: input.userId,
+    const notification = await db.notification.create({
+      data: {
+        userId: input.userId,
         title: input.title,
         message: input.message,
         type: input.type || 'info',
         link: input.link
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
+      }
+    });
 
     revalidatePath('/'); // Global revalidation for the bell icon
     return { success: true, data: notification };
-  } catch (error) {
-    console.error('Failed to create notification:', error);
+  } catch (error: any) {
+    console.error('Failed to create notification:', error.message);
     return { success: false, error: 'Internal server error' };
   }
 }
 
 export async function markNotificationAsRead(id: string) {
-  const supabase = await createClient();
-  
   try {
-    const { error } = await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('id', id);
+    await db.notification.update({
+      where: { id },
+      data: { isRead: true }
+    });
 
-    if (error) throw error;
-    
     revalidatePath('/');
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Failed to update notification:', error.message);
     return { success: false, error: 'Failed to update notification' };
   }
 }
+

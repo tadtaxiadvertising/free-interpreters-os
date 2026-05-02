@@ -1,8 +1,11 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import type { ActionResult, CallSession } from '@/lib/types';
+import prisma from '@/lib/prisma';
+import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+
+const db = prisma as any;
 
 export async function startCall(): Promise<ActionResult<{ sessionId: number; startedAt: string }>> {
   const supabase = await createClient();
@@ -11,66 +14,59 @@ export async function startCall(): Promise<ActionResult<{ sessionId: number; sta
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
   try {
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('interpreter_id')
-      .eq('id', user.id)
-      .single();
+    // Use Prisma for profile lookup
+    const profile = await db.userProfile.findUnique({
+      where: { id: user.id },
+      select: { interpreterId: true }
+    });
 
-    if (profileError || !profile?.interpreter_id) {
+    if (!profile?.interpreterId) {
       return { success: false, error: 'No interpreter linked', code: 'NOT_FOUND' };
     }
 
-    // Check for existing active call
-    const { data: activeCall } = await supabase
-      .from('call_sessions')
-      .select('id')
-      .eq('interpreter_id', profile.interpreter_id)
-      .is('ended_at', null)
-      .maybeSingle();
+    // Check for existing active call via Prisma
+    const activeCall = await db.callSession.findFirst({
+      where: {
+        interpreterId: profile.interpreterId,
+        endedAt: null
+      }
+    });
 
     if (activeCall) {
       return { success: false, error: 'A call is already active', code: 'CONFLICT' };
     }
 
-    // Fetch current tariff
-    const { data: interpreter, error: interpreterError } = await supabase
-      .from('interpreters')
-      .select('tariff_per_minute')
-      .eq('id', profile.interpreter_id)
-      .single();
+    // Fetch current tariff via Prisma
+    const interpreter = await db.interpreter.findUnique({
+      where: { id: profile.interpreterId },
+      select: { tariffPerMinute: true }
+    });
 
-    if (interpreterError || !interpreter) {
+    if (!interpreter) {
       return { success: false, error: 'Interpreter record not found', code: 'NOT_FOUND' };
     }
 
-    // Create call session
-    const { data: session, error: sessionError } = await supabase
-      .from('call_sessions')
-      .insert({
-        interpreter_id: profile.interpreter_id,
-        tariff_snapshot: interpreter.tariff_per_minute,
-      })
-      .select()
-      .single();
+    // Create call session via Prisma
+    const session = await db.callSession.create({
+      data: {
+        interpreterId: profile.interpreterId,
+        tariffSnapshot: interpreter.tariffPerMinute,
+      }
+    });
 
-    if (sessionError) {
-      return { success: false, error: sessionError.message, code: 'INTERNAL_ERROR' };
-    }
-
-    // Auto-set status to Busy
-    await supabase
-      .from('interpreters')
-      .update({ realtime_status: 'Busy' })
-      .eq('id', profile.interpreter_id);
+    // Auto-set status to Busy via Prisma
+    await db.interpreter.update({
+      where: { id: profile.interpreterId },
+      data: { realtimeStatus: 'Busy' }
+    });
 
     revalidatePath('/dashboard');
     return {
       success: true,
-      data: { sessionId: session.id, startedAt: session.started_at },
+      data: { sessionId: session.id, startedAt: session.startedAt.toISOString() },
     };
   } catch (error: any) {
-    console.error('Error starting call:', error);
+    console.error('Error starting call:', error.message);
     return { success: false, error: 'Error starting call', code: 'INTERNAL_ERROR' };
   }
 }
@@ -84,45 +80,38 @@ export async function endCall(
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
   try {
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('interpreter_id')
-      .eq('id', user.id)
-      .single();
+    const profile = await db.userProfile.findUnique({
+      where: { id: user.id },
+      select: { interpreterId: true }
+    });
 
-    if (profileError || !profile?.interpreter_id) {
+    if (!profile?.interpreterId) {
       return { success: false, error: 'No interpreter linked', code: 'NOT_FOUND' };
     }
 
-    // End the session
+    // End the session via Prisma
     // The database trigger trg_calculate_call_metrics will handle duration and cost
-    const { data: session, error: sessionError } = await supabase
-      .from('call_sessions')
-      .update({ ended_at: new Date().toISOString() })
-      .eq('id', sessionId)
-      .select()
-      .single();
+    const session = await db.callSession.update({
+      where: { id: sessionId },
+      data: { endedAt: new Date() }
+    });
 
-    if (sessionError) {
-      return { success: false, error: sessionError.message, code: 'INTERNAL_ERROR' };
-    }
-
-    // Set status back to Online
-    await supabase
-      .from('interpreters')
-      .update({ realtime_status: 'Online' })
-      .eq('id', profile.interpreter_id);
+    // Set status back to Online via Prisma
+    await db.interpreter.update({
+      where: { id: profile.interpreterId },
+      data: { realtimeStatus: 'Online' }
+    });
 
     revalidatePath('/dashboard');
     return {
       success: true,
       data: {
-        durationSeconds: session.duration_seconds ?? 0,
-        callCost: Number(session.call_cost) ?? 0,
+        durationSeconds: session.durationSeconds ?? 0,
+        callCost: Number(session.callCost) ?? 0,
       },
     };
   } catch (error: any) {
-    console.error('Error ending call:', error);
+    console.error('Error ending call:', error.message);
     return { success: false, error: 'Error ending call', code: 'INTERNAL_ERROR' };
   }
 }
@@ -134,25 +123,26 @@ export async function getActiveCall(): Promise<ActionResult<any>> {
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
   try {
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('interpreter_id')
-      .eq('id', user.id)
-      .single();
+    const profile = await db.userProfile.findUnique({
+      where: { id: user.id },
+      select: { interpreterId: true }
+    });
 
-    if (profileError || !profile?.interpreter_id) {
+    if (!profile?.interpreterId) {
       return { success: true, data: null };
     }
 
-    const { data: session } = await supabase
-      .from('call_sessions')
-      .select('*')
-      .eq('interpreter_id', profile.interpreter_id)
-      .is('ended_at', null)
-      .maybeSingle();
+    const session = await db.callSession.findFirst({
+      where: {
+        interpreterId: profile.interpreterId,
+        endedAt: null
+      }
+    });
 
     return { success: true, data: session ?? null };
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Error fetching active call:', error.message);
     return { success: false, error: 'Error fetching active call', code: 'INTERNAL_ERROR' };
   }
 }
+

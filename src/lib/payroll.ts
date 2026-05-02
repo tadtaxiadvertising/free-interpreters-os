@@ -1,4 +1,6 @@
-import { createClient } from './supabase/server';
+import prisma from './prisma';
+
+const db = prisma as any;
 
 interface PayrollInput {
   interpreterId: number;
@@ -16,77 +18,101 @@ interface PayrollCalculation {
 
 /**
  * Calcula nómina para un intérprete en un período específico
- * Optimizado usando Supabase Client y RLS
+ * Optimizado usando Prisma para evitar DNS lookups
  */
 export async function calculatePayroll(
   input: PayrollInput
 ): Promise<PayrollCalculation> {
   const { interpreterId, periodStart, periodEnd } = input;
-  const supabase = await createClient();
 
-  // 1. Obtener datos del intérprete y sus tasas por cuenta
-  const { data: interpreter, error: interpError } = await supabase
-    .from('interpreters')
-    .select('*, interpreter_account_rates(*)')
-    .eq('id', interpreterId)
-    .single();
+  // 1. Obtener datos del intérprete y sus tasas por cuenta via Prisma
+  const interpreter = await db.interpreter.findUnique({
+    where: { id: interpreterId },
+    include: {
+      interpreterAccountRates: true
+    }
+  });
 
-  if (interpError || !interpreter) {
+  if (!interpreter) {
     throw new Error(`Interpreter ${interpreterId} not found`);
   }
 
-  // 2. Obtener logs de producción
-  const { data: productionLogs } = await supabase
-    .from('production_logs')
-    .select('id, interpreted_minutes, account_id')
-    .eq('interpreter_id', interpreterId)
-    .gte('date', periodStart.toISOString())
-    .lte('date', periodEnd.toISOString());
+  // 2. Obtener logs de producción via Prisma
+  const productionLogs = await db.productionLog.findMany({
+    where: {
+      interpreterId: interpreterId,
+      date: {
+        gte: periodStart,
+        lte: periodEnd
+      }
+    },
+    select: {
+      id: true,
+      interpretedMinutes: true,
+      accountId: true
+    }
+  });
 
-  // 3. Obtener logs de llamadas en tiempo real (usando la tabla nativa)
-  const { data: callSessions } = await supabase
-    .from('call_sessions')
-    .select('duration_seconds, call_cost')
-    .eq('interpreter_id', interpreterId)
-    .gte('started_at', periodStart.toISOString())
-    .lte('started_at', periodEnd.toISOString())
-    .not('ended_at', 'is', null);
+  // 3. Obtener logs de llamadas en tiempo real via Prisma
+  const callSessions = await db.callSession.findMany({
+    where: {
+      interpreterId: interpreterId,
+      startedAt: {
+        gte: periodStart,
+        lte: periodEnd
+      },
+      endedAt: {
+        not: null
+      }
+    },
+    select: {
+      durationSeconds: true,
+      callCost: true
+    }
+  });
 
-  // 4. Obtener scores de QA
-  const { data: qaScores } = await supabase
-    .from('qa_scores')
-    .select('total_score, critical_error')
-    .eq('interpreter_id', interpreterId)
-    .gte('audit_date', periodStart.toISOString())
-    .lte('audit_date', periodEnd.toISOString());
+  // 4. Obtener scores de QA via Prisma
+  const qaScores = await db.qAScore.findMany({
+    where: {
+      interpreterId: interpreterId,
+      auditDate: {
+        gte: periodStart,
+        lte: periodEnd
+      }
+    },
+    select: {
+      totalScore: true,
+      criticalError: true
+    }
+  });
 
   // Cálculos de minutos
-  const importedMinutes = (productionLogs || []).reduce((sum, log) => sum + log.interpreted_minutes, 0);
-  const realtimeMinutes = Math.round((callSessions || []).reduce((sum, call) => sum + (call.duration_seconds || 0), 0) / 60);
+  const importedMinutes = (productionLogs || []).reduce((sum: number, log: any) => sum + log.interpretedMinutes, 0);
+  const realtimeMinutes = Math.round((callSessions || []).reduce((sum: number, call: any) => sum + (call.durationSeconds || 0), 0) / 60);
   const totalMinutes = importedMinutes + realtimeMinutes;
 
   // Cálculos de costos
   let importedCost = 0;
-  const baseRatePerMinute = parseFloat(interpreter.tariff_per_minute.toString());
+  const baseRatePerMinute = parseFloat(interpreter.tariffPerMinute.toString());
 
   for (const log of (productionLogs || [])) {
     let ratePerMinute = baseRatePerMinute;
-    if (log.account_id) {
-      const specificRate = interpreter.interpreter_account_rates.find((r: any) => r.account_id === log.account_id);
+    if (log.accountId) {
+      const specificRate = interpreter.interpreterAccountRates.find((r: any) => r.accountId === log.accountId);
       if (specificRate) {
-        ratePerMinute = parseFloat(specificRate.tariff_per_hour.toString()) / 60;
+        ratePerMinute = parseFloat(specificRate.tariffPerHour.toString()) / 60;
       }
     }
-    importedCost += log.interpreted_minutes * ratePerMinute;
+    importedCost += log.interpretedMinutes * ratePerMinute;
   }
 
-  const realtimeCost = (callSessions || []).reduce((sum, call) => sum + parseFloat(call.call_cost || '0'), 0);
+  const realtimeCost = (callSessions || []).reduce((sum: number, call: any) => sum + parseFloat(call.callCost?.toString() || '0'), 0);
   const grossTotal = importedCost + realtimeCost;
 
   // Bonus de calidad: +5% si promedio QA >= 90%
   let qualityBonus = 0;
   if (qaScores && qaScores.length > 0) {
-    const avgQA = qaScores.reduce((sum, qa) => sum + (parseFloat(qa.total_score) || 0), 0) / qaScores.length;
+    const avgQA = qaScores.reduce((sum: number, qa: any) => sum + (parseFloat(qa.totalScore?.toString()) || 0), 0) / qaScores.length;
     if (avgQA >= 90) {
       qualityBonus = grossTotal * 0.05;
     }
@@ -94,7 +120,7 @@ export async function calculatePayroll(
 
   // Penalidades: -10% por error crítico
   let penalidades = 0;
-  const criticalErrors = (qaScores || []).filter(qa => qa.critical_error).length;
+  const criticalErrors = (qaScores || []).filter((qa: any) => qa.criticalError).length;
   if (criticalErrors > 0) {
     penalidades = grossTotal * 0.1 * criticalErrors;
   }
@@ -118,26 +144,22 @@ export async function createPayrollRecord(
   periodEnd: Date
 ) {
   const calculation = await calculatePayroll({ interpreterId, periodStart, periodEnd });
-  const supabase = await createClient();
 
-  const { data: record, error } = await supabase
-    .from('payroll_records')
-    .insert({
-      interpreter_id: interpreterId,
-      period_start: periodStart.toISOString().split('T')[0],
-      period_end: periodEnd.toISOString().split('T')[0],
-      total_minutes: calculation.totalMinutes,
-      gross_total: calculation.grossTotal,
-      quality_bonus: calculation.qualityBonus,
+  const record = await db.payrollRecord.create({
+    data: {
+      interpreterId: interpreterId,
+      periodStart: periodStart,
+      periodEnd: periodEnd,
+      totalMinutes: calculation.totalMinutes,
+      grossTotal: calculation.grossTotal,
+      qualityBonus: calculation.qualityBonus,
       penalidades: calculation.penalidades,
-      transfer_deduction: Math.round(calculation.netTotal * 0.015 * 100) / 100,
-      net_total: calculation.netTotal,
+      transferDeduction: Math.round(calculation.netTotal * 0.015 * 100) / 100,
+      netTotal: calculation.netTotal,
       status: 'Pendiente'
-    })
-    .select()
-    .single();
+    }
+  });
 
-  if (error) throw error;
   return record;
 }
 
@@ -151,3 +173,4 @@ export async function calculateBatchPayroll(
   );
   return results;
 }
+

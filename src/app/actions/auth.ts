@@ -3,6 +3,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import type { UserProfile } from '@/lib/types';
+import prismaClient from '@/lib/prisma';
+
+const prisma = prismaClient as any;
 
 export async function login(formData: FormData) {
   const email = formData.get('email') as string;
@@ -24,23 +27,23 @@ export async function login(formData: FormData) {
     return { error: error.message };
   }
 
-  console.log(`[AUTH_LOGIN] Login successful for ${email}, fetching profile...`);
+  console.log(`[AUTH_LOGIN] Login successful for ${email}, fetching profile via Prisma...`);
 
-  // Get user profile to determine redirect
-  const { data: profile, error: profileError } = await supabase
-    .from('user_profiles')
-    .select('role')
-    .eq('id', data.user.id)
-    .maybeSingle();
+  // Use Prisma instead of Supabase client to avoid DNS/fetch issues
+  try {
+    const profile = await prisma.userProfile.findUnique({
+      where: { id: data.user.id },
+      select: { role: true }
+    });
 
-  if (profileError) {
-    console.error('[AUTH_LOGIN] Error fetching profile:', profileError.message);
+    const role = profile?.role || 'interpreter';
+    console.log(`[AUTH_LOGIN] User role: ${role}`);
+    return { success: true, role };
+  } catch (dbError: any) {
+    console.error('[AUTH_LOGIN] Prisma error fetching profile:', dbError.message);
+    // Fallback to minimal info if DB is struggling
+    return { success: true, role: 'interpreter' };
   }
-
-  const role = profile?.role || 'interpreter';
-  console.log(`[AUTH_LOGIN] User role: ${role}`);
-
-  return { success: true, role };
 }
 
 export async function register(formData: FormData) {
@@ -57,7 +60,7 @@ export async function register(formData: FormData) {
 
   const supabase = await createClient();
 
-  // 1. Sign up user in Supabase Auth
+  // 1. Sign up user in Supabase Auth (Still needs fetch for Auth)
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -74,42 +77,46 @@ export async function register(formData: FormData) {
   }
 
   if (data.user) {
-    console.log(`[AUTH_REGISTER] Auth user created: ${data.user.id}`);
+    console.log(`[AUTH_REGISTER] Auth user created: ${data.user.id}, creating profile via Prisma...`);
     
-    // Use Admin client for DB operations to bypass RLS and ensure success during signup
-    const { createAdminClient } = await import('@/lib/supabase/admin');
-    const supabaseAdmin = createAdminClient();
+    try {
+      // 2. Try to find a matching interpreter by email via Prisma
+      const interpreter = await prisma.interpreter.findUnique({
+        where: { emailCorporativo: email },
+        select: { id: true }
+      });
 
-    // 2. Try to find a matching interpreter by email
-    const { data: interpreter } = await supabaseAdmin
-      .from('interpreters')
-      .select('id')
-      .eq('email_corporativo', email)
-      .maybeSingle();
+      console.log(`[AUTH_REGISTER] Linking to interpreter: ${interpreter?.id || 'none'}`);
 
-    console.log(`[AUTH_REGISTER] Linking to interpreter: ${interpreter?.id || 'none'}`);
-
-    // 3. Upsert UserProfile record (The DB trigger might have already created a basic one)
-    const { error: profileError } = await supabaseAdmin.from('user_profiles').upsert({
-      id: data.user.id,
-      email,
-      display_name: name || email.split('@')[0],
-      role: role,
-      interpreter_id: interpreter?.id || null,
-    }, { onConflict: 'id' });
-
-    if (profileError) {
-      console.error('[AUTH_REGISTER] Profile upsert error:', profileError.message, profileError.details);
+      // 3. Upsert UserProfile record via Prisma
+      await prisma.userProfile.upsert({
+        where: { id: data.user.id },
+        update: {
+          email,
+          displayName: name || email.split('@')[0],
+          role: role,
+          interpreterId: interpreter?.id || null,
+        },
+        create: {
+          id: data.user.id,
+          email,
+          displayName: name || email.split('@')[0],
+          role: role,
+          interpreterId: interpreter?.id || null,
+        }
+      });
+      
+      console.log('[AUTH_REGISTER] Registration successful via Prisma');
+    } catch (dbError: any) {
+      console.error('[AUTH_REGISTER] Prisma error during profile creation:', dbError.message);
       return { 
         success: true, 
         role, 
         warning: 'Account created but profile linking had an issue. Please contact support.' 
       };
     }
-    
-    console.log('[AUTH_REGISTER] Registration successful');
   } else {
-    console.warn('[AUTH_REGISTER] signUp returned no user and no error (check if email confirmation is required)');
+    console.warn('[AUTH_REGISTER] signUp returned no user and no error');
   }
 
   return { success: true, role };
@@ -118,36 +125,42 @@ export async function register(formData: FormData) {
 export async function getCurrentProfile(): Promise<UserProfile | null> {
   const supabase = await createClient();
   
+  // Auth still needs fetch, but this is a cross-origin request to Supabase API, 
+  // not an internal request to our own API.
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profiles, error } = await supabase
-    .from('user_profiles')
-    .select('*')
-    .eq('id', user.id);
-    
-  const profile = profiles && profiles.length > 0 ? profiles[0] : null;
+  try {
+    const profile = await prisma.userProfile.findUnique({
+      where: { id: user.id },
+      include: { interpreter: true }
+    });
 
-  if (error || !profile) {
-    console.error('Error fetching profile:', error?.message);
+    if (!profile) {
+      console.warn(`[AUTH] Profile not found in DB for user ${user.id}`);
+      return null;
+    }
+
+    // Map Prisma model to UserProfile interface
+    return {
+      id: profile.id,
+      email: profile.email,
+      role: profile.role as any,
+      interpreter_id: profile.interpreterId,
+      display_name: profile.displayName || '',
+      terms_accepted_at: profile.termsAcceptedAt?.toISOString() || null,
+      signature_date: profile.signatureDate?.toISOString() || null,
+      bank_name: profile.bankName,
+      bank_account: profile.bankAccount,
+      bank_account_type: profile.bankAccountType,
+      bank_cedula: profile.bankCedula,
+      onboarding_complete: profile.onboardingComplete || false,
+      created_at: profile.createdAt.toISOString(),
+    };
+  } catch (error: any) {
+    console.error('❌ AUTH: Prisma profile fetch failed:', error.message);
     return null;
   }
-
-  return {
-    id: profile.id,
-    email: profile.email,
-    role: profile.role as any,
-    interpreter_id: profile.interpreter_id,
-    display_name: profile.display_name || '',
-    terms_accepted_at: profile.terms_accepted_at,
-    signature_date: profile.signature_date,
-    bank_name: profile.bank_name,
-    bank_account: profile.bank_account,
-    bank_account_type: profile.bank_account_type,
-    bank_cedula: profile.bank_cedula,
-    onboarding_complete: profile.onboarding_complete || false,
-    created_at: profile.created_at,
-  };
 }
 
 export async function logout() {
@@ -155,3 +168,4 @@ export async function logout() {
   await supabase.auth.signOut();
   redirect('/login');
 }
+

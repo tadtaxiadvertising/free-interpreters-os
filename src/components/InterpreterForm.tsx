@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Save, Loader2, User, Mail, Shield, DollarSign, Target, Briefcase, Lock } from 'lucide-react';
+import { createInterpreter, updateInterpreter } from '@/app/actions/interpreters';
 
 interface InterpreterFormProps {
   onSuccess?: () => void;
@@ -32,23 +33,21 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
       monthlyGoal: parseInt(formData.get('monthlyGoal') as string || '2000'),
     };
 
-    if (formData.get('password')) {
-      data.password = formData.get('password');
+    const password = formData.get('password');
+    if (password) {
+      data.password = password;
     }
 
     try {
-      const url = isEditing ? `/api/interpreters/${interpreterId}` : '/api/interpreters';
-      const method = isEditing ? 'PATCH' : 'POST';
+      let result;
+      if (isEditing) {
+        result = await updateInterpreter(interpreterId, data);
+      } else {
+        result = await createInterpreter(data);
+      }
 
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'create'} interpreter`);
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       onSuccess?.();
@@ -58,6 +57,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
       setLoading(false);
     }
   };
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">

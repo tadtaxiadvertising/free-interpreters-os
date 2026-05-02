@@ -1,9 +1,11 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+
+const db = prisma as any;
 
 /**
  * Accept legal terms — records the signatureDate on the user's profile.
@@ -14,20 +16,16 @@ export async function acceptTerms(): Promise<ActionResult> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-    const now = new Date().toISOString();
-    const supabaseAdmin = createAdminClient();
-    const { error } = await supabaseAdmin
-      .from('user_profiles')
-      .update({
-        terms_accepted_at: now,
-        signature_date: now,
-      })
-      .eq('id', user.id);
-
-    if (error) {
-      console.error('[ONBOARDING] acceptTerms error:', error.message);
-      return { success: false, error: `Error al aceptar términos: ${error.message}`, code: 'INTERNAL_ERROR' };
-    }
+    const now = new Date();
+    
+    // Use Prisma instead of Supabase client
+    await db.userProfile.update({
+      where: { id: user.id },
+      data: {
+        termsAcceptedAt: now,
+        signatureDate: now,
+      }
+    });
 
     revalidatePath('/dashboard');
     return { success: true };
@@ -55,52 +53,36 @@ export async function saveBankingDetails(data: {
       return { success: false, error: 'Todos los campos bancarios son obligatorios', code: 'VALIDATION_ERROR' };
     }
 
-    // 1. Update User Profile using Admin Client to bypass RLS during onboarding
-    const supabaseAdmin = createAdminClient();
-    
-    // Debug: check for duplicates
-    const { data: checkData } = await supabaseAdmin.from('user_profiles').select('id').eq('id', user.id);
-    if (checkData && checkData.length > 1) {
-      console.warn(`[ONBOARDING] CRITICAL: Found ${checkData.length} duplicate profiles for user ${user.id}`);
-    }
-
-    const { data: updateResults, error: profileError } = await supabaseAdmin
-      .from('user_profiles')
-      .update({
-        bank_name: data.bankName.trim(),
-        bank_account: data.bankAccount.trim(),
-        bank_account_type: data.bankAccountType?.trim() || null,
-        bank_cedula: data.bankCedula.trim(),
-      })
-      .eq('id', user.id)
-      .select('interpreter_id');
-
-    if (profileError) {
-      console.error('[ONBOARDING] saveBankingDetails (profile) error:', profileError.message, profileError.details);
-      return { success: false, error: `Error al actualizar perfil: ${profileError.message}`, code: 'INTERNAL_ERROR' };
-    }
-
-    const profile = updateResults && updateResults.length > 0 ? updateResults[0] : null;
+    // 1. Update User Profile via Prisma
+    const profile = await db.userProfile.update({
+      where: { id: user.id },
+      data: {
+        bankName: data.bankName.trim(),
+        bankAccount: data.bankAccount.trim(),
+        bankAccountType: data.bankAccountType?.trim() || null,
+        bankCedula: data.bankCedula.trim(),
+      },
+      select: { interpreterId: true }
+    });
 
     if (!profile) {
-      return { success: false, error: 'No se encontró tu perfil de usuario. Por favor, contacta a soporte.', code: 'NOT_FOUND' };
+      return { success: false, error: 'No se encontró tu perfil de usuario.', code: 'NOT_FOUND' };
     }
 
     // 2. Sync with Interpreter record if linked
-    if (profile?.interpreter_id) {
-      const { error: intError } = await supabaseAdmin
-        .from('interpreters')
-        .update({
-          banco: data.bankName.trim(),
-          cuenta_pago: data.bankAccount.trim(),
-          tipo_cuenta: data.bankAccountType?.trim() || null,
-          cedula_rnc: data.bankCedula.trim(),
-        })
-        .eq('id', profile.interpreter_id);
-
-      if (intError) {
-        console.warn('[ONBOARDING] saveBankingDetails (interpreter sync) warning:', intError.message);
-        // We don't fail the whole action if sync fails, but we log it
+    if (profile.interpreterId) {
+      try {
+        await db.interpreter.update({
+          where: { id: profile.interpreterId },
+          data: {
+            banco: data.bankName.trim(),
+            cuentaPago: data.bankAccount.trim(),
+            tipoCuenta: data.bankAccountType?.trim() || null,
+            cedulaRnc: data.bankCedula.trim(),
+          }
+        });
+      } catch (intError: any) {
+        console.warn('[ONBOARDING] Sync interpreter error:', intError.message);
       }
     }
 
@@ -121,37 +103,29 @@ export async function completeOnboarding(): Promise<ActionResult> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-    // Update user profile using Admin Client
-    const supabaseAdmin = createAdminClient();
-    const { data: updateResults, error } = await supabaseAdmin
-      .from('user_profiles')
-      .update({ onboarding_complete: true })
-      .eq('id', user.id)
-      .select('interpreter_id');
-
-    if (error) {
-      console.error('[ONBOARDING] completeOnboarding error:', error.message);
-      return { success: false, error: `Error al completar el proceso: ${error.message}`, code: 'INTERNAL_ERROR' };
-    }
-
-    const profile = updateResults && updateResults.length > 0 ? updateResults[0] : null;
+    // Update user profile via Prisma
+    const profile = await db.userProfile.update({
+      where: { id: user.id },
+      data: { onboardingComplete: true },
+      select: { interpreterId: true }
+    });
 
     if (!profile) {
       return { success: false, error: 'Perfil no encontrado al intentar finalizar.', code: 'NOT_FOUND' };
     }
 
-    // Sync with interpreter record using Admin Client
-    if (profile?.interpreter_id) {
-      const { error: intError } = await supabaseAdmin
-        .from('interpreters')
-        .update({
-          documentos_completo: true,
-          metodo_pago: 'Transferencia Bancaria',
-          status: 'Activo'
-        })
-        .eq('id', profile.interpreter_id);
-
-      if (intError) {
+    // Sync with interpreter record via Prisma
+    if (profile.interpreterId) {
+      try {
+        await db.interpreter.update({
+          where: { id: profile.interpreterId },
+          data: {
+            documentosCompleto: true,
+            metodoPago: 'Transferencia Bancaria',
+            status: 'Activo'
+          }
+        });
+      } catch (intError: any) {
         console.warn('[ONBOARDING] Sync interpreter error:', intError.message);
       }
     }
@@ -172,27 +146,38 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
   bankingComplete: boolean;
   onboardingComplete: boolean;
 }>> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-  const { data: profiles, error } = await supabase
-    .from('user_profiles')
-    .select('terms_accepted_at, bank_name, bank_account, bank_account_type, bank_cedula, onboarding_complete')
-    .eq('id', user.id);
-    
-  const profile = profiles && profiles.length > 0 ? profiles[0] : null;
+    // Use Prisma for profile lookup
+    const profile = await db.userProfile.findUnique({
+      where: { id: user.id },
+      select: {
+        termsAcceptedAt: true,
+        bankName: true,
+        bankAccount: true,
+        bankCedula: true,
+        onboardingComplete: true
+      }
+    });
 
-  if (error || !profile) {
-    return { success: false, error: 'Profile not found', code: 'NOT_FOUND' };
+    if (!profile) {
+      return { success: false, error: 'Profile not found', code: 'NOT_FOUND' };
+    }
+
+    return {
+      success: true,
+      data: {
+        termsAccepted: !!profile.termsAcceptedAt,
+        bankingComplete: !!(profile.bankName && profile.bankAccount && profile.bankCedula),
+        onboardingComplete: profile.onboardingComplete,
+      },
+    };
+  } catch (err: any) {
+    console.error('[ONBOARDING] getOnboardingStatus error:', err.message);
+    return { success: false, error: 'Error fetching onboarding status', code: 'INTERNAL_ERROR' };
   }
-
-  return {
-    success: true,
-    data: {
-      termsAccepted: !!profile.terms_accepted_at,
-      bankingComplete: !!(profile.bank_name && profile.bank_account && profile.bank_cedula),
-      onboardingComplete: profile.onboarding_complete,
-    },
-  };
 }
+

@@ -23,45 +23,52 @@ export default async function InterpreterDashboard() {
   if (!profile) {
     console.warn(`[DASHBOARD] Profile missing for user ${userId}, attempting auto-repair...`);
     try {
-      const { createAdminClient } = await import('@/lib/supabase/admin');
-      const supabaseAdmin = createAdminClient();
-      
+      // Use Prisma for auto-repair to avoid DNS/fetch issues
       // Try to link to an existing interpreter by email
-      const { data: interpreter } = await supabaseAdmin
-        .from('interpreters')
-        .select('id')
-        .eq('email_corporativo', user.email)
-        .maybeSingle();
+      const interpreter = await prisma.interpreter.findUnique({
+        where: { emailCorporativo: user.email },
+        select: { id: true }
+      });
 
-      const { data: newProfile, error } = await supabaseAdmin.from('user_profiles').upsert({
-        id: userId,
-        email: user.email,
-        display_name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
-        role: 'interpreter',
-        interpreter_id: interpreter?.id || null,
-      }, { onConflict: 'id' }).select().single();
+      const newProfile = await prisma.userProfile.upsert({
+        where: { id: userId },
+        update: {
+          email: user.email,
+          displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
+          role: 'interpreter',
+          interpreterId: interpreter?.id || null,
+        },
+        create: {
+          id: userId,
+          email: user.email,
+          displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
+          role: 'interpreter',
+          interpreterId: interpreter?.id || null,
+        }
+      });
 
-      if (!error && newProfile) {
+      if (newProfile) {
         console.log(`[DASHBOARD] Profile auto-repaired for ${userId}`);
         profile = {
           id: newProfile.id,
           email: newProfile.email,
           role: newProfile.role as any,
-          interpreter_id: newProfile.interpreter_id,
-          display_name: newProfile.display_name || '',
-          terms_accepted_at: newProfile.terms_accepted_at,
-          signature_date: newProfile.signature_date,
-          bank_name: newProfile.bank_name,
-          bank_account: newProfile.bank_account,
-          bank_account_type: newProfile.bank_account_type,
-          bank_cedula: newProfile.bank_cedula,
-          onboarding_complete: newProfile.onboarding_complete || false,
-          created_at: newProfile.created_at,
+          interpreter_id: newProfile.interpreterId,
+          display_name: newProfile.displayName || '',
+          terms_accepted_at: newProfile.termsAcceptedAt?.toISOString() || null,
+          signature_date: newProfile.signatureDate?.toISOString() || null,
+          bank_name: newProfile.bankName,
+          bank_account: newProfile.bankAccount,
+          bank_account_type: newProfile.bankAccountType,
+          bank_cedula: newProfile.bankCedula,
+          onboarding_complete: newProfile.onboardingComplete || false,
+          created_at: newProfile.createdAt.toISOString(),
         };
       }
     } catch (err) {
-      console.error('[DASHBOARD] Auto-repair failed:', err);
+      console.error('[DASHBOARD] Auto-repair failed via Prisma:', err);
     }
+
   }
 
   if (profile && profile.role === 'admin') {
