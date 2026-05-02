@@ -8,26 +8,31 @@ import { revalidatePath } from 'next/cache';
  * Accept legal terms — records the signatureDate on the user's profile.
  */
 export async function acceptTerms(): Promise<ActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-  const now = new Date().toISOString();
-  const { error } = await supabase
-    .from('user_profiles')
-    .update({
-      terms_accepted_at: now,
-      signature_date: now,
-    })
-    .eq('id', user.id);
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({
+        terms_accepted_at: now,
+        signature_date: now,
+      })
+      .eq('id', user.id);
 
-  if (error) {
-    console.error('[ONBOARDING] acceptTerms error:', error.message);
-    return { success: false, error: error.message, code: 'INTERNAL_ERROR' };
+    if (error) {
+      console.error('[ONBOARDING] acceptTerms error:', error.message);
+      return { success: false, error: `Error al aceptar términos: ${error.message}`, code: 'INTERNAL_ERROR' };
+    }
+
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (err: any) {
+    console.error('[ONBOARDING] acceptTerms fatal error:', err);
+    return { success: false, error: 'Error inesperado al procesar la firma', code: 'INTERNAL_ERROR' };
   }
-
-  revalidatePath('/dashboard');
-  return { success: true };
 }
 
 /**
@@ -39,53 +44,84 @@ export async function saveBankingDetails(data: {
   bankAccountType?: string;
   bankCedula: string;
 }): Promise<ActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-  if (!data.bankName?.trim() || !data.bankAccount?.trim() || !data.bankCedula?.trim()) {
-    return { success: false, error: 'All banking fields are required', code: 'VALIDATION_ERROR' };
+    if (!data.bankName?.trim() || !data.bankAccount?.trim() || !data.bankCedula?.trim()) {
+      return { success: false, error: 'Todos los campos bancarios son obligatorios', code: 'VALIDATION_ERROR' };
+    }
+
+    // 1. Update User Profile
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .update({
+        bank_name: data.bankName.trim(),
+        bank_account: data.bankAccount.trim(),
+        bank_account_type: data.bankAccountType?.trim() || null,
+        bank_cedula: data.bankCedula.trim(),
+      })
+      .eq('id', user.id)
+      .select('interpreter_id')
+      .single();
+
+    if (profileError) {
+      console.error('[ONBOARDING] saveBankingDetails (profile) error:', profileError.message);
+      return { success: false, error: `Error al actualizar perfil: ${profileError.message}`, code: 'INTERNAL_ERROR' };
+    }
+
+    // 2. Sync with Interpreter record if linked
+    if (profile?.interpreter_id) {
+      const { error: intError } = await supabase
+        .from('interpreters')
+        .update({
+          banco: data.bankName.trim(),
+          cuenta_pago: data.bankAccount.trim(),
+          tipo_cuenta: data.bankAccountType?.trim() || null,
+          cedula_rnc: data.bankCedula.trim(),
+        })
+        .eq('id', profile.interpreter_id);
+
+      if (intError) {
+        console.warn('[ONBOARDING] saveBankingDetails (interpreter sync) warning:', intError.message);
+        // We don't fail the whole action if sync fails, but we log it
+      }
+    }
+
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (err: any) {
+    console.error('[ONBOARDING] saveBankingDetails fatal error:', err);
+    return { success: false, error: 'Ocurrió un error inesperado al guardar los datos', code: 'INTERNAL_ERROR' };
   }
-
-  const { error } = await supabase
-    .from('user_profiles')
-    .update({
-      bank_name: data.bankName.trim(),
-      bank_account: data.bankAccount.trim(),
-      bank_account_type: data.bankAccountType?.trim() || null,
-      bank_cedula: data.bankCedula.trim(),
-    })
-    .eq('id', user.id);
-
-  if (error) {
-    console.error('[ONBOARDING] saveBankingDetails error:', error.message);
-    return { success: false, error: error.message, code: 'INTERNAL_ERROR' };
-  }
-
-  revalidatePath('/dashboard');
-  return { success: true };
 }
 
 /**
  * Mark onboarding as complete — enables full dashboard access.
  */
 export async function completeOnboarding(): Promise<ActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-  const { error } = await supabase
-    .from('user_profiles')
-    .update({ onboarding_complete: true })
-    .eq('id', user.id);
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ onboarding_complete: true })
+      .eq('id', user.id);
 
-  if (error) {
-    console.error('[ONBOARDING] completeOnboarding error:', error.message);
-    return { success: false, error: error.message, code: 'INTERNAL_ERROR' };
+    if (error) {
+      console.error('[ONBOARDING] completeOnboarding error:', error.message);
+      return { success: false, error: `Error al completar el proceso: ${error.message}`, code: 'INTERNAL_ERROR' };
+    }
+
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (err: any) {
+    console.error('[ONBOARDING] completeOnboarding fatal error:', err);
+    return { success: false, error: 'Error inesperado al finalizar el onboarding', code: 'INTERNAL_ERROR' };
   }
-
-  revalidatePath('/dashboard');
-  return { success: true };
 }
 
 /**

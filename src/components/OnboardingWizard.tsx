@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useTransition, useCallback } from 'react';
-import { FileText, CreditCard, Compass, ChevronRight, ChevronLeft, Check, Loader2, Sparkles, ChevronDown } from 'lucide-react';
+import { FileText, CreditCard, Compass, ChevronRight, ChevronLeft, Check, Loader2, Sparkles, ChevronDown, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { acceptTerms, saveBankingDetails, completeOnboarding } from '@/app/actions/onboarding';
 import { BankFormRD, type BankFormData, isBankFormValid } from './BankFormRD';
@@ -65,6 +65,7 @@ interface OnboardingWizardProps {
 export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   // Step 1 – Legal
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
@@ -100,23 +101,50 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
 
   // ── Step handlers ──
   function handleNextLegal() {
+    setError(null);
     startTransition(async () => {
-      const result = await acceptTerms();
-      if (result.success) setCurrentStep(1);
+      try {
+        const result = await acceptTerms();
+        if (result.success) {
+          setCurrentStep(1);
+        } else {
+          setError(result.error || 'Error al aceptar términos');
+        }
+      } catch (err: any) {
+        setError('Error de conexión al servidor');
+      }
     });
   }
 
   function handleNextBanking() {
+    setError(null);
     startTransition(async () => {
-      const result = await saveBankingDetails(bankData);
-      if (result.success) setCurrentStep(2);
+      try {
+        const result = await saveBankingDetails(bankData);
+        if (result.success) {
+          setCurrentStep(2);
+        } else {
+          setError(result.error || 'Error al guardar datos bancarios');
+        }
+      } catch (err: any) {
+        setError('Error de conexión al servidor');
+      }
     });
   }
 
   function handleFinish() {
+    setError(null);
     startTransition(async () => {
-      const result = await completeOnboarding();
-      if (result.success) onComplete();
+      try {
+        const result = await completeOnboarding();
+        if (result.success) {
+          onComplete();
+        } else {
+          setError(result.error || 'Error al finalizar onboarding');
+        }
+      } catch (err: any) {
+        setError('Error de conexión al servidor');
+      }
     });
   }
 
@@ -244,6 +272,13 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
                     <span>Desliza para leer todo el acuerdo</span>
                   </div>
                 )}
+
+                {error && currentStep === 0 && (
+                  <div className="mt-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-3 animate-in shake duration-500">
+                    <AlertCircle size={20} className="shrink-0" />
+                    <p className="font-medium">{error}</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -265,6 +300,14 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
                   isLoading={isPending}
                   standalone={true}
                 />
+
+                {/* Error feedback */}
+                {error && (
+                  <div className="mt-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-3 animate-in shake duration-500">
+                    <AlertCircle size={20} className="shrink-0" />
+                    <p className="font-medium">{error}</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -309,6 +352,13 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
                     </div>
                   ))}
                 </div>
+
+                {error && currentStep === 2 && (
+                  <div className="mt-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-3 animate-in shake duration-500">
+                    <AlertCircle size={20} className="shrink-0" />
+                    <p className="font-medium">{error}</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
