@@ -161,7 +161,6 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
         <Clock size={14} className="text-blue-400" />
         <span>
           Tarifa: <span className="text-white font-bold">${(tariff * 60).toFixed(2)}/hr</span>
-          <span className="text-slate-400 ml-1">(${tariff.toFixed(2)}/min)</span>
         </span>
       </div>
 

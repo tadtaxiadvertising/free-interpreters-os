@@ -56,8 +56,8 @@ export default async function EarningsPage() {
         <div className="glass p-6 rounded-3xl border border-white/5 bg-gradient-to-br from-green-500/5 to-transparent">
           <p className="text-sm text-gray-500 font-medium">Your Base Rate</p>
           <div className="flex items-center gap-3 mt-2">
-            <h3 className="text-3xl font-bold text-white">${interpreter.tariffPerMinute.toString()}</h3>
-            <span className="text-xs text-gray-400">per interpreted minute</span>
+            <h3 className="text-3xl font-bold text-white">${(Number(interpreter.tariffPerMinute) * 60).toFixed(2)}</h3>
+            <span className="text-xs text-gray-400">per interpreted hour</span>
           </div>
           <TrendingUp size={24} className="mt-4 text-green-500" />
         </div>
@@ -92,7 +92,7 @@ export default async function EarningsPage() {
             <thead>
               <tr className="bg-white/5 text-gray-400 text-xs uppercase tracking-wider">
                 <th className="p-6">Period</th>
-                <th className="p-6">Minutes</th>
+                <th className="p-6">Hours</th>
                 <th className="p-6">Gross</th>
                 <th className="p-6">Bonus/Deductions</th>
                 <th className="p-6">Net Total</th>
@@ -108,7 +108,7 @@ export default async function EarningsPage() {
                       {new Date(record.periodStart).toLocaleDateString()} - {new Date(record.periodEnd).toLocaleDateString()}
                     </div>
                   </td>
-                  <td className="p-6 text-gray-400">{record.totalMinutes}m</td>
+                  <td className="p-6 text-gray-400">{(record.totalMinutes / 60).toFixed(2)}h</td>
                   <td className="p-6 text-gray-400">${record.grossTotal.toString()}</td>
                   <td className="p-6">
                     <span className="text-green-400 text-xs">+${record.qualityBonus.toString()}</span>

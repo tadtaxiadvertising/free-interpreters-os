@@ -85,7 +85,6 @@ export function CallHistory({ calls }: { calls: Call[] }) {
                 <td className="py-4 px-2 text-center">
                   <div className="flex flex-col items-center justify-center">
                     <span className="text-slate-300 text-sm font-medium">${(Number(call.tariff_snapshot) * 60).toFixed(2)}/hr</span>
-                    <span className="text-slate-500 text-xs">${Number(call.tariff_snapshot).toFixed(2)}/min</span>
                   </div>
                 </td>
                 <td className="py-4 px-2 text-right">

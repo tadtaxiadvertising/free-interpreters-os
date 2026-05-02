@@ -227,10 +227,10 @@ export default async function InterpreterDashboard() {
             <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm">
               <div className="flex justify-between items-end mb-4">
                 <div>
-                  <p className="text-sm text-white font-semibold mb-1">Actas de MTD</p>
+                  <p className="text-sm text-white font-semibold mb-1">Horas MTD</p>
                   <p className="text-3xl font-bold text-white">
-                    <span suppressHydrationWarning>{Math.round(mtdMinutes)}</span>
-                    <span className="text-lg text-slate-300"> / {monthlyGoal}</span>
+                    <span suppressHydrationWarning>{(mtdMinutes / 60).toFixed(1)}</span>
+                    <span className="text-lg text-slate-300"> / {Math.round(monthlyGoal / 60)}</span>
                   </p>
                 </div>
                 <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400">
