@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useTransition, useCallback } from 'react';
-import { FileText, CreditCard, Compass, ChevronRight, ChevronLeft, Check, Loader2 } from 'lucide-react';
+import { FileText, CreditCard, Compass, ChevronRight, ChevronLeft, Check, Loader2, Sparkles, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { acceptTerms, saveBankingDetails, completeOnboarding } from '@/app/actions/onboarding';
-import { BankFormRD, type BankFormData } from './BankFormRD';
+import { BankFormRD, type BankFormData, isBankFormValid } from './BankFormRD';
 
 // ── Freelance Contract content (embedded so it works offline) ──
 const LEGAL_CONTENT = `# Contrato de Prestación de Servicios Profesionales (Freelance)
@@ -52,9 +52,9 @@ Este contrato se rige por las leyes vigentes en la República Dominicana.
 Al continuar, usted acepta todos los términos y condiciones establecidos en este documento.`;
 
 const STEPS = [
-  { id: 'legal', label: 'Acuerdo Legal', icon: FileText },
-  { id: 'banking', label: 'Datos de Pago', icon: CreditCard },
-  { id: 'tutorial', label: 'Tutorial', icon: Compass },
+  { id: 'legal', label: 'Acuerdo', icon: FileText },
+  { id: 'banking', label: 'Pagos', icon: CreditCard },
+  { id: 'tutorial', label: 'Tour', icon: Compass },
 ] as const;
 
 interface OnboardingWizardProps {
@@ -70,7 +70,7 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   const scrollBoxRef = useRef<HTMLDivElement>(null);
 
-  // Step 2 – Banking (managed by BankFormRD)
+  // Step 2 – Banking
   const [bankData, setBankData] = useState<BankFormData>({
     bankName: '',
     bankAccount: '',
@@ -85,7 +85,6 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
   const handleScroll = useCallback(() => {
     const el = scrollBoxRef.current;
     if (!el) return;
-    // Within 40px of the bottom counts as "read"
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
     if (atBottom) setHasScrolledToBottom(true);
   }, []);
@@ -94,6 +93,7 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
     const el = scrollBoxRef.current;
     if (currentStep === 0 && el) {
       el.addEventListener('scroll', handleScroll);
+      if (el.scrollHeight <= el.clientHeight) setHasScrolledToBottom(true);
       return () => el.removeEventListener('scroll', handleScroll);
     }
   }, [currentStep, handleScroll]);
@@ -120,65 +120,91 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
     });
   }
 
-  const isBankingValid =
-    bankData.bankName.trim() &&
-    bankData.bankAccount.trim() &&
-    bankData.bankAccountType.trim() &&
-    bankData.bankCedula.trim();
+  const isBankingValid = isBankFormValid(bankData);
 
   const tutorialHighlights = [
     {
       title: '⏱️ Temporizador de Llamadas',
       description: 'Tu herramienta principal. Presiona "Iniciar Llamada" cuando comiences una interpretación. El tiempo se registra automáticamente, incluso si cambias de pestaña.',
+      icon: '⚡'
     },
     {
       title: '📊 Tu Ranking',
       description: 'Compara tu rendimiento con el promedio de la plataforma. Los intérpretes con mejor score obtienen más oportunidades y bonificaciones.',
+      icon: '🏆'
     },
     {
       title: '💰 Registro Rápido',
       description: 'Si olvidaste iniciar el temporizador, usa "Registro Rápido" al lado del botón de llamada para registrar minutos manualmente.',
+      icon: '💵'
     },
     {
       title: '🎯 Metas Mensuales',
       description: 'Tu meta de minutos se actualiza según tu perfil. Mantente al día para alcanzar el 100% y maximizar tus ganancias.',
+      icon: '🎯'
     },
   ];
 
+  const progress = ((currentStep + 1) / STEPS.length) * 100;
+
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
       <div className="relative w-full max-w-2xl animate-in fade-in zoom-in-95 duration-500">
-        {/* Background glow */}
-        <div className="absolute -inset-4 bg-gradient-to-br from-blue-500/10 via-transparent to-indigo-500/10 rounded-[2rem] blur-xl pointer-events-none" />
+        <div className="absolute -top-20 -left-20 w-64 h-64 bg-blue-500/20 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-[100px] pointer-events-none" />
 
-        <div className="relative bg-slate-900/95 border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
-          {/* ── Stepper Header ── */}
-          <div className="px-8 pt-8 pb-4">
-            <h2 className="text-2xl font-bold text-white mb-1">
-              ¡Bienvenido{interpreterName ? `, ${interpreterName}` : ''}! 🎉
-            </h2>
-            <p className="text-sm text-slate-400 mb-6">Completa estos 3 pasos para activar tu portal.</p>
+        <div className="relative bg-slate-900 border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          
+          <div className="absolute top-0 left-0 w-full h-1 bg-slate-800 z-10">
+            <div 
+              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-700 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
 
-            <div className="flex items-center gap-2">
+          <div className="px-10 pt-10 pb-6 border-b border-white/5">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
+                  ¡Hola{interpreterName ? `, ${interpreterName}` : ''}! <Sparkles className="text-amber-400" size={24} />
+                </h2>
+                <p className="text-slate-400 mt-1">Configura tu portal en unos segundos.</p>
+              </div>
+              <div className="bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full text-xs font-bold border border-blue-500/20">
+                PASO {currentStep + 1} DE {STEPS.length}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
               {STEPS.map((step, i) => {
                 const Icon = step.icon;
                 const isCompleted = i < currentStep;
                 const isCurrent = i === currentStep;
                 return (
                   <React.Fragment key={step.id}>
-                    <div className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-500",
-                      isCompleted && "bg-emerald-500/20 text-emerald-400 border border-emerald-500/20",
-                      isCurrent && "bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]",
-                      !isCompleted && !isCurrent && "bg-slate-800/50 text-slate-500 border border-white/5",
-                    )}>
-                      {isCompleted ? <Check size={16} /> : <Icon size={16} />}
-                      <span className="hidden sm:inline">{step.label}</span>
+                    <div className="flex flex-col items-center gap-2 flex-1">
+                      <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 relative",
+                        isCompleted && "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20",
+                        isCurrent && "bg-blue-600 text-white shadow-xl shadow-blue-600/30 scale-110",
+                        !isCompleted && !isCurrent && "bg-slate-800 text-slate-500"
+                      )}>
+                        {isCompleted ? <Check size={20} strokeWidth={3} /> : <Icon size={20} />}
+                        {isCurrent && (
+                          <div className="absolute -inset-1 rounded-2xl border-2 border-blue-500/50 animate-pulse" />
+                        )}
+                      </div>
+                      <span className={cn(
+                        "text-[11px] font-bold uppercase tracking-wider transition-colors",
+                        isCurrent ? "text-blue-400" : "text-slate-500"
+                      )}>
+                        {step.label}
+                      </span>
                     </div>
                     {i < STEPS.length - 1 && (
                       <div className={cn(
-                        "w-8 h-0.5 rounded-full transition-colors duration-500",
-                        isCompleted ? "bg-emerald-500/40" : "bg-slate-700"
+                        "flex-1 h-0.5 rounded-full mb-6",
+                        isCompleted ? "bg-emerald-500/40" : "bg-slate-800"
                       )} />
                     )}
                   </React.Fragment>
@@ -187,206 +213,169 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
             </div>
           </div>
 
-          {/* ── Step Content ── */}
-          <div className="px-8 py-6 min-h-[400px] flex flex-col">
-            {/* STEP 1: Legal */}
+          <div className="px-10 py-8 overflow-y-auto flex-1 custom-scrollbar">
             {currentStep === 0 && (
-              <div className="flex-1 flex flex-col animate-in fade-in slide-in-from-right-4 duration-500">
-                <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                  <FileText size={20} className="text-blue-400" />
-                  Acuerdo de Confidencialidad y Contrato
-                </h3>
-                <p className="text-sm text-slate-400 mb-4">
-                  Lee el documento completo. El botón se habilitará al llegar al final.
-                </p>
+              <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="mb-6">
+                  <h3 className="text-xl font-bold text-white mb-2">Acuerdo de Confidencialidad</h3>
+                  <p className="text-slate-400 text-sm">
+                    Para trabajar con nosotros, es vital que leas y aceptes nuestras políticas de privacidad y manejo de datos.
+                  </p>
+                </div>
 
                 <div
                   ref={scrollBoxRef}
-                  className="flex-1 max-h-[280px] overflow-y-auto bg-slate-950/60 border border-white/5 rounded-2xl p-6 text-sm text-slate-300 leading-relaxed prose prose-invert prose-sm max-w-none scrollbar-thin"
+                  className="bg-slate-950/80 border border-white/5 rounded-3xl p-8 text-slate-300 leading-relaxed text-sm prose prose-invert max-w-none h-[280px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800"
                 >
                   {LEGAL_CONTENT.split('\n').map((line, i) => {
-                    if (line.startsWith('# ')) return <h1 key={i} className="text-xl font-bold text-white mb-4">{line.replace('# ', '')}</h1>;
-                    if (line.startsWith('### ')) return <h3 key={i} className="text-base font-semibold text-blue-300 mt-4 mb-2">{line.replace('### ', '')}</h3>;
-                    if (line.startsWith('**') && line.endsWith('**')) return <p key={i} className="font-bold text-white">{line.replace(/\*\*/g, '')}</p>;
-                    if (line.startsWith('- ')) return <li key={i} className="ml-4 list-disc text-slate-300">{line.replace('- ', '')}</li>;
-                    if (line === '---') return <hr key={i} className="border-white/10 my-4" />;
-                    if (line.trim() === '') return <br key={i} />;
-                    return <p key={i} className="mb-1">{line}</p>;
+                    if (line.startsWith('# ')) return <h1 key={i} className="text-2xl font-black text-white mb-6">{line.replace('# ', '')}</h1>;
+                    if (line.startsWith('### ')) return <h3 key={i} className="text-lg font-bold text-blue-400 mt-8 mb-4">{line.replace('### ', '')}</h3>;
+                    if (line.startsWith('**') && line.endsWith('**')) return <p key={i} className="font-bold text-slate-100 my-2">{line.replace(/\*\*/g, '')}</p>;
+                    if (line.startsWith('- ')) return <li key={i} className="ml-4 list-disc text-slate-300 my-1">{line.replace('- ', '')}</li>;
+                    if (line === '---') return <hr key={i} className="border-white/10 my-8" />;
+                    if (line.trim() === '') return <div key={i} className="h-2" />;
+                    return <p key={i} className="mb-2">{line}</p>;
                   })}
                 </div>
 
-                {/* Scroll indicator */}
                 {!hasScrolledToBottom && (
-                  <div className="flex items-center justify-center gap-2 mt-3 text-xs text-amber-400/80 animate-pulse">
-                    <ChevronRight size={14} className="rotate-90" />
-                    <span>Desplázate hacia abajo para continuar</span>
+                  <div className="flex items-center justify-center gap-2 mt-4 text-xs text-blue-400 font-medium animate-bounce">
+                    <ChevronDown size={14} />
+                    <span>Desliza para leer todo el acuerdo</span>
                   </div>
                 )}
-
-                <div className="flex justify-end mt-4">
-                  <button
-                    onClick={handleNextLegal}
-                    disabled={!hasScrolledToBottom || isPending}
-                    className={cn(
-                      "flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300",
-                      hasScrolledToBottom && !isPending
-                        ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-500/30 hover:-translate-y-0.5"
-                        : "bg-slate-800 text-slate-500 cursor-not-allowed"
-                    )}
-                  >
-                    {isPending ? <Loader2 size={18} className="animate-spin" /> : <>Acepto los Términos <ChevronRight size={18} /></>}
-                  </button>
-                </div>
               </div>
             )}
 
-            {/* STEP 2: Banking — uses the BankFormRD component */}
             {currentStep === 1 && (
-              <div className="flex-1 flex flex-col animate-in fade-in slide-in-from-right-4 duration-500">
-                <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                  <CreditCard size={20} className="text-blue-400" />
-                  Datos de Pago (Transferencia Bancaria RD)
-                </h3>
-                <p className="text-sm text-slate-400 mb-6">
-                  Ingresa los datos bancarios dominicanos para recibir tus pagos por transferencia.
-                </p>
-
-                <div className="flex-1">
-                  <BankFormRD
-                    initialData={bankData}
-                    onSubmit={(data) => {
-                      setBankData(data);
-                      handleNextBanking();
-                    }}
-                    isLoading={isPending}
-                    standalone={true}
-                  />
-                  {/* Live update bank data on field changes via controlled state */}
-                  <BankDataSync bankData={bankData} setBankData={setBankData} />
+              <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="mb-8 text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/10 text-blue-400 mb-4 border border-blue-500/20">
+                    <CreditCard size={32} />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">¿Cómo te pagamos?</h3>
+                  <p className="text-slate-400 text-sm max-w-md mx-auto">
+                    Necesitamos tus datos bancarios de República Dominicana para procesar tus pagos de manera segura.
+                  </p>
                 </div>
 
-                <div className="flex justify-between mt-6">
-                  <button
-                    onClick={() => setCurrentStep(0)}
-                    className="flex items-center gap-2 px-5 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
-                  >
-                    <ChevronLeft size={18} /> Atrás
-                  </button>
-                  <button
-                    onClick={handleNextBanking}
-                    disabled={!isBankingValid || isPending}
-                    className={cn(
-                      "flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300",
-                      isBankingValid && !isPending
-                        ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-500/30 hover:-translate-y-0.5"
-                        : "bg-slate-800 text-slate-500 cursor-not-allowed"
-                    )}
-                  >
-                    {isPending ? <Loader2 size={18} className="animate-spin" /> : <>Siguiente <ChevronRight size={18} /></>}
-                  </button>
-                </div>
+                <BankFormRD
+                  initialData={bankData}
+                  onChange={(data) => setBankData(data)}
+                  isLoading={isPending}
+                  standalone={true}
+                />
               </div>
             )}
 
-            {/* STEP 3: Tutorial */}
             {currentStep === 2 && (
-              <div className="flex-1 flex flex-col animate-in fade-in slide-in-from-right-4 duration-500">
-                <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                  <Compass size={20} className="text-blue-400" />
-                  Tour Rápido
-                </h3>
-                <p className="text-sm text-slate-400 mb-6">
-                  Conoce las funciones principales de tu portal.
-                </p>
+              <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="mb-6 text-center">
+                  <h3 className="text-xl font-bold text-white mb-2">¡Casi terminamos!</h3>
+                  <p className="text-slate-400 text-sm">Explora rápidamente las herramientas que tienes a tu disposición.</p>
+                </div>
 
-                {/* Tutorial cards */}
-                <div className="flex-1 space-y-3">
+                <div className="grid grid-cols-1 gap-3">
                   {tutorialHighlights.map((item, i) => (
                     <div
                       key={i}
                       className={cn(
-                        "p-4 rounded-2xl border transition-all duration-500 cursor-pointer",
+                        "group p-5 rounded-3xl border transition-all duration-300 cursor-pointer flex gap-4 items-start",
                         tutorialStep === i
-                          ? "bg-blue-500/10 border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.1)]"
-                          : "bg-slate-800/30 border-white/5 hover:bg-slate-800/50"
+                          ? "bg-blue-600/10 border-blue-600/40 shadow-xl shadow-blue-950/20"
+                          : "bg-slate-800/20 border-white/5 hover:bg-slate-800/40 hover:border-white/10"
                       )}
                       onClick={() => setTutorialStep(i)}
                     >
-                      <h4 className="text-base font-bold text-white mb-1">{item.title}</h4>
-                      {tutorialStep === i && (
-                        <p className="text-sm text-slate-300 animate-in fade-in slide-in-from-top-2 duration-300">
-                          {item.description}
-                        </p>
-                      )}
+                      <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl transition-all duration-500",
+                        tutorialStep === i ? "bg-blue-600 scale-110 rotate-3 shadow-lg" : "bg-slate-800 grayscale group-hover:grayscale-0"
+                      )}>
+                        {item.icon}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className={cn(
+                          "text-base font-bold mb-1 transition-colors",
+                          tutorialStep === i ? "text-white" : "text-slate-400 group-hover:text-slate-300"
+                        )}>
+                          {item.title}
+                        </h4>
+                        {tutorialStep === i && (
+                          <p className="text-sm text-slate-300 animate-in fade-in slide-in-from-top-1 duration-300 leading-relaxed">
+                            {item.description}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
-
-                <div className="flex justify-between mt-6">
-                  <button
-                    onClick={() => setCurrentStep(1)}
-                    className="flex items-center gap-2 px-5 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
-                  >
-                    <ChevronLeft size={18} /> Atrás
-                  </button>
-                  <button
-                    onClick={handleFinish}
-                    disabled={isPending}
-                    className="flex items-center gap-2 px-8 py-3 rounded-xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-600/20 hover:shadow-emerald-500/30 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50"
-                  >
-                    {isPending ? <Loader2 size={18} className="animate-spin" /> : <>¡Empezar! 🚀</>}
-                  </button>
-                </div>
               </div>
             )}
+          </div>
+
+          <div className="px-10 py-6 border-t border-white/5 bg-slate-900/50 backdrop-blur-sm flex items-center justify-between">
+            {currentStep > 0 ? (
+              <button
+                onClick={() => setCurrentStep(currentStep - 1)}
+                className="flex items-center gap-2 px-6 py-3 rounded-2xl text-slate-400 font-bold hover:text-white hover:bg-white/5 transition-all"
+              >
+                <ChevronLeft size={18} /> Atrás
+              </button>
+            ) : <div />}
+
+            <div className="flex gap-4">
+              {currentStep === 0 && (
+                <button
+                  onClick={handleNextLegal}
+                  disabled={!hasScrolledToBottom || isPending}
+                  className={cn(
+                    "group relative flex items-center gap-2 px-8 py-4 rounded-2xl font-bold transition-all duration-500 overflow-hidden",
+                    hasScrolledToBottom && !isPending
+                      ? "bg-blue-600 text-white shadow-xl shadow-blue-600/30 hover:scale-[1.02] active:scale-95"
+                      : "bg-slate-800 text-slate-500 cursor-not-allowed"
+                  )}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <span className="relative z-10 flex items-center gap-2">
+                    {isPending ? <Loader2 size={20} className="animate-spin" /> : <>Entendido y Acepto <ChevronRight size={20} /></>}
+                  </span>
+                </button>
+              )}
+
+              {currentStep === 1 && (
+                <button
+                  onClick={handleNextBanking}
+                  disabled={!isBankingValid || isPending}
+                  className={cn(
+                    "group relative flex items-center gap-2 px-10 py-4 rounded-2xl font-bold transition-all duration-500 overflow-hidden",
+                    isBankingValid && !isPending
+                      ? "bg-blue-600 text-white shadow-xl shadow-blue-600/30 hover:scale-[1.02] active:scale-95"
+                      : "bg-slate-800 text-slate-500 cursor-not-allowed"
+                  )}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <span className="relative z-10 flex items-center gap-2">
+                    {isPending ? <Loader2 size={20} className="animate-spin" /> : <>Confirmar Datos <ChevronRight size={20} /></>}
+                  </span>
+                </button>
+              )}
+
+              {currentStep === 2 && (
+                <button
+                  onClick={handleFinish}
+                  disabled={isPending}
+                  className="group relative flex items-center gap-3 px-10 py-4 rounded-2xl font-black text-lg transition-all duration-500 overflow-hidden bg-emerald-600 text-white shadow-xl shadow-emerald-600/30 hover:scale-[1.05] active:scale-95"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <span className="relative z-10 flex items-center gap-2">
+                    {isPending ? <Loader2 size={20} className="animate-spin" /> : <>¡LISTO PARA EMPEZAR! 🚀</>}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
-}
-
-/**
- * Internal helper: Syncs BankFormRD field values back to OnboardingWizard state.
- * BankFormRD uses its own internal state, but on mount we pre-fill from parent.
- * This component listens for DOM changes to keep parent state in sync.
- */
-function BankDataSync({
-  bankData: _,
-  setBankData,
-}: {
-  bankData: BankFormData;
-  setBankData: React.Dispatch<React.SetStateAction<BankFormData>>;
-}) {
-  useEffect(() => {
-    // Observe select/input changes via event delegation
-    function handleChange(e: Event) {
-      const target = e.target as HTMLInputElement | HTMLSelectElement;
-      if (!target?.id) return;
-
-      setBankData((prev) => {
-        switch (target.id) {
-          case 'bank-name-select':
-            return { ...prev, bankName: target.value };
-          case 'bank-account-type-select':
-            return { ...prev, bankAccountType: target.value };
-          case 'bank-account-input':
-            return { ...prev, bankAccount: target.value };
-          case 'bank-cedula-input':
-            return { ...prev, bankCedula: target.value };
-          default:
-            return prev;
-        }
-      });
-    }
-
-    document.addEventListener('input', handleChange);
-    document.addEventListener('change', handleChange);
-    return () => {
-      document.removeEventListener('input', handleChange);
-      document.removeEventListener('change', handleChange);
-    };
-  }, [setBankData]);
-
-  return null;
 }
