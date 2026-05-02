@@ -31,8 +31,7 @@ export function CandidateActions({ candidate }: CandidateActionsProps) {
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/recruitment/${candidate.id}`, {
+      const response = await fetch(`/api/recruitment/${candidate.id}`, {
         method: 'DELETE',
       });
 

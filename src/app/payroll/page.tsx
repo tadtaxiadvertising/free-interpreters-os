@@ -21,13 +21,14 @@ export const dynamic = 'force-dynamic';
 
 async function getPayrollRecords() {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-    const res = await fetch(`${apiUrl}/api/payroll`, { cache: 'no-store' });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    const records = await prisma.payrollRecord.findMany({
+      include: { interpreter: true },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    return JSON.parse(JSON.stringify(records));
   } catch (error) {
-    console.error('Error fetching payroll records:', error);
+    console.error('Error fetching payroll records from DB:', error);
     return [];
   }
 }

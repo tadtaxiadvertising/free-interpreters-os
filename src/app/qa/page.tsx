@@ -20,19 +20,26 @@ export const dynamic = 'force-dynamic';
 
 async function getQAData() {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-    
-    const [scoresRes, pendingRes] = await Promise.all([
-      fetch(`${apiUrl}/api/qa`, { cache: 'no-store' }),
-      fetch(`${apiUrl}/api/qa/pending`, { cache: 'no-store' })
+    const [scores, pendingCalls] = await Promise.all([
+      prisma.qAScore.findMany({
+        include: { interpreter: true },
+        orderBy: { createdAt: 'desc' },
+        take: 50
+      }),
+      prisma.callSession.findMany({
+        where: { endedAt: { not: null } }, // Simplified logic for pending audit
+        include: { interpreter: true },
+        orderBy: { startedAt: 'desc' },
+        take: 10
+      })
     ]);
 
-    const scores = scoresRes.ok ? await scoresRes.json() : [];
-    const pendingCalls = pendingRes.ok ? await pendingRes.json() : [];
-
-    return { scores, pendingCalls };
+    return { 
+      scores: JSON.parse(JSON.stringify(scores)), 
+      pendingCalls: JSON.parse(JSON.stringify(pendingCalls)) 
+    };
   } catch (error) {
-    console.error('Error fetching QA data:', error);
+    console.error('Error fetching QA data from DB:', error);
     return { scores: [], pendingCalls: [] };
   }
 }
