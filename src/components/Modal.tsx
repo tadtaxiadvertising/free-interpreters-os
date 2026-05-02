@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -35,8 +36,8 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-2xl'
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
@@ -61,10 +62,11 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-2xl'
           </button>
         </div>
         
-        <div className="p-8 max-h-[80vh] overflow-y-auto">
+        <div className="p-8 max-h-[80vh] overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

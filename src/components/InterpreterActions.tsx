@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { InterpreterForm } from './InterpreterForm';
+import { Modal } from './Modal';
 
 interface InterpreterActionsProps {
   interpreter: {
@@ -137,106 +138,93 @@ export function InterpreterActions({ interpreter }: InterpreterActionsProps) {
       )}
 
       {/* Edit Modal */}
-      {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEditModal(false)} />
-          <div className="relative bg-[#0a0a0f] border border-white/10 rounded-3xl p-8 max-w-2xl w-full shadow-2xl animate-in fade-in zoom-in-95 duration-300 overflow-y-auto max-h-[90vh]">
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="text-2xl font-bold text-white">Edit Interpreter</h3>
-              <button onClick={() => setShowEditModal(false)} className="text-gray-500 hover:text-white transition-colors">
-                <X size={24} />
-              </button>
-            </div>
-            <InterpreterForm 
-              initialData={interpreter}
-              interpreterId={interpreter.id}
-              onSuccess={() => {
-                setShowEditModal(false);
-                router.refresh();
-              }}
-              onCancel={() => setShowEditModal(false)}
-            />
-          </div>
-        </div>
-      )}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        title={`Edit Profile: ${interpreter.name}`}
+      >
+        <InterpreterForm 
+          initialData={interpreter}
+          interpreterId={interpreter.id}
+          onSuccess={() => {
+            setShowEditModal(false);
+            router.refresh();
+          }}
+          onCancel={() => setShowEditModal(false)}
+        />
+      </Modal>
 
       {/* Reset Password Modal */}
-      {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowResetModal(false)} />
-          <div className="relative bg-[#1a1a24] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-300">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-white">Reset Password</h3>
-              <button onClick={() => setShowResetModal(false)} className="text-gray-500 hover:text-white transition-colors">
-                <X size={20} />
-              </button>
+      <Modal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        title="Reset Password"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleResetPassword} className="space-y-6">
+          {resetError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">
+              {resetError}
             </div>
-            
-            <form onSubmit={handleResetPassword} className="space-y-6">
-              {resetError && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">
-                  {resetError}
-                </div>
-              )}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">New Password</label>
-                <div className="relative">
-                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                  <input
-                    required
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="Min 6 characters"
-                    minLength={6}
-                  />
-                </div>
-              </div>
-              <button
-                type="submit"
-                disabled={isResetting}
-                className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isResetting ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                Update Password
-              </button>
-            </form>
+          )}
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">New Password</label>
+            <div className="relative">
+              <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+              <input
+                required
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+                placeholder="Min 6 characters"
+                minLength={6}
+              />
+            </div>
           </div>
-        </div>
-      )}
+          <button
+            type="submit"
+            disabled={isResetting}
+            className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isResetting ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+            Update Password
+          </button>
+        </form>
+      </Modal>
 
       {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)} />
-          <div className="relative bg-[#1a1a24] border border-white/10 rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in-95 duration-300">
-            <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500 mb-6">
-              <AlertTriangle size={32} />
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">Delete Interpreter?</h3>
-            <p className="text-gray-400 text-sm mb-8 leading-relaxed">
-              Are you sure you want to remove <span className="text-white font-bold">{interpreter.name}</span>? This will also delete their access account.
-            </p>
-            <div className="flex gap-4">
-              <button 
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-xl font-bold transition-all"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
-              >
-                {isDeleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
-                Delete
-              </button>
-            </div>
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Delete Interpreter?"
+        maxWidth="max-w-sm"
+      >
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500 mx-auto mb-6">
+            <AlertTriangle size={32} />
+          </div>
+          <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+            Are you sure you want to remove <span className="text-white font-bold">{interpreter.name}</span>? This will also delete their access account.
+          </p>
+          <div className="flex gap-4">
+            <button 
+              onClick={() => setShowDeleteConfirm(false)}
+              className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-xl font-bold transition-all border border-white/10"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+            >
+              {isDeleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+              Delete
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

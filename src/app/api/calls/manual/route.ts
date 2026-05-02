@@ -10,8 +10,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { durationMinutes } = await req.json();
-    if (!durationMinutes || isNaN(Number(durationMinutes))) {
+    const { durationMinutes, seconds = 0 } = await req.json();
+    if ((!durationMinutes && durationMinutes !== 0) || isNaN(Number(durationMinutes))) {
       return NextResponse.json({ error: 'Invalid duration' }, { status: 400 });
     }
 
@@ -26,17 +26,17 @@ export async function POST(req: Request) {
     }
 
     const interpreter = profile.interpreter;
-    const durationSeconds = Number(durationMinutes) * 60;
+    const totalSeconds = (Number(durationMinutes) * 60) + Number(seconds);
     const tariffSnapshot = Number(interpreter.tariffPerMinute);
-    const callCost = (durationSeconds / 60) * tariffSnapshot;
+    const callCost = (totalSeconds / 60) * tariffSnapshot;
 
     // Create call session
     const callSession = await prisma.callSession.create({
       data: {
         interpreterId: interpreter.id,
-        startedAt: new Date(Date.now() - durationSeconds * 1000), // Approximate start time
+        startedAt: new Date(Date.now() - totalSeconds * 1000), // Approximate start time
         endedAt: new Date(),
-        durationSeconds: durationSeconds,
+        durationSeconds: totalSeconds,
         tariffSnapshot: tariffSnapshot,
         callCost: callCost,
         notes: 'Manual entry via Quick Log'

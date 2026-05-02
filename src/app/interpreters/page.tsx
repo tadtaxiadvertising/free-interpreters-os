@@ -135,7 +135,7 @@ export default async function InterpretersPage() {
                 {/* Fixed Action Button */}
                 <div className="pt-2">
                   <AddInterpreterButton 
-                    label="Adjust Goals & Profile"
+                    label="Ajustar Meta y Perfil"
                     mode="edit"
                     initialData={interpreter}
                   />

@@ -7,28 +7,33 @@ import { cn } from '@/lib/utils';
 
 export function QuickLogButton({ inline = false }: { inline?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [duration, setDuration] = useState('');
+  const [minutes, setMinutes] = useState('');
+  const [seconds, setSeconds] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!duration || isNaN(Number(duration))) return;
+    if ((!minutes && !seconds) || isNaN(Number(minutes)) || isNaN(Number(seconds))) return;
 
     setIsSubmitting(true);
     try {
       const response = await fetch('/api/calls/manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ durationMinutes: duration }),
+        body: JSON.stringify({ 
+          durationMinutes: minutes || 0,
+          seconds: seconds || 0
+        }),
       });
       
       if (!response.ok) throw new Error('Failed to save log');
       
       setIsOpen(false);
-      setDuration('');
-      router.refresh(); // Refresh the server component data
+      setMinutes('');
+      setSeconds('');
+      router.refresh(); 
     } catch (error) {
       console.error('Error logging call:', error);
       alert('Error saving manual log. Please try again.');
@@ -39,7 +44,6 @@ export function QuickLogButton({ inline = false }: { inline?: boolean }) {
 
   return (
     <>
-      {/* Always inline — FAB mode has been eliminated (see ADR / CallTimer refactor) */}
       <button
         onClick={() => setIsOpen(true)}
         id="btn-quick-log"
@@ -66,46 +70,66 @@ export function QuickLogButton({ inline = false }: { inline?: boolean }) {
               <X size={20} />
             </button>
 
-            <h3 className="text-xl font-bold text-white mb-1">Log Missing Call</h3>
-            <p className="text-sm text-slate-400 mb-6">Enter the duration of the manual call in minutes.</p>
+            <h3 className="text-xl font-bold text-white mb-1">Registrar Llamada Manual</h3>
+            <p className="text-sm text-slate-400 mb-6">Ingresa la duración exacta de la llamada.</p>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="duration" className="block text-sm font-medium text-slate-300 mb-2">
-                  Duration (Minutes)
-                </label>
-                <div className="relative">
-                  <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input
-                    id="duration"
-                    type="number"
-                    min="1"
-                    required
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                    placeholder="e.g. 15"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-                    autoFocus
-                  />
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="minutes" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Minutos
+                  </label>
+                  <div className="relative">
+                    <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input
+                      id="minutes"
+                      type="number"
+                      min="0"
+                      value={minutes}
+                      onChange={(e) => setMinutes(e.target.value)}
+                      placeholder="0"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="seconds" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Segundos
+                  </label>
+                  <div className="relative">
+                    <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input
+                      id="seconds"
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={seconds}
+                      onChange={(e) => setSeconds(e.target.value)}
+                      placeholder="00"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={isSubmitting || !duration}
+                disabled={isSubmitting || (!minutes && !seconds)}
                 className={cn(
-                  "w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold transition-all",
-                  isSubmitting || !duration 
+                  "w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-lg transition-all",
+                  isSubmitting || (!minutes && !seconds)
                     ? "bg-slate-800 text-slate-500 cursor-not-allowed" 
-                    : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+                    : "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 active:scale-95"
                 )}
               >
                 {isSubmitting ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <Loader2 className="w-6 h-6 animate-spin" />
                 ) : (
                   <>
-                    <Send size={18} />
-                    Submit Log
+                    <Send size={20} />
+                    Guardar Registro
                   </>
                 )}
               </button>

@@ -29,6 +29,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
       tariffPerMinute: parseFloat(formData.get('hourlyTariff') as string) / 60,
       status: formData.get('status'),
       campaign: formData.get('campaign'),
+      monthlyGoal: parseInt(formData.get('monthlyGoal') as string || '2000'),
     };
 
     if (formData.get('password')) {
@@ -69,7 +70,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Full Name</label>
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nombre Completo</label>
           <div className="relative">
             <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
@@ -77,12 +78,12 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
               name="name"
               defaultValue={initialData?.name}
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
-              placeholder="Jane Doe"
+              placeholder="Ej: Juan Pérez"
             />
           </div>
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">External ID</label>
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">ID Externo</label>
           <div className="relative">
             <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
@@ -98,7 +99,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Corporate Email</label>
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Email Corporativo</label>
           <div className="relative">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
@@ -107,13 +108,13 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
               name="emailCorporativo"
               defaultValue={initialData?.emailCorporativo}
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
-              placeholder="jane@freeinterpreters.com"
+              placeholder="juan@freeinterpreters.com"
             />
           </div>
         </div>
         {!interpreterId && (
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Access Password</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Contraseña de Acceso</label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
               <input
@@ -128,13 +129,13 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
         )}
         {interpreterId && (
           <div className="space-y-2 opacity-50">
-             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Password</label>
+             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Contraseña</label>
              <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   disabled
                   className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-gray-500 cursor-not-allowed"
-                  placeholder="Use Reset Password option"
+                  placeholder="Use la opción de restablecer"
                 />
              </div>
           </div>
@@ -143,7 +144,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Hourly Tariff ($)</label>
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Tarifa por Hora ($)</label>
           <div className="relative">
             <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
@@ -158,7 +159,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
           </div>
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Initial Status</label>
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Estado Inicial</label>
           <div className="relative">
             <Target className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={18} />
             <select
@@ -175,16 +176,32 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Assigned Campaign</label>
-        <div className="relative">
-          <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-          <input
-            name="campaign"
-            defaultValue={initialData?.campaign}
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
-            placeholder="HealthCare"
-          />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Campaña Asignada</label>
+          <div className="relative">
+            <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <input
+              name="campaign"
+              defaultValue={initialData?.campaign}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="Salud / Healthcare"
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Meta Mensual (Minutos)</label>
+          <div className="relative">
+            <Target className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <input
+              required
+              type="number"
+              name="monthlyGoal"
+              defaultValue={initialData?.monthlyGoal || 2000}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="2000"
+            />
+          </div>
         </div>
       </div>
 
@@ -194,7 +211,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
           onClick={onCancel}
           className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-gray-400 rounded-2xl font-bold transition-all border border-white/10 active:scale-95"
         >
-          Cancel
+          Cancelar
         </button>
         <button
           type="submit"
@@ -202,7 +219,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
           className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all glow flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
         >
           {loading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-          {interpreterId ? 'Update Interpreter' : 'Save Interpreter'}
+          {interpreterId ? 'Actualizar Interprete' : 'Guardar Interprete'}
         </button>
       </div>
     </form>
