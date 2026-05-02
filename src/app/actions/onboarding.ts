@@ -64,11 +64,15 @@ export async function saveBankingDetails(data: {
       })
       .eq('id', user.id)
       .select('interpreter_id')
-      .single();
+      .maybeSingle();
 
     if (profileError) {
       console.error('[ONBOARDING] saveBankingDetails (profile) error:', profileError.message);
       return { success: false, error: `Error al actualizar perfil: ${profileError.message}`, code: 'INTERNAL_ERROR' };
+    }
+
+    if (!profile) {
+      return { success: false, error: 'No se encontró tu perfil de usuario. Por favor, contacta a soporte.', code: 'NOT_FOUND' };
     }
 
     // 2. Sync with Interpreter record if linked
@@ -112,11 +116,15 @@ export async function completeOnboarding(): Promise<ActionResult> {
       .update({ onboarding_complete: true })
       .eq('id', user.id)
       .select('interpreter_id')
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('[ONBOARDING] completeOnboarding error:', error.message);
       return { success: false, error: `Error al completar el proceso: ${error.message}`, code: 'INTERNAL_ERROR' };
+    }
+
+    if (!profile) {
+      return { success: false, error: 'Perfil no encontrado al intentar finalizar.', code: 'NOT_FOUND' };
     }
 
     // Sync with interpreter record
@@ -159,7 +167,7 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
     .from('user_profiles')
     .select('terms_accepted_at, bank_name, bank_account, bank_account_type, bank_cedula, onboarding_complete')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   if (error || !profile) {
     return { success: false, error: 'Profile not found', code: 'NOT_FOUND' };

@@ -125,7 +125,7 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
     .from('user_profiles')
     .select('*')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   if (error || !profile) {
     console.error('Error fetching profile:', error?.message);
