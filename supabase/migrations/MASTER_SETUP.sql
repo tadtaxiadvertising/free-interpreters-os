@@ -273,6 +273,10 @@ CREATE POLICY "Users can view their own profile"
 ON public.user_profiles FOR SELECT
 USING (auth.uid() = id);
 
+CREATE POLICY "Users can update their own profile"
+ON public.user_profiles FOR UPDATE
+USING (auth.uid() = id);
+
 CREATE POLICY "Admins can manage all profiles"
 ON public.user_profiles FOR ALL
 USING (public.is_admin());

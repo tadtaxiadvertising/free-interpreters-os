@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 
@@ -14,7 +15,8 @@ export async function acceptTerms(): Promise<ActionResult> {
     if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
     const now = new Date().toISOString();
-    const { error } = await supabase
+    const supabaseAdmin = createAdminClient();
+    const { error } = await supabaseAdmin
       .from('user_profiles')
       .update({
         terms_accepted_at: now,
@@ -53,8 +55,9 @@ export async function saveBankingDetails(data: {
       return { success: false, error: 'Todos los campos bancarios son obligatorios', code: 'VALIDATION_ERROR' };
     }
 
-    // 1. Update User Profile
-    const { data: profile, error: profileError } = await supabase
+    // 1. Update User Profile using Admin Client to bypass RLS during onboarding
+    const supabaseAdmin = createAdminClient();
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .update({
         bank_name: data.bankName.trim(),
@@ -77,7 +80,7 @@ export async function saveBankingDetails(data: {
 
     // 2. Sync with Interpreter record if linked
     if (profile?.interpreter_id) {
-      const { error: intError } = await supabase
+      const { error: intError } = await supabaseAdmin
         .from('interpreters')
         .update({
           banco: data.bankName.trim(),
@@ -110,8 +113,9 @@ export async function completeOnboarding(): Promise<ActionResult> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-    // Update user profile
-    const { data: profile, error } = await supabase
+    // Update user profile using Admin Client
+    const supabaseAdmin = createAdminClient();
+    const { data: profile, error } = await supabaseAdmin
       .from('user_profiles')
       .update({ onboarding_complete: true })
       .eq('id', user.id)
@@ -127,9 +131,9 @@ export async function completeOnboarding(): Promise<ActionResult> {
       return { success: false, error: 'Perfil no encontrado al intentar finalizar.', code: 'NOT_FOUND' };
     }
 
-    // Sync with interpreter record
+    // Sync with interpreter record using Admin Client
     if (profile?.interpreter_id) {
-      const { error: intError } = await supabase
+      const { error: intError } = await supabaseAdmin
         .from('interpreters')
         .update({
           documentos_completo: true,
