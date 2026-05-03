@@ -1,10 +1,10 @@
 # Architecture Specification — Free Interpreters OS v3
 
-> **Architecture**: Decoupled Frontend + Backend API
+> **Architecture**: Unified Data Layer (Direct Prisma) + Decoupled REST for Clients
 > **Runtime**: Easypanel (Docker/VPS) — Self-Hosted
-> **Auth**: Supabase Auth (native, no Clerk)
-> **Framework**: Next.js 16.2.4 (both services - strictly required per deployment log)
-> **Last Updated**: 2026-04-30
+> **Auth**: Supabase Auth (native, with RLS)
+> **Framework**: Next.js 16.2.4 (Monorepo deployment)
+> **Last Updated**: 2026-05-02
 
 ---
 
@@ -27,30 +27,31 @@
 
 | Service              | Repository (Current)    | Easypanel App        | Port | Build Target     | Responsibility                               |
 | :------------------- | :---------------------- | :------------------- | :--- | :--------------- | :------------------------------------------- |
-| **interpreters**     | `free-interpreters-os`  | `interpreters`       | 3000 | `Dockerfile`     | UI rendering, auth sessions, static assets   |
-| **interpreters-api** | `free-interpreters-os`  | `interpreters-api`   | 4000 | `Dockerfile.api` | Business logic, DB access, webhooks, payroll |
+| **interpreters-os**  | `free-interpreters-os`  | `interpreters`       | 3000 | `Dockerfile`     | UI, Auth, Direct DB (Server Actions)         |
+| **interpreters-api** | `free-interpreters-os`  | `interpreters-api`   | 4000 | `Dockerfile.api` | External REST, webhooks, legacy modules      |
 
-> **Note**: While currently co-located in a single repository for ease of development, the services are architecturally decoupled. The Frontend consumes the Backend strictly via HTTPS/REST.
+> **Stability Note**: For internal server-side operations, the platform uses **Direct Prisma Access** (Server Actions). This eliminates `EAI_AGAIN` DNS resolution errors that occur when the service attempts to call its own REST endpoints within internal networks.
 
 ### 2.2 Communication Flow
 
 ```text
-┌──────────────┐   HTTPS (fetch)    ┌──────────────────┐   TCP/pgBouncer   ┌──────────────┐
-│  Browser      │ ──────────────── → │  interpreters     │                   │              │
-│  (User)       │ ← ──────────────── │  (Frontend:3000)  │                   │              │
+┌──────────────┐   Direct Logic     ┌──────────────────┐   TCP/pgBouncer   ┌──────────────┐
+│  Browser      │ ──────────────── → │  interpreters-os  │                   │              │
+│  (User)       │ ← ──────────────── │  (Server Actions) │                   │              │
 └──────────────┘   HTML/JSON         └────────┬─────────┘                   │              │
                                               │                             │   Supabase   │
-                                    fetch()   │  NEXT_PUBLIC_API_URL        │   PostgreSQL │
-                                              ▼                             │              │
+                                     Internal │  Prisma Client              │   PostgreSQL │
+                                     (No DNS) ▼                             │              │
                                      ┌──────────────────┐   Prisma/pg      │              │
                                      │  interpreters-api │ ───────────────→ │              │
-                                     │  (Backend:4000)   │                  │              │
+                                     │  (External REST)  │                  │              │
                                      └──────────────────┘                   └──────────────┘
 ```
 
-- **Frontend → Backend**: All data operations go through `NEXT_PUBLIC_API_URL` (e.g., `https://api.freeinterpreters.com`).
-- **Backend → Database**: Only `interpreters-api` holds `DATABASE_URL` and Prisma Client.
-- **Auth**: Supabase Auth tokens are forwarded from Frontend to Backend via `Authorization: Bearer <token>` headers. The Backend validates them server-side using Supabase Admin SDK or token introspection.
+- **Frontend → Backend**: Server-side logic consumes Prisma directly via `src/lib/prisma.ts`.
+- **Client → Backend**: Client-side interactivity uses Server Actions (`src/app/actions/*`).
+- **External → Backend**: Third-party integrations (webhooks, recruitment forms) use REST endpoints via `Dockerfile.api`.
+- **Auth**: Supabase Auth sessions are verified in Middleware and Server Actions using the session token.
 
 ### 2.3 Database Connection Strategy
 

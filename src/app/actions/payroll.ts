@@ -59,3 +59,42 @@ export async function generatePayrollPeriod(
   }
 }
 
+export async function reconcileMinutes(
+  logId: number,
+  verifiedMinutes: number
+): Promise<ActionResult<{ message: string }>> {
+  try {
+    const log = await db.productionLog.findUnique({
+      where: { id: logId }
+    });
+
+    if (!log) {
+      return { success: false, error: 'Production log not found' };
+    }
+
+    const linkedPaidPayroll = await db.payrollRecord.findFirst({
+      where: {
+        interpreterId: log.interpreterId,
+        status: 'PAID',
+        periodStart: { lte: log.date },
+        periodEnd: { gte: log.date }
+      }
+    });
+
+    if (linkedPaidPayroll) {
+      return { success: false, error: 'Cannot modify verifiedMinutes: Log is linked to a PAID payroll record' };
+    }
+
+    await db.productionLog.update({
+      where: { id: logId },
+      data: { verifiedMinutes }
+    });
+
+    revalidatePath('/payroll');
+    revalidatePath('/dashboard');
+    return { success: true, data: { message: 'Minutes successfully reconciled' } };
+  } catch (error: any) {
+    console.error('Failed to reconcile minutes:', error.message);
+    return { success: false, error: 'Internal Server Error' };
+  }
+}

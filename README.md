@@ -8,33 +8,24 @@ This platform uses a **decoupled two-service architecture**:
 
 | Service | Description | Tech |
 | :------ | :---------- | :--- |
-| `interpreters` (Frontend) | User interface, auth sessions, SSR pages | Next.js 16, Supabase Auth, Tailwind CSS v4 |
-| `interpreters-api` (Backend) | REST API, business logic, database access | Next.js 16 API Routes, Prisma 7, PostgreSQL |
+| `interpreters-os` | Main application: UI, Auth, Direct Data Access | Next.js 16, Prisma 7, Tailwind v4 |
+| `interpreters-api` | REST Service: Webhooks, External integrations | Next.js 16 API Routes, Prisma 7 |
 
 ### Dual-Service Synchronization in Easypanel
 
-In this decoupled approach:
+In this environment:
 
-1. **Service Provider (`interpreters-api`)**: This acts as the backend source of truth. It holds the Prisma Client and the actual connection to the Supabase database (`DATABASE_URL`).
-2. **Service Consumer (`interpreters` Frontend)**: The frontend application that consumes the API data and handles UI rendering.
+1. **Direct Data Layer**: Server-side logic (Server Components & Server Actions) communicates directly with the database via a Prisma singleton. This prevents DNS-related latency and errors (`EAI_AGAIN`) during internal service calls.
+2. **Decoupled REST API**: Legacy and external-facing endpoints reside in `src/app/api/` and are served via `Dockerfile.api`.
 
-**Environment Variable Exchange (Sync)**:
+**Key Variables**:
 
-To link both services correctly in the production environment:
-
-- **Frontend (Consumer)**:
-  - `NEXT_PUBLIC_API_URL`: Points to the Backend's public endpoint (e.g., `https://api.freeinterpreters.com`).
-  - `NEXT_PUBLIC_SUPABASE_URL`: Required for client-side auth.
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Required for client-side auth.
-
-- **Backend (Service Provider)**:
-  - `DATABASE_URL`: Points to port **6543** (Transaction Pooler). This is the "Service Provider" heart.
-  - `DIRECT_URL`: Points to port **5432** (Direct Session) for migrations.
-  - `CORS_ORIGIN`: Must include the Frontend's public domain to allow requests.
-  - `SUPABASE_SERVICE_ROLE_KEY`: Used for admin operations bypass.
+- `DATABASE_URL`: Transaction Pooler (Port 6543) for high-frequency runtime queries.
+- `DIRECT_URL`: Session Connection (Port 5432) for schema migrations.
+- `NEXT_PUBLIC_SUPABASE_URL` / `KEY`: Client-side Auth and RLS.
 
 > [!IMPORTANT]
-> The Backend acts as the **Service Provider** (providing data/Prisma access), while the Frontend acts as the **Consumer** (rendering UI based on API responses).
+> Use **Server Actions** for all internal UI interactivity to ensure maximum stability and type safety. REST endpoints should be reserved for third-party webhooks and cross-service integrations.
 
 See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for full architecture diagrams.
 

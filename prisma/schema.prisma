@@ -27,6 +27,8 @@ model Interpreter {
   notas              String?  @db.Text
   tariffPerMinute    Decimal  @db.Decimal(10, 2) @map("tariff_per_minute")
   monthlyGoal        Int      @default(2000) @map("monthly_goal")
+  paymentFrequency   String?  @default("Monthly") @map("payment_frequency")
+  paymentDay         String?  @default("1") @map("payment_day")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -82,6 +84,7 @@ model ProductionLog {
   logoutTime         DateTime? @map("logout_time")
   connectedHours     Decimal?  @db.Decimal(10, 2) @map("connected_hours")
   interpretedMinutes Int       @default(0) @map("interpreted_minutes")
+  verifiedMinutes    Int?      @map("verified_minutes")
   callsAttended      Int       @default(0) @map("calls_attended")
   adherence          Decimal?  @db.Decimal(5, 2)
   status             String
@@ -139,13 +142,16 @@ model PayrollRecord {
   penalidades       Decimal   @default(0) @db.Decimal(10, 2)
   transferDeduction Decimal   @default(0) @db.Decimal(10, 2) @map("transfer_deduction")
   netTotal          Decimal   @db.Decimal(10, 2) @map("net_total")
-  status            String    @default("Pendiente")
+  status            String    @default("PENDING")
   paymentDate       DateTime? @map("payment_date")
   paidAt            DateTime? @map("paid_at")
+  transactionReference String? @map("transaction_reference")
+  reconciliationHash String?  @unique @map("reconciliation_hash")
   createdAt         DateTime  @default(now()) @map("created_at")
 
   interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
 
+  @@unique([interpreterId, periodStart, periodEnd])
   @@index([periodStart, periodEnd])
   @@index([interpreterId])
   @@index([status])

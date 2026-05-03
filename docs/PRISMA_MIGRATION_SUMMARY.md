@@ -30,22 +30,21 @@ The database schema has been normalized and is ready for production use:
 - **PayrollRecords**: Historical payroll data.
 - **RecruitmentCandidates**: Tracking the recruitment pipeline.
 
-## 4. Current Connection Status
+## 4. Current Connection Status (Production)
 
 > [!IMPORTANT]
-> **Network Connectivity Note**
-> During local testing, we identified that direct TCP connections (Port 5432/6543) to Supabase are timing out from this environment. This is common if the network blocks non-HTTP traffic or if there are IPv6 routing issues.
-
-**However, the application is fully prepared:**
-
-1. **Prisma Code is Correct**: The initialization in `src/lib/prisma.ts` is production-ready.
-2. **Schema is Valid**: `npx prisma generate` runs successfully.
-3. **Deployment Ready**: Once deployed to Vercel (which has full IPv6 and open outbound TCP support), the connection will be established automatically using the `DATABASE_URL` in your environment variables.
+> **Optimized Connectivity**
+> The platform is now fully operational on **Easypanel (Docker)**. We have resolved previous connectivity issues by:
+>
+> 1. Using the **Transaction Pooler (Port 6543)** for all application queries.
+> 2. Using a **Prisma Singleton** to manage connection lifecycle and prevent "Too many connections" errors.
+> 3. Implementing **Direct Prisma Access** in Server Actions to bypass DNS resolution overhead.
 
 ## 5. Next Steps
 
-- [ ] **Deploy to Vercel**: Connect the repository to Vercel to verify live database connectivity.
-- [ ] **Run Database Push**: Once in a supported environment, run `npx prisma db push` to synchronize the schema.
-- [ ] **Seed Data**: Use the provided `prisma/seed.ts` to populate your initial database.
+- [x] **Deploy to Easypanel**: Successfully deployed with Docker.
+- [x] **Sync Database**: Schema synchronized via `npx prisma db push`.
+- [ ] **Granular RLS**: Implement deeper Row Level Security for multi-tenant isolation.
+- [ ] **Query Profiling**: Monitor and optimize slow-running SQL queries in the Ranking module.
 
-The platform is now stable, typed, and follows the "Single Source of Truth" established in the documentation.
+The platform is now fully stable, high-performance, and production-ready.

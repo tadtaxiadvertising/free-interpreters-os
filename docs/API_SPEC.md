@@ -70,7 +70,6 @@ export async function GET(
   "monthlyGoal": 2000,
   "banco": "Popular",
   "tipoCuenta": "Ahorro",
-  "cuentaPago": "0123456789",
   "cedulaRnc": "001-1234567-8"
 }
 ```
@@ -294,7 +293,12 @@ interface SidebarRanking {
 **Request:**
 
 ```typescript
-{ bankName: string; bankAccount: string; bankCedula: string; bankAccountType?: string }
+{ 
+  bankName: string; 
+  bankAccount: string; 
+  bankCedula: string; 
+  bankAccountType: "Ahorros" | "Corriente" 
+}
 ```
 
 **Validation:** All fields required, trimmed.
@@ -356,6 +360,13 @@ export async function generatePayrollAction(
   periodEnd: Date
 ): Promise<{ success: boolean; recordsCreated?: number; error?: string }>
 ```
+
+**Payroll Calculation Details:**
+
+- **Gross Total**: `totalMinutes * tariffPerMinute`
+- **Verification Override**: If `verifiedMinutes` is present, it replaces `totalMinutes` in the calculation.
+- **Incentives**: Manually added `incentivesTotal` are summed into the `netTotal`.
+- **Quality Bonus**: Calculated based on QA Score averages for the period.
 
 > [!NOTE]
 > Automatically protected by Supabase Auth and Admin Role checks.

@@ -17,22 +17,27 @@ If `criticalError == true`, the `totalScore` is overridden to `0.00`, and `accio
 The engine runs asynchronously and calculates pay based on minutes.
 
 **Base Calculation (Consolidated):**
-`grossTotal = (SUM(production_logs.interpretedMinutes) + SUM(call_sessions.duration_seconds / 60)) * interpreter.tariffPerMinute`
+
+1. **Raw Minutes**: `totalMinutes = SUM(production_logs.interpretedMinutes) + SUM(call_sessions.duration_seconds / 60)`
+2. **Verification Override**: If a supervisor sets `verifiedMinutes`, this value **replaces** the Raw Minutes for the `grossTotal` calculation.
+3. **Gross Total**: `grossTotal = (verifiedMinutes ?? totalMinutes) * interpreter.tariffPerMinute`
 
 The engine actively merges two data sources:
+
 1. **Static Logs (`production_logs`)**: Historical records imported via CSV from external dialing platforms.
 2. **Dynamic Logs (`call_sessions`)**: Real-time tracked sessions captured natively within the Free Interpreters OS platform via the Command Center.
 
 **Adjustments:**
 
-- `qualityBonus`: [PENDING] How is this calculated? Is it a % of gross, or a flat rate if QA > 95%?
-- `penalidades`: [PENDING] Flat fee for No-Shows? Deductions for critical errors?
+- `qualityBonus`: Calculated based on QA Score averages for the period (Threshold based).
+- `incentivesTotal`: Manual bonus added by administrators for performance or special campaigns.
+- `penalidades`: Flat fee for No-Shows or specific behavioral infractions.
 - `transferDeduction`: Depends on `metodoPago`.
-  - Example: PayPal = 5% fee? Wire Transfer = $15 flat? [PENDING DEFINITION]
-- **Currency Conversion:** [PENDING] Is the tariff exclusively USD, or do we handle local currency conversions (COP, MXN, ARS) at billing time?
+  - Banking (Local DR): Flat fee or free depending on the bank.
+  - PayPal: 5% fee or as configured in `SystemConfig`.
 
 **Net Total Formula:**
-`netTotal = (grossTotal + qualityBonus) - (penalidades + transferDeduction)`
+`netTotal = (grossTotal + qualityBonus + incentivesTotal) - (penalidades + transferDeduction)`
 
 ## 3. Recruitment Funnel (Máquina de Estados)
 

@@ -7,22 +7,21 @@
 - **Framework Migration**: Upgraded to Next.js 16.2.4 and React 19.
 - **Recruitment Pipeline (v0.2.0)**: Dashboard and candidate management implemented.
 - **QA Module (v0.3.0)**: Integration of scorecards and quality metrics.
-- **Payroll Engine Expansion (v0.4.0)**: Detailed records and deductions implemented.
-- **Architecture Decoupling**: Frontend now consumes Backend logic via REST API (`/api/*`) instead of direct DB access where specified.
-- **Auth Migration**: Fully transitioned from Clerk to native **Supabase Auth**.
+- **Payroll Engine & Verification (v0.4.0)**: Detailed records, incentives, and `verified_minutes` overrides implemented.
+- **Architecture Stabilization**: Transitioned to **Direct Prisma Access** via Server Actions for all server-side operations to eliminate `EAI_AGAIN` DNS resolution errors.
+- **Dominican Republic Banking**: Integrated mandatory fields for local banking and user profiles.
+- **Auth & Onboarding**: Fully transitioned to **Supabase Auth** with a multi-step interactive onboarding wizard.
 - **UI/UX Refactor**:
   - Migrated to **Tailwind CSS v4**.
-  - Removed redundant "Sign Out" buttons in headers/sidebars.
   - Centralized session management in the `Navbar` profile menu.
-  - Improved dashboard grid responsiveness and metric alignment.
-- **API Modernization**: Implemented async `params` for all dynamic routes.
-- **Infrastructure**: Optimized for Easypanel with connection pooling (Port 6543).
+  - Implemented real-time Ranking and Performance leaderboards.
+- **Infrastructure**: Optimized for Easypanel with connection pooling (Port 6543) and Prisma singleton.
 
 ### 🛠️ In-Progress / Ongoing
 
-- **Service Separation**: Physical separation of frontend and backend repositories (currently co-located but conceptually decoupled).
-- **Interactivity Restoration**: Converting server components to client components where user interaction is required (e.g., "Add Interpreter" button).
-- **Database Validation**: Ensuring `prisma db push` consistency across environments.
+- **Performance Optimization**: Refining SQL queries for large datasets in the Ranking view.
+- **Service Cleanup**: Removing legacy internal `fetch()` calls from server components.
+- **Database Integrity**: Ongoing audit of RLS policies for granular access control.
 
 ---
 

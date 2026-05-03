@@ -13,11 +13,13 @@ The core table containing all interpreter details, tariffs, and operational stat
 | `name` | `String` | `NOT NULL` | Full name |
 | `status` | `String` | `Default: "Activo"` | Valid values: Activo, Training, Inactivo, Probation |
 | `campaign` | `String?` | `NULLABLE` | Assigned campaign |
-| `languageA` | `String` | `Default: "Español"` | Primary language |
-| `languageB` | `String` | `Default: "Inglés"` | Secondary language |
+| `emailCorporativo` | `String?` | `UNIQUE` | Professional email |
 | `tariffPerMinute` | `Decimal(10,2)` | `NOT NULL` | Base pay rate per interpreted minute |
-| `metodoPago` | `String?` | `NULLABLE` | PayPal, Bank Transfer, Payoneer, USDT |
-| `cuentaPago` | `String?` | `NULLABLE` | Account details for payroll |
+| `monthlyGoal` | `Int` | `Default: 2000` | Target production minutes per month |
+| `banco` | `String?` | `NULLABLE` | Bank name (e.g., Popular, BHD) |
+| `tipoCuenta` | `String?` | `NULLABLE` | Ahorros, Corriente |
+| `cedulaRnc` | `String?` | `NULLABLE` | DR Identification number |
+| `metodoPago` | `String?` | `NULLABLE` | Transferencia, PayPal, etc. |
 
 ## 2. `production_logs` (Daily Metrics)
 
@@ -61,11 +63,13 @@ Immutable snapshots of calculated pay periods.
 | `periodEnd` | `Date` | `NOT NULL` | Cycle end date |
 | `interpreterId` | `Int` | `FK -> interpreters(id)` | Target interpreter |
 | `totalMinutes` | `Int` | `NOT NULL` | Aggregated from `production_logs` |
+| `verifiedMinutes` | `Int?` | `NULLABLE` | Manual override for payroll verification |
 | `grossTotal` | `Decimal(10,2)` | `NOT NULL` | `totalMinutes * tariffPerMinute` |
 | `qualityBonus` | `Decimal(10,2)` | `Default: 0` | Extra earnings from QA |
+| `incentivesTotal` | `Decimal(10,2)` | `Default: 0` | Manual or calculated incentives |
 | `penalidades` | `Decimal(10,2)` | `Default: 0` | Deductions (e.g., No-Shows) |
 | `transferDeduction` | `Decimal(10,2)` | `Default: 0` | Wire fees based on `metodoPago` |
-| `netTotal` | `Decimal(10,2)` | `NOT NULL` | `gross + bonus - penalidades - transfer` |
+| `netTotal` | `Decimal(10,2)` | `NOT NULL` | `gross + bonus + incentives - penalidades - transfer` |
 | `status` | `String` | `Default: "Pendiente"` | Pendiente, Procesando, Pagado |
 
 ## 5. `recruitment_candidates` (Pipeline Funnel)
@@ -78,5 +82,32 @@ Tracks applicants from ingestion to hiring.
 | `email` | `String` | `UNIQUE` | Main contact and dedup key |
 | `status` | `String` | `Default: "Aplicante"` | Aplicante, Entrevista, Rechazado, Contratado |
 | `englishLevel` | `String?` | `NULLABLE` | C1, C2, etc. |
+| `speedtestMbps` | `Int?` | `NULLABLE` | Upload/Download speed check |
 | `resultRoleplay` | `Int?` | `NULLABLE` | Scored 0-100 |
 | `fechaInicio` | `DateTime?` | `NULLABLE` | Expected start date if hired |
+
+## 6. `call_sessions` (Real-time Timer)
+
+Individual sessions tracked via the dashboard's Call Timer.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `Int` | `PK, Autoincrement` | Session ID |
+| `interpreterId` | `Int` | `FK -> interpreters(id)` | Session owner |
+| `startedAt` | `DateTime` | `NOT NULL` | Timer start |
+| `endedAt` | `DateTime?` | `NULLABLE` | Timer end |
+| `durationSeconds` | `Int?` | `NULLABLE` | Calculated delta |
+| `callCost` | `Decimal` | `NULLABLE` | `durationMinutes * tariffSnapshot` |
+
+## 7. `user_profiles` (System Users)
+
+Extended profile linked to Supabase Auth and Roster.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `String` | `PK, UUID` | Linked to `auth.users.id` |
+| `email` | `String` | `UNIQUE` | Auth email |
+| `role` | `String` | `Default: "interpreter"` | admin, interpreter, qa, payroll |
+| `onboardingComplete` | `Boolean` | `Default: false` | Interactive flow status |
+| `termsAcceptedAt` | `DateTime?` | `NULLABLE` | Legal compliance timestamp |
+| `bankName` | `String?` | `NULLABLE` | DR Banking details |
