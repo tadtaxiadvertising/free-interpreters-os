@@ -70,7 +70,9 @@ export async function GET(
   "monthlyGoal": 2000,
   "banco": "Popular",
   "tipoCuenta": "Ahorro",
-  "cedulaRnc": "001-1234567-8"
+  "cedulaRnc": "001-1234567-8",
+  "paymentFrequency": "Monthly",
+  "paymentDay": "1"
 }
 ```
 
@@ -370,6 +372,46 @@ export async function generatePayrollAction(
 
 > [!NOTE]
 > Automatically protected by Supabase Auth and Admin Role checks.
+
+### 7.2 Mark as PAID
+
+**Endpoint:** `PATCH /api/payroll/pay`
+**Purpose:** Mark a payroll record as PAID and record the transaction reference.
+
+**Request Body:**
+
+```json
+{
+  "payrollRecordId": "cuid-string",
+  "transactionReference": "TX-123456"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{ "success": true, "data": { "status": "PAID" } }
+```
+
+### 7.3 Verify Minutes
+
+**Endpoint:** `POST /api/payroll/verify`
+**Purpose:** Update the `verifiedMinutes` for a payroll record.
+
+**Request Body:**
+
+```json
+{
+  "payrollRecordId": "cuid-string",
+  "verifiedMinutes": 1500
+}
+```
+
+**Response (200 OK):**
+
+```json
+{ "success": true, "data": { "verifiedMinutes": 1500 } }
+```
 
 ---
 

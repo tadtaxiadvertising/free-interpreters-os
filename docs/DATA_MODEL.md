@@ -20,6 +20,8 @@ The core table containing all interpreter details, tariffs, and operational stat
 | `tipoCuenta` | `String?` | `NULLABLE` | Ahorros, Corriente |
 | `cedulaRnc` | `String?` | `NULLABLE` | DR Identification number |
 | `metodoPago` | `String?` | `NULLABLE` | Transferencia, PayPal, etc. |
+| `paymentFrequency` | `String?` | `Default: "Monthly"` | Frequency of payments (Monthly, Bi-weekly) |
+| `paymentDay` | `String?` | `Default: "1"` | Specific day of the month for payment |
 
 ## 2. `production_logs` (Daily Metrics)
 
@@ -35,6 +37,7 @@ Stores shift records, exact connected times, and call statistics.
 | `callsAttended` | `Int` | `Default: 0` | Total calls handled |
 | `adherence` | `Decimal(5,2)` | `NULLABLE` | Schedule adherence percentage |
 | `status` | `String` | `NOT NULL` | E.g., Completed, No-Show, Late |
+| `verifiedMinutes` | `Int?` | `NULLABLE` | Audited minutes after administrative review |
 
 ## 3. `qa_scores` (Quality Assurance)
 
@@ -70,7 +73,11 @@ Immutable snapshots of calculated pay periods.
 | `penalidades` | `Decimal(10,2)` | `Default: 0` | Deductions (e.g., No-Shows) |
 | `transferDeduction` | `Decimal(10,2)` | `Default: 0` | Wire fees based on `metodoPago` |
 | `netTotal` | `Decimal(10,2)` | `NOT NULL` | `gross + bonus + incentives - penalidades - transfer` |
-| `status` | `String` | `Default: "Pendiente"` | Pendiente, Procesando, Pagado |
+| `status` | `String` | `Default: "Pendiente"` | Pendiente, Procesando, Pagado, APPROVED, PAID |
+| `transactionReference` | `String?` | `NULLABLE` | Bank transaction ID or reference number |
+| `reconciliationHash` | `String?` | `UNIQUE` | Unique hash for financial integrity verification |
+| `paidAt` | `DateTime?` | `NULLABLE` | Actual timestamp when payment was processed |
+| `paymentDate` | `DateTime?` | `NULLABLE` | Scheduled or record date of payment |
 
 ## 5. `recruitment_candidates` (Pipeline Funnel)
 

@@ -91,6 +91,7 @@ export const PayrollRecordSchema = z.object({
   verifiedMinutes: z.number().nonnegative().optional().nullable(),
   grossTotal: z.number().nonnegative(),
   qualityBonus: z.number().nonnegative().default(0),
+  incentivesTotal: z.number().nonnegative().default(0),
   penalidades: z.number().nonnegative().default(0),
   transferDeduction: z.number().nonnegative().default(0),
   netTotal: z.number().nonnegative(),
