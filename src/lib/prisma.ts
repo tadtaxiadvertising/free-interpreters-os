@@ -15,6 +15,13 @@ const prismaClientSingleton = (): PrismaClient => {
     return new PrismaClient(); 
   }
   
+  try {
+    const url = new URL(process.env.DATABASE_URL);
+    console.log(`🔌 PRISMA: Connecting to database at ${url.host} (masked user/pass)`);
+  } catch (e) {
+    console.log(`🔌 PRISMA: Connecting to database (URL parsing failed)`);
+  }
+  
   const pool = new pg.Pool({ 
     connectionString: process.env.DATABASE_URL, // Ensure this uses port 6543 (Connection Pooler)
     max: process.env.NODE_ENV === 'production' ? 3 : 10, // Optimized for 457MB VPS on Easypanel
