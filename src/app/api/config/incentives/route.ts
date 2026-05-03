@@ -124,12 +124,12 @@ export async function POST(request: Request) {
         where: { key: bonusKey },
         update: {
           value: String(tier.bonus),
-          description: `Bonus amount (USD) for tier ${tier.tierNumber}`,
+          description: `Bonus amount (RD$) for tier ${tier.tierNumber}`,
         },
         create: {
           key: bonusKey,
           value: String(tier.bonus),
-          description: `Bonus amount (USD) for tier ${tier.tierNumber}`,
+          description: `Bonus amount (RD$) for tier ${tier.tierNumber}`,
         },
       });
 

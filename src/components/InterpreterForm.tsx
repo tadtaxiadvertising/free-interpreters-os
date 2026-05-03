@@ -155,7 +155,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
               name="hourlyTariff"
               defaultValue={initialData?.tariffPerMinute ? (parseFloat(initialData.tariffPerMinute) * 60).toFixed(2) : ''}
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
-              placeholder="9.00"
+              placeholder="RD$ 9.00"
             />
           </div>
         </div>

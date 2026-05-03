@@ -265,11 +265,10 @@ export default function PayrollAdjustment() {
   // ────────────────────────────────────────────────────────────
   // Helpers
   // ────────────────────────────────────────────────────────────
-  const fmt = (val: string | number) =>
-    parseFloat(String(val)).toLocaleString('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    });
+  const fmt = (val: string | number) => {
+    const num = parseFloat(String(val));
+    return `RD$ ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   const fmtDate = (d: string | null) =>
     d ? new Date(d).toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -349,7 +348,7 @@ export default function PayrollAdjustment() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">
-                      Bonus (USD)
+                      Bonus (RD$)
                     </label>
                     <input
                       type="number"
