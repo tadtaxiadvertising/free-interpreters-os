@@ -72,8 +72,9 @@ export async function POST(request: Request) {
           verifiedMinutes: verifiedMinutes,
           grossTotal: recalc.grossTotal,
           incentivesTotal: recalc.incentivesTotal,
+          transferDeduction: recalc.transferDeduction,
           netTotal: recalc.netTotal,
-          status: 'Verificado',
+          status: 'APPROVED',
         },
         include: {
           interpreter: {
@@ -96,7 +97,7 @@ export async function POST(request: Request) {
       const updated = await db.payrollRecord.update({
         where: { id: payrollRecordId },
         data: {
-          status: 'Pagado',
+          status: 'PAID',
           paidAt: now,
           paymentDate: now,
         },
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
 
     // ── ACTION: UPDATE STATUS ──
     if (action === 'updateStatus') {
-      const validStatuses = ['Pendiente', 'Verificado', 'Aprobado', 'Pagado', 'Rechazado'];
+      const validStatuses = ['PENDING', 'APPROVED', 'PAID', 'REJECTED'];
       if (!status || !validStatuses.includes(status)) {
         return NextResponse.json(
           { error: `status must be one of: ${validStatuses.join(', ')}` },
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
       }
 
       const data: Record<string, unknown> = { status };
-      if (status === 'Pagado') {
+      if (status === 'PAID') {
         data.paidAt = new Date();
         data.paymentDate = new Date();
       }

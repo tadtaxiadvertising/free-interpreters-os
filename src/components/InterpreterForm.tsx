@@ -31,6 +31,8 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
       status: formData.get('status'),
       campaign: formData.get('campaign'),
       monthlyGoal: Math.round(parseFloat(formData.get('monthlyGoal') as string || '33.3') * 60),
+      paymentFrequency: formData.get('paymentFrequency'),
+      paymentDay: formData.get('paymentDay'),
     };
 
     const password = formData.get('password');
@@ -199,6 +201,36 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
               defaultValue={initialData?.monthlyGoal ? Math.round(initialData.monthlyGoal / 60) : 33}
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
               placeholder="33"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Frecuencia de Pago</label>
+          <div className="relative">
+            <Target className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={18} />
+            <select
+              name="paymentFrequency"
+              defaultValue={initialData?.paymentFrequency || 'Monthly'}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer [&>option]:bg-[#1a1a1a]"
+            >
+              <option value="Weekly">Semanal (Weekly)</option>
+              <option value="Biweekly">Quincenal (Biweekly)</option>
+              <option value="Monthly">Mensual (Monthly)</option>
+            </select>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Día de Pago (1-31 o Día de la Semana)</label>
+          <div className="relative">
+            <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <input
+              name="paymentDay"
+              defaultValue={initialData?.paymentDay || '1'}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="Ej: 1, 15 o Monday"
             />
           </div>
         </div>

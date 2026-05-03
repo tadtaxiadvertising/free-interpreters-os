@@ -18,6 +18,8 @@ export const InterpreterSchema = z.object({
   tariffPerMinute: z.number().positive('Tariff must be positive'),
   password: z.string().min(6, 'Password must be at least 6 characters').optional(),
   monthlyGoal: z.number().int().positive().optional().default(2000),
+  paymentFrequency: z.enum(['Weekly', 'Biweekly', 'Monthly']).default('Monthly'),
+  paymentDay: z.string().default('1'),
 });
 
 export type InterpreterInput = z.infer<typeof InterpreterSchema>;

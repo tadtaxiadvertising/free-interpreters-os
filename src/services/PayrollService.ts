@@ -264,6 +264,7 @@ export async function recalculateWithVerifiedMinutes(
 ): Promise<{
   grossTotal: number;
   incentivesTotal: number;
+  transferDeduction: number;
   netTotal: number;
 }> {
   const record = await db.payrollRecord.findUnique({
@@ -297,6 +298,7 @@ export async function recalculateWithVerifiedMinutes(
   return {
     grossTotal,
     incentivesTotal: incentive.totalIncentive,
+    transferDeduction,
     netTotal,
   };
 }

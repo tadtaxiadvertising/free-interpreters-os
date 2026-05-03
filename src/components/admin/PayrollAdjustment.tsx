@@ -53,11 +53,14 @@ interface IncentiveTier {
 // ────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
+    PENDING: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    APPROVED: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    PAID: 'bg-green-500/10 text-green-300 border-green-500/20',
+    REJECTED: 'bg-red-500/10 text-red-400 border-red-500/20',
+    // Fallbacks for older records
     Pendiente: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     Verificado: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    Aprobado: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     Pagado: 'bg-green-500/10 text-green-300 border-green-500/20',
-    Rechazado: 'bg-red-500/10 text-red-400 border-red-500/20',
   };
   return (
     <span
@@ -65,7 +68,7 @@ function StatusBadge({ status }: { status: string }) {
         styles[status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'
       }`}
     >
-      {status === 'Pagado' && <BadgeCheck size={12} />}
+      {(status === 'PAID' || status === 'Pagado') && <BadgeCheck size={12} />}
       {status}
     </span>
   );
@@ -197,16 +200,17 @@ export default function PayrollAdjustment() {
   // Mark as Paid
   // ────────────────────────────────────────────────────────────
   const handleMarkPaid = async (recordId: string) => {
-    if (!confirm('¿Confirmar que este registro ha sido pagado?')) return;
+    const transactionReference = prompt('Ingrese la referencia de la transacción (Ej: Banco Popular #12345):');
+    if (!transactionReference) return;
 
     setActionLoading(recordId);
     try {
-      const res = await fetch('/api/payroll/verify', {
-        method: 'POST',
+      const res = await fetch('/api/payroll/pay', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           payrollRecordId: recordId,
-          action: 'markPaid',
+          transactionReference,
         }),
       });
       const data = await res.json();
@@ -401,11 +405,10 @@ export default function PayrollAdjustment() {
           className="bg-white/5 border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:border-blue-500/50 transition-colors outline-none appearance-none cursor-pointer"
         >
           <option value="">All Statuses</option>
-          <option value="Pendiente">Pendiente</option>
-          <option value="Verificado">Verificado</option>
-          <option value="Aprobado">Aprobado</option>
-          <option value="Pagado">Pagado</option>
-          <option value="Rechazado">Rechazado</option>
+          <option value="PENDING">PENDING</option>
+          <option value="APPROVED">APPROVED</option>
+          <option value="PAID">PAID</option>
+          <option value="REJECTED">REJECTED</option>
         </select>
         <span className="text-xs text-gray-600">
           {records.length} record{records.length !== 1 ? 's' : ''}
@@ -468,7 +471,7 @@ export default function PayrollAdjustment() {
             <tbody className="divide-y divide-white/5">
               {records.map((r) => {
                 const isActing = actionLoading === r.id;
-                const isPaid = r.status === 'Pagado';
+                const isPaid = r.status === 'PAID' || r.status === 'Pagado';
 
                 return (
                   <tr
