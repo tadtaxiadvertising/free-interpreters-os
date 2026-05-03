@@ -402,13 +402,13 @@ export default function PayrollAdjustment() {
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="bg-white/5 border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:border-blue-500/50 transition-colors outline-none appearance-none cursor-pointer"
+          className="bg-slate-900/80 border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:border-blue-500/50 transition-colors outline-none appearance-none cursor-pointer"
         >
-          <option value="">All Statuses</option>
-          <option value="PENDING">PENDING</option>
-          <option value="APPROVED">APPROVED</option>
-          <option value="PAID">PAID</option>
-          <option value="REJECTED">REJECTED</option>
+          <option value="" className="bg-slate-900 text-white">All Statuses</option>
+          <option value="PENDING" className="bg-slate-900 text-white">PENDING</option>
+          <option value="APPROVED" className="bg-slate-900 text-white">APPROVED</option>
+          <option value="PAID" className="bg-slate-900 text-white">PAID</option>
+          <option value="REJECTED" className="bg-slate-900 text-white">REJECTED</option>
         </select>
         <span className="text-xs text-gray-600">
           {records.length} record{records.length !== 1 ? 's' : ''}

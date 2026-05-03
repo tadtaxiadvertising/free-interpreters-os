@@ -166,7 +166,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
             <select
               name="status"
               defaultValue={initialData?.status || 'Activo'}
-              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer [&>option]:bg-[#1a1a1a]"
+              className="w-full bg-slate-900 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer"
             >
               <option value="Activo">Activo</option>
               <option value="Training">Training</option>
@@ -214,7 +214,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
             <select
               name="paymentFrequency"
               defaultValue={initialData?.paymentFrequency || 'Monthly'}
-              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer [&>option]:bg-[#1a1a1a]"
+              className="w-full bg-slate-900 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer"
             >
               <option value="Weekly">Semanal (Weekly)</option>
               <option value="Biweekly">Quincenal (Biweekly)</option>

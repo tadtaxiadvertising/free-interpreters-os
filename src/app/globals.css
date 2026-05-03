@@ -114,6 +114,11 @@ select {
   padding-right: 2.5rem;
 }
 
+option {
+  background-color: #0f172a; /* matches bg-slate-900 */
+  color: white;
+}
+
 .form-group:focus-within label {
   color: var(--primary);
 }
