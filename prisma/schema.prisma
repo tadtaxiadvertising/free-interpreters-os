@@ -1,20 +1,22 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider  = "postgresql"
+  schemas   = ["auth", "public"]
 }
 
 model Interpreter {
   id                 Int      @id @default(autoincrement())
   externalId         String   @unique @map("external_id")
   name               String
-  status             String   @default("Activo")
-  realtimeStatus     String   @default("Offline") @map("realtime_status")
+  status             String?  @default("Activo")
+  realtimeStatus     String?  @default("Offline") @map("realtime_status")
   campaign           String?
-  languageA          String   @default("Español") @map("language_a")
-  languageB          String   @default("Inglés") @map("language_b")
+  languageA          String?  @default("Español") @map("language_a")
+  languageB          String?  @default("Inglés") @map("language_b")
   emailCorporativo   String?  @unique @map("email_corporativo")
   telefono           String?
   pais               String?
@@ -23,14 +25,14 @@ model Interpreter {
   banco              String?
   tipoCuenta         String?  @map("tipo_cuenta")
   cedulaRnc          String?  @map("cedula_rnc")
-  documentosCompleto Boolean  @default(false) @map("documentos_completo")
+  documentosCompleto Boolean? @default(false) @map("documentos_completo")
   notas              String?  @db.Text
   tariffPerMinute    Decimal  @db.Decimal(10, 2) @map("tariff_per_minute")
   monthlyGoal        Int      @default(2000) @map("monthly_goal")
   paymentFrequency   String?  @default("Monthly") @map("payment_frequency")
   paymentDay         String?  @default("1") @map("payment_day")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  createdAt          DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   productionLogs ProductionLog[]
   qaScores       QAScore[]
@@ -44,54 +46,57 @@ model Interpreter {
   @@index([pais])
   @@index([createdAt])
   @@map("interpreters")
+  @@schema("public")
 }
 
 model Account {
   id          Int      @id @default(autoincrement())
   name        String   @unique
   description String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   productionLogs   ProductionLog[]
   interpreterRates InterpreterAccountRate[]
 
   @@map("accounts")
+  @@schema("public")
 }
 
 model InterpreterAccountRate {
   id            Int      @id @default(autoincrement())
-  interpreterId Int      @map("interpreter_id")
-  accountId     Int      @map("account_id")
+  interpreterId Int?     @map("interpreter_id")
+  accountId     Int?     @map("account_id")
   tariffPerHour Decimal  @db.Decimal(10, 2) @map("tariff_per_hour")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt     DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
-  account     Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  interpreter Interpreter? @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+  account     Account?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@unique([interpreterId, accountId])
   @@map("interpreter_account_rates")
+  @@schema("public")
 }
 
 model ProductionLog {
   id                 Int       @id @default(autoincrement())
-  interpreterId      Int       @map("interpreter_id")
+  interpreterId      Int?      @map("interpreter_id")
   date               DateTime  @db.Date
   campaign           String?
   scheduledHours     String?   @map("scheduled_hours")
-  loginTime          DateTime? @map("login_time")
-  logoutTime         DateTime? @map("logout_time")
+  loginTime          DateTime? @map("login_time") @db.Timestamptz(6)
+  logoutTime         DateTime? @map("logout_time") @db.Timestamptz(6)
   connectedHours     Decimal?  @db.Decimal(10, 2) @map("connected_hours")
-  interpretedMinutes Int       @default(0) @map("interpreted_minutes")
+  interpretedMinutes Int?      @default(0) @map("interpreted_minutes")
   verifiedMinutes    Int?      @map("verified_minutes")
-  callsAttended      Int       @default(0) @map("calls_attended")
+  callsAttended      Int?      @default(0) @map("calls_attended")
   adherence          Decimal?  @db.Decimal(5, 2)
   status             String
   observaciones      String?
-  createdAt          DateTime  @default(now()) @map("created_at")
+  createdAt          DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  interpreter   Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+  interpreter   Interpreter? @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
   qaScore       QAScore?
   accountId     Int?        @map("account_id")
   account       Account?    @relation(fields: [accountId], references: [id])
@@ -100,62 +105,65 @@ model ProductionLog {
   @@index([interpreterId, date])
   @@index([status])
   @@map("production_logs")
+  @@schema("public")
 }
 
 model QAScore {
-  id                  Int      @id @default(autoincrement())
-  productionLogId     Int      @unique @map("production_log_id")
-  interpreterId       Int      @map("interpreter_id")
-  auditDate           DateTime @map("audit_date")
+  id                  Int       @id @default(autoincrement())
+  productionLogId     Int?      @unique @map("production_log_id")
+  interpreterId       Int?      @map("interpreter_id")
+  auditDate           DateTime  @map("audit_date") @db.Timestamptz(6)
   auditor             String?
-  callDuration        Int?     @map("call_duration")
-  callType            String?  @map("call_type")
-  protocolScore       Decimal? @db.Decimal(5, 2) @map("protocol_score")
-  interpretationScore Decimal? @db.Decimal(5, 2) @map("interpretation_score")
-  languageScore       Decimal? @db.Decimal(5, 2) @map("language_score")
-  serviceScore        Decimal? @db.Decimal(5, 2) @map("service_score")
-  technicalScore      Decimal? @db.Decimal(5, 2) @map("technical_score")
-  totalScore          Decimal? @db.Decimal(5, 2) @map("total_score")
-  criticalError       Boolean  @default(false) @map("critical_error")
+  callDuration        Int?      @map("call_duration")
+  callType            String?   @map("call_type")
+  protocolScore       Decimal?  @db.Decimal(5, 2) @map("protocol_score")
+  interpretationScore Decimal?  @db.Decimal(5, 2) @map("interpretation_score")
+  languageScore       Decimal?  @db.Decimal(5, 2) @map("language_score")
+  serviceScore        Decimal?  @db.Decimal(5, 2) @map("service_score")
+  technicalScore      Decimal?  @db.Decimal(5, 2) @map("technical_score")
+  totalScore          Decimal?  @db.Decimal(5, 2) @map("total_score")
+  criticalError       Boolean?  @default(false) @map("critical_error")
   comentarios         String?
-  accionRequerida     String?  @map("accion_requerida")
-  createdAt           DateTime @default(now()) @map("created_at")
+  accionRequerida     String?   @map("accion_requerida")
+  createdAt           DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  productionLog ProductionLog @relation(fields: [productionLogId], references: [id], onDelete: Cascade)
-  interpreter   Interpreter   @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+  productionLog ProductionLog? @relation(fields: [productionLogId], references: [id], onDelete: Cascade)
+  interpreter   Interpreter?   @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
 
   @@index([auditDate])
   @@index([interpreterId])
   @@map("qa_scores")
+  @@schema("public")
 }
 
 model PayrollRecord {
-  id                String    @id @default(cuid())
+  id                String    @id @default(dbgenerated("(gen_random_uuid())::text"))
   periodStart       DateTime  @db.Date @map("period_start")
   periodEnd         DateTime  @db.Date @map("period_end")
-  interpreterId     Int       @map("interpreter_id")
+  interpreterId     Int?      @map("interpreter_id")
   totalMinutes      Int       @map("total_minutes")
   verifiedMinutes   Int?      @map("verified_minutes")
   grossTotal        Decimal   @db.Decimal(10, 2) @map("gross_total")
-  qualityBonus      Decimal   @default(0) @db.Decimal(10, 2) @map("quality_bonus")
+  qualityBonus      Decimal?  @default(0) @db.Decimal(10, 2) @map("quality_bonus")
   incentivesTotal   Decimal   @default(0) @db.Decimal(10, 2) @map("incentives_total")
-  penalidades       Decimal   @default(0) @db.Decimal(10, 2)
-  transferDeduction Decimal   @default(0) @db.Decimal(10, 2) @map("transfer_deduction")
+  penalidades       Decimal?  @default(0) @db.Decimal(10, 2) @map("penalidades")
+  transferDeduction Decimal?  @default(0) @db.Decimal(10, 2) @map("transfer_deduction")
   netTotal          Decimal   @db.Decimal(10, 2) @map("net_total")
-  status            String    @default("PENDING")
-  paymentDate       DateTime? @map("payment_date")
-  paidAt            DateTime? @map("paid_at")
+  status            String?   @default("Pendiente")
+  paymentDate       DateTime? @map("payment_date") @db.Timestamptz(6)
+  paidAt            DateTime? @map("paid_at") @db.Timestamptz(6)
   transactionReference String? @map("transaction_reference")
   reconciliationHash String?  @unique @map("reconciliation_hash")
-  createdAt         DateTime  @default(now()) @map("created_at")
+  createdAt         DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+  interpreter Interpreter? @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
 
   @@unique([interpreterId, periodStart, periodEnd])
   @@index([periodStart, periodEnd])
   @@index([interpreterId])
   @@index([status])
   @@map("payroll_records")
+  @@schema("public")
 }
 
 model RecruitmentCandidate {
@@ -167,96 +175,102 @@ model RecruitmentCandidate {
   fuente           String?
   englishLevel     String?   @map("english_level")
   speedtestMbps    Int?      @map("speedtest_mbps")
-  status           String    @default("Aplicante")
-  fechaPostulacion DateTime  @map("fecha_postulacion")
-  fechaEntrevista  DateTime? @map("fecha_entrevista")
+  status           String?   @default("Aplicante")
+  fechaPostulacion DateTime  @default(now()) @map("fecha_postulacion") @db.Timestamptz(6)
+  fechaEntrevista  DateTime? @map("fecha_entrevista") @db.Timestamptz(6)
   resultRoleplay   Int?      @map("result_roleplay")
-  fechaOferta      DateTime? @map("fecha_oferta")
-  fechaInicio      DateTime? @map("fecha_inicio")
+  fechaOferta      DateTime? @map("fecha_oferta") @db.Timestamptz(6)
+  fechaInicio      DateTime? @map("fecha_inicio") @db.Timestamptz(6)
   responsable      String?
   notas            String?
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  createdAt        DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([status])
   @@index([fechaPostulacion])
   @@map("recruitment_candidates")
+  @@schema("public")
 }
 
 model SystemConfig {
-  id          Int      @id @default(autoincrement())
-  key         String   @unique
+  id          Int       @id @default(autoincrement())
+  key         String    @unique
   value       String
   description String?
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  updatedBy   String?  @map("updated_by")
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?   @map("updated_by")
 
   @@map("system_configs")
+  @@schema("public")
 }
 
 model PayrateAuditLog {
-  id            Int      @id @default(autoincrement())
-  interpreterId Int      @map("interpreter_id")
-  oldRate       Decimal  @db.Decimal(10, 2) @map("old_rate")
-  newRate       Decimal  @db.Decimal(10, 2) @map("new_rate")
-  changedBy     String   @map("changed_by")
-  changedAt     DateTime @default(now()) @map("changed_at")
-  details       String?  @db.Text
+  id            Int       @id @default(autoincrement())
+  interpreterId Int?      @map("interpreter_id")
+  oldRate       Decimal?  @db.Decimal(10, 2) @map("old_rate")
+  newRate       Decimal   @db.Decimal(10, 2) @map("new_rate")
+  changedBy     String    @map("changed_by")
+  changedAt     DateTime? @default(now()) @map("changed_at") @db.Timestamptz(6)
+  details       String?   @db.Text
 
-  interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+  interpreter Interpreter? @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
 
   @@map("payrate_audit_log")
+  @@schema("public")
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
+  id        String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userId    String?   @map("user_id") @db.Uuid
   title     String
   message   String
-  type      String   @default("info")
-  isRead    Boolean  @default(false) @map("is_read")
+  type      String?   @default("info")
+  isRead    Boolean?  @default(false) @map("is_read")
   link      String?
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([userId])
   @@index([isRead])
   @@map("notifications")
+  @@schema("public")
 }
 
 model UserProfile {
-  id                 String    @id @default(uuid())
+  id                 String    @id @db.Uuid
   email              String    @unique
   displayName        String?   @map("display_name")
-  role               String    @default("interpreter")
+  role               String?   @default("interpreter")
   interpreterId      Int?      @map("interpreter_id") @unique
-  termsAcceptedAt    DateTime? @map("terms_accepted_at")
-  signatureDate      DateTime? @map("signature_date")
+  termsAcceptedAt    DateTime? @map("terms_accepted_at") @db.Timestamptz(6)
+  signatureDate      DateTime? @map("signature_date") @db.Timestamptz(6)
   bankName           String?   @map("bank_name")
   bankAccount        String?   @map("bank_account")
   bankAccountType    String?   @map("bank_account_type")
   bankCedula         String?   @map("bank_cedula")
   onboardingComplete Boolean   @default(false) @map("onboarding_complete")
-  createdAt          DateTime  @default(now()) @map("created_at")
+  createdAt          DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  interpreter   Interpreter? @relation(fields: [interpreterId], references: [id])
+  interpreter Interpreter? @relation(fields: [interpreterId], references: [id])
 
   @@map("user_profiles")
+  @@schema("public")
 }
 
 model CallSession {
   id              Int       @id @default(autoincrement())
-  interpreterId   Int       @map("interpreter_id")
-  startedAt       DateTime  @default(now()) @map("started_at")
-  endedAt         DateTime? @map("ended_at")
+  interpreterId   Int?      @map("interpreter_id")
+  startedAt       DateTime? @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt         DateTime? @map("ended_at") @db.Timestamptz(6)
   durationSeconds Int?      @map("duration_seconds")
   tariffSnapshot  Decimal   @db.Decimal(10, 2) @map("tariff_snapshot")
   callCost        Decimal?  @db.Decimal(10, 2) @map("call_cost")
   notes           String?
-  createdAt       DateTime  @default(now()) @map("created_at")
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  interpreter Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+  interpreter Interpreter? @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
 
   @@index([interpreterId])
   @@index([startedAt])
   @@map("call_sessions")
+  @@schema("public")
 }

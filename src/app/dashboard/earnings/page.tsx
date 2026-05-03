@@ -116,8 +116,8 @@ export default async function EarningsPage() {
                   <td className="p-6 text-gray-400">{(record.totalMinutes / 60).toFixed(2)}h</td>
                   <td className="p-6 text-gray-400">RD${record.grossTotal.toString()}</td>
                   <td className="p-6">
-                    <span className="text-green-400 text-xs">+RD$${record.qualityBonus.toString()}</span>
-                    <span className="text-red-400 text-xs ml-2">-RD$${record.penalidades.toString()}</span>
+                    <span className="text-green-400 text-xs">+RD$${(record.qualityBonus || 0).toString()}</span>
+                    <span className="text-red-400 text-xs ml-2">-RD$${(record.penalidades || 0).toString()}</span>
                   </td>
                   <td className="p-6 text-white font-bold">RD${record.netTotal.toString()}</td>
                   <td className="p-6">

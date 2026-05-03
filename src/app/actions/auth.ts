@@ -95,14 +95,14 @@ export async function register(formData: FormData) {
           email,
           displayName: name || email.split('@')[0],
           role: role,
-          interpreterId: interpreter?.id || null,
+          interpreterId: interpreter?.id ?? null,
         },
         create: {
           id: data.user.id,
           email,
           displayName: name || email.split('@')[0],
           role: role,
-          interpreterId: interpreter?.id || null,
+          interpreterId: interpreter?.id ?? null,
         }
       });
       
@@ -131,9 +131,22 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
   if (!user) return null;
 
   try {
-    const profile = await prisma.userProfile.findUnique({
+    const profile: any = await (prisma.userProfile as any).findUnique({
       where: { id: user.id },
-      include: { 
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        interpreterId: true,
+        displayName: true,
+        termsAcceptedAt: true,
+        signatureDate: true,
+        bankName: true,
+        bankAccount: true,
+        bankAccountType: true,
+        bankCedula: true,
+        onboardingComplete: true,
+        createdAt: true,
         interpreter: {
           select: {
             id: true,
@@ -180,7 +193,7 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
       bank_account_type: profile.bankAccountType,
       bank_cedula: profile.bankCedula,
       onboarding_complete: profile.onboardingComplete || false,
-      created_at: profile.createdAt.toISOString(),
+      created_at: profile.createdAt?.toISOString() || new Date().toISOString(),
     };
   } catch (error: any) {
     console.error('❌ AUTH: Prisma profile fetch failed:', error.message);

@@ -95,7 +95,7 @@ export const PayrollRecordSchema = z.object({
   penalidades: z.number().nonnegative().default(0),
   transferDeduction: z.number().nonnegative().default(0),
   netTotal: z.number().nonnegative(),
-  status: z.enum(['PENDING', 'APPROVED', 'PAID']).default('PENDING'),
+  status: z.string().default('Pendiente'),
   paymentDate: z.coerce.date().optional().nullable(),
   paidAt: z.coerce.date().optional().nullable(),
   transactionReference: z.string().optional().nullable(),

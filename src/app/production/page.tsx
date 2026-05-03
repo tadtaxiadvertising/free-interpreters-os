@@ -64,7 +64,7 @@ export default async function ProductionPage() {
           <p className="text-sm text-gray-500 font-medium">Billed Minutes</p>
           <div className="flex items-center gap-3 mt-2">
             <h3 className="text-3xl font-bold text-white">
-              {logs.reduce((acc, log) => acc + log.interpretedMinutes, 0).toLocaleString()}
+              {logs.reduce((acc, log) => acc + (log.interpretedMinutes || 0), 0).toLocaleString()}
             </h3>
             <span className="text-xs font-bold text-green-400 bg-green-400/10 px-2 py-1 rounded-full">Total</span>
           </div>
@@ -74,7 +74,7 @@ export default async function ProductionPage() {
           <p className="text-sm text-gray-500 font-medium">Calls Attended</p>
           <div className="flex items-center gap-3 mt-2">
             <h3 className="text-3xl font-bold text-white">
-              {logs.reduce((acc, log) => acc + log.callsAttended, 0).toLocaleString()}
+              {logs.reduce((acc, log) => acc + (log.callsAttended || 0), 0).toLocaleString()}
             </h3>
             <span className="text-xs font-bold text-purple-400 bg-purple-400/10 px-2 py-1 rounded-full">Total</span>
           </div>
@@ -110,9 +110,9 @@ export default async function ProductionPage() {
                 <td className="py-6 px-8">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-400 font-bold border border-white/5">
-                      {log.interpreter.name.charAt(0)}
+                      {log.interpreter?.name?.charAt(0) || '?'}
                     </div>
-                    <p className="font-bold text-white">{log.interpreter.name}</p>
+                    <p className="font-bold text-white">{log.interpreter?.name || 'Unknown'}</p>
                   </div>
                 </td>
                 <td className="py-6 px-4 text-gray-400 text-sm">
