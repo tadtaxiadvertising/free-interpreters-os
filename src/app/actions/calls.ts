@@ -146,3 +146,62 @@ export async function getActiveCall(): Promise<ActionResult<any>> {
   }
 }
 
+export async function addManualCall(formData: FormData): Promise<ActionResult<any>> {
+  const supabase = await createClient();
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+
+  // Verify admin status
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (profile?.role !== 'admin') {
+    return { success: false, error: 'Unauthorized', code: 'UNAUTHORIZED' };
+  }
+
+  const interpreterId = parseInt(formData.get('interpreterId') as string);
+  const startedAt = new Date(formData.get('startedAt') as string);
+  const durationMinutes = parseFloat(formData.get('durationMinutes') as string);
+  const notes = formData.get('notes') as string;
+
+  if (isNaN(interpreterId) || isNaN(durationMinutes) || !startedAt) {
+    return { success: false, error: 'Invalid input data', code: 'VALIDATION_ERROR' };
+  }
+
+  try {
+    const interpreter = await db.interpreter.findUnique({
+      where: { id: interpreterId },
+      select: { tariffPerMinute: true }
+    });
+
+    if (!interpreter) {
+      return { success: false, error: 'Interpreter not found', code: 'NOT_FOUND' };
+    }
+
+    const durationSeconds = Math.round(durationMinutes * 60);
+    const endedAt = new Date(startedAt.getTime() + durationSeconds * 1000);
+    const callCost = (durationSeconds / 60) * Number(interpreter.tariffPerMinute);
+
+    const session = await db.callSession.create({
+      data: {
+        interpreterId,
+        startedAt,
+        endedAt,
+        durationSeconds,
+        tariffSnapshot: interpreter.tariffPerMinute,
+        callCost,
+        notes: notes || 'Manual entry by Administrator',
+      }
+    });
+
+    revalidatePath('/admin/calls');
+    return { success: true, data: session };
+  } catch (error: any) {
+    console.error('Error adding manual call:', error.message);
+    return { success: false, error: 'Error adding manual call', code: 'INTERNAL_ERROR' };
+  }
+}

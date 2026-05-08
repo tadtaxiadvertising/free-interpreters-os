@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ManualCallForm from './ManualCallForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,23 +45,31 @@ export default async function AdminCallsPage() {
     .order('started_at', { ascending: false })
     .limit(50);
 
-  // Fetch interpreter names
+  // Fetch all interpreters for the manual entry form
+  const { data: allInterpreters } = await supabase
+    .from('interpreters')
+    .select('id, name')
+    .order('name');
+
   const interpreterIds = [...new Set(calls?.map(c => c.interpreter_id) || [])];
-  const { data: interpreters } = await supabase
+  const { data: activeInterpreters } = await supabase
     .from('interpreters')
     .select('id, name')
     .in('id', interpreterIds.length > 0 ? interpreterIds : [0]);
 
-  const nameMap = new Map(interpreters?.map(i => [i.id, i.name]) || []);
+  const nameMap = new Map((allInterpreters || []).map(i => [i.id, i.name]));
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      <header>
-        <div className="flex items-center gap-3 mb-2">
-          <Phone size={28} className="text-green-400" />
-          <h2 className="text-3xl font-bold text-white">Call History</h2>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <Phone size={28} className="text-green-400" />
+            <h2 className="text-3xl font-bold text-white">Call History</h2>
+          </div>
+          <p className="text-gray-400">Complete call log with server-computed billing. All costs are immutable.</p>
         </div>
-        <p className="text-gray-400">Complete call log with server-computed billing. All costs are immutable.</p>
+        <ManualCallForm interpreters={allInterpreters || []} />
       </header>
 
       <div className="glass rounded-3xl p-8">

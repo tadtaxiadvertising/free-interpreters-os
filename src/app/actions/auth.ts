@@ -219,7 +219,8 @@ export async function requestPasswordReset(formData: FormData) {
   
   // Robust origin detection for Server Actions
   const headersList = await (await import('next/headers')).headers();
-  const host = headersList.get('host');
+  const forwardedHost = headersList.get('x-forwarded-host');
+  const host = forwardedHost || headersList.get('host');
   const proto = headersList.get('x-forwarded-proto') || 'https';
   const origin = host ? `${proto}://${host}` : headersList.get('origin') || '';
 
