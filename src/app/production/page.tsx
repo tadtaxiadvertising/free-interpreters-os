@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { 
   Clock, 
   Search, 
@@ -44,10 +45,13 @@ export default async function ProductionPage() {
           <h2 className="text-3xl font-bold text-white">Production Logs</h2>
           <p className="text-gray-400">Daily connection metrics and call statistics</p>
         </div>
-        <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-2xl font-bold transition-all glow">
+        <Link 
+          href="/admin/production/manual"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-2xl font-bold transition-all glow"
+        >
           <Plus size={20} />
           Log Session
-        </button>
+        </Link>
       </header>
 
       {/* Production Metrics */}

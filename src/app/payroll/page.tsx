@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { 
   DollarSign, 
   Search, 
@@ -9,7 +10,8 @@ import {
   CheckCircle2,
   AlertCircle,
   TrendingUp,
-  Download
+  Download,
+  Clock
 } from 'lucide-react';
 import prisma from '@/lib/prisma';
 import { cn } from '@/lib/utils';
@@ -47,6 +49,12 @@ export default async function PayrollPage() {
           <p className="text-gray-400">Calculate and manage interpreter payments</p>
         </div>
         <div className="flex gap-4">
+          <Link 
+            href="/admin/production/manual"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl text-sm font-bold hover:bg-blue-600/30 transition-all"
+          >
+            <Clock size={16} /> Registro Manual
+          </Link>
           <ExportPayrollButton data={records} />
           <GeneratePayrollButton />
         </div>

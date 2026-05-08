@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   Trophy,
   Award,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/types';
@@ -36,8 +37,10 @@ const adminMenu: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Command Center', href: '/admin', exact: true },
   { icon: Users, label: 'Interpreter Roster', href: '/interpreters' },
   { icon: UserPlus, label: 'Recruitment', href: '/recruitment' },
+  { icon: Clock, label: 'Production Logs', href: '/production' },
   { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
   { icon: DollarSign, label: 'Payroll & Rates', href: '/payroll' },
+  { icon: Clock, label: 'Registro Manual', href: '/admin/production/manual' },
   { icon: Settings, label: 'System Settings', href: '/settings' },
 ];
 

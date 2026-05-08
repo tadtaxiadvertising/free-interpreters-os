@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import {
   Users, Phone, DollarSign, Activity,
-  BarChart3, TrendingUp, ChevronRight, Trophy
+  BarChart3, TrendingUp, ChevronRight, Trophy, Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import prismaClient from '@/lib/prisma';
@@ -324,6 +324,15 @@ export default async function AdminDashboard() {
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 gap-4">
+            <a href="/admin/production/manual" className="glass p-5 rounded-3xl border border-white/5 hover:border-blue-500/30 transition-all group flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+                  <Clock size={18} />
+                </div>
+                <span className="text-white font-bold text-sm">Registro Manual</span>
+              </div>
+              <ChevronRight size={16} className="text-gray-600 group-hover:text-white transition-colors" />
+            </a>
             <a href="/payroll" className="glass p-5 rounded-3xl border border-white/5 hover:border-indigo-500/30 transition-all group flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
