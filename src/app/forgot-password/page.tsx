@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Mail, AlertCircle, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Mail, AlertCircle, Loader2, ArrowLeft, CheckCircle2, Users, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { requestPasswordReset } from '@/app/actions/auth';
 
@@ -66,6 +66,23 @@ export default function ForgotPasswordPage() {
             </div>
           ) : (
             <>
+              <div className="flex bg-white/5 rounded-xl p-1 mb-8">
+                <button
+                  type="button"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all bg-blue-500/20 text-blue-400 shadow-sm"
+                >
+                  <Users size={16} />
+                  Interpreter
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                >
+                  <ShieldAlert size={16} />
+                  Administrator
+                </button>
+              </div>
+
               <h2 className="text-xl font-bold text-white mb-2">Reset Password</h2>
               <p className="text-gray-400 text-sm mb-8">
                 Enter your email address and we'll send you a link to reset your password.

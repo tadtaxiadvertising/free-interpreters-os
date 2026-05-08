@@ -216,7 +216,12 @@ export async function requestPasswordReset(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const origin = (await (await import('next/headers')).headers()).get('origin') || '';
+  
+  // Robust origin detection for Server Actions
+  const headersList = await (await import('next/headers')).headers();
+  const host = headersList.get('host');
+  const proto = headersList.get('x-forwarded-proto') || 'https';
+  const origin = host ? `${proto}://${host}` : headersList.get('origin') || '';
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/auth/callback?next=/reset-password`,
