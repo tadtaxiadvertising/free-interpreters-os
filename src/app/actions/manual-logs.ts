@@ -7,9 +7,10 @@ export async function createManualLog(data: {
   date: string; // YYYY-MM-DD
   startTime: string; // HH:mm
   endTime: string; // HH:mm
+  totalMinutes: number;
 }) {
   try {
-    const { interpreterId, date, startTime, endTime } = data;
+    const { interpreterId, date, startTime, endTime, totalMinutes } = data;
 
     // Validate Interpreter
     const interpreter = await prisma.interpreter.findUnique({
@@ -36,10 +37,6 @@ export async function createManualLog(data: {
       return { success: false, error: "La hora de fin debe ser mayor a la hora de inicio." };
     }
 
-    // Calculate Minutes
-    const diffMs = endDateTime.getTime() - startDateTime.getTime();
-    const interpretedMinutes = Math.floor(diffMs / 60000);
-
     // Create Production Log
     const newLog = await prisma.productionLog.create({
       data: {
@@ -47,9 +44,9 @@ export async function createManualLog(data: {
         date: logDate,
         loginTime: startDateTime,
         logoutTime: endDateTime,
-        interpretedMinutes,
-        verifiedMinutes: interpretedMinutes, // For Payroll Engine
-        status: "Manual",
+        interpretedMinutes: totalMinutes,
+        verifiedMinutes: totalMinutes, // For Payroll Engine
+        status: "Completed",
         observaciones: "Entry Type: MANUAL",
       },
     });

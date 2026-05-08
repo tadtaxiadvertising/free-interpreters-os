@@ -4,8 +4,6 @@ import { useState, useEffect, useMemo, useTransition, use } from "react";
 import { createManualLog, getInterpretersForSelect } from "@/app/actions/manual-logs";
 import { Clock, Calendar, CheckCircle2, AlertCircle, Search, Loader2, User } from "lucide-react";
 
-// In Next.js 15+ & React 19, params in dynamic routes should be awaited. 
-// Since this is a static route, we can just define the type if there were any params.
 export default function ManualLogPage(props: { params: Promise<any> }) {
   const params = use(props.params);
   
@@ -55,14 +53,21 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!interpreterId || !date || !startTime || !endTime) {
-      setMessage({ type: "error", text: "Por favor completa todos los campos." });
+    if (!interpreterId || !date || !startTime || !endTime || livePreviewMinutes <= 0) {
+      setMessage({ type: "error", text: "Por favor completa todos los campos correctamente." });
       return;
     }
 
     startTransition(async () => {
       setMessage(null);
-      const res = await createManualLog({ interpreterId, date, startTime, endTime });
+      const res = await createManualLog({ 
+        interpreterId, 
+        date, 
+        startTime, 
+        endTime, 
+        totalMinutes: livePreviewMinutes 
+      });
+      
       if (res.success) {
         setMessage({ type: "success", text: "Registro manual creado exitosamente. Los minutos se han asignado a Nómina." });
         // Reset form
@@ -78,54 +83,57 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-8">
+    <div className="max-w-6xl mx-auto p-6 space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-white">Registro Manual de Tiempos</h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="text-slate-400 mt-2">
           Agrega horas interpretadas manualmente. Este registro se sincronizará automáticamente con el Payroll Engine.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <form onSubmit={handleSubmit} className="md:col-span-2 space-y-6 bg-card border border-border p-6 rounded-xl shadow-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-6 bg-slate-900/50 border border-slate-800 p-6 rounded-xl shadow-lg">
           
           {/* Interpreter Selection */}
           <div className="space-y-3">
-            <label className="text-sm font-medium text-white flex items-center gap-2">
-              <User className="w-4 h-4 text-primary" />
+            <label className="text-sm font-medium text-slate-200 flex items-center gap-2">
+              <User className="w-4 h-4 text-blue-500" />
               Seleccionar Intérprete
             </label>
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-3 h-5 w-5 text-slate-500" />
               <input
                 type="text"
                 placeholder="Buscar por nombre o ID..."
-                className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
             
             {loadingInitial ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+              <div className="flex items-center gap-2 text-sm text-slate-400 py-2">
                 <Loader2 className="w-4 h-4 animate-spin" /> Cargando intérpretes...
               </div>
             ) : (
-              <div className="max-h-48 overflow-y-auto border border-border rounded-md bg-background">
+              <div className="max-h-60 overflow-y-auto border border-slate-700 rounded-lg bg-slate-950 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
                 {filteredInterpreters.length === 0 ? (
-                  <div className="p-3 text-sm text-muted-foreground">No se encontraron resultados.</div>
+                  <div className="p-4 text-sm text-slate-400 text-center">No se encontraron resultados.</div>
                 ) : (
                   filteredInterpreters.map((int) => (
                     <button
                       type="button"
                       key={int.id}
                       onClick={() => setInterpreterId(int.id)}
-                      className={`w-full text-left px-4 py-2 hover:bg-primary/10 transition-colors text-sm ${
-                        interpreterId === int.id ? "bg-primary/20 border-l-2 border-primary text-white font-medium" : "text-gray-300"
+                      className={`w-full text-left px-4 py-3 hover:bg-slate-800 transition-colors flex items-center justify-between border-b border-slate-800/50 last:border-0 ${
+                        interpreterId === int.id ? "bg-slate-800 border-l-4 border-l-blue-500" : ""
                       }`}
                     >
-                      <span className="font-mono text-xs text-primary mr-2">[{int.externalId}]</span>
-                      {int.name}
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-xs bg-slate-800 text-blue-400 px-2 py-1 rounded-md">[{int.externalId}]</span>
+                        <span className={`text-sm ${interpreterId === int.id ? "text-white font-medium" : "text-slate-300"}`}>{int.name}</span>
+                      </div>
+                      {interpreterId === int.id && <CheckCircle2 className="w-4 h-4 text-blue-500" />}
                     </button>
                   ))
                 )}
@@ -133,64 +141,69 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Date */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-white flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-primary" />
-                Fecha
-              </label>
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-slate-200 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-blue-500" />
+              Fecha
+            </label>
+            <div className="relative">
               <input
                 type="date"
                 required
-                className="w-full px-3 py-2 bg-background border border-border rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all [&::-webkit-calendar-picker-indicator]:invert-[0.8]"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
               />
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Start Time */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-white flex items-center gap-2">
-                <Clock className="w-4 h-4 text-primary" />
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-slate-200 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-blue-500" />
                 Hora Inicio
               </label>
-              <input
-                type="time"
-                required
-                className="w-full px-3 py-2 bg-background border border-border rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  type="time"
+                  required
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all [&::-webkit-calendar-picker-indicator]:invert-[0.8]"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                />
+              </div>
             </div>
 
             {/* End Time */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-white flex items-center gap-2">
-                <Clock className="w-4 h-4 text-primary" />
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-slate-200 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-blue-500" />
                 Hora Fin
               </label>
-              <input
-                type="time"
-                required
-                className="w-full px-3 py-2 bg-background border border-border rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  type="time"
+                  required
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all [&::-webkit-calendar-picker-indicator]:invert-[0.8]"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
           {message && (
-            <div className={`p-4 rounded-md flex items-start gap-3 ${message.type === "success" ? "bg-green-500/10 border border-green-500/20 text-green-500" : "bg-red-500/10 border border-red-500/20 text-red-500"}`}>
+            <div className={`p-4 rounded-lg flex items-start gap-3 mt-4 ${message.type === "success" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
               {message.type === "success" ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
-              <p className="text-sm">{message.text}</p>
+              <p className="text-sm font-medium">{message.text}</p>
             </div>
           )}
 
           <button
             type="submit"
-            disabled={isPending || !interpreterId}
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2 px-4 rounded-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isPending || !interpreterId || livePreviewMinutes <= 0}
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 px-4 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
           >
             {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
             {isPending ? "Registrando..." : "Registrar Tiempo Manual"}
@@ -199,41 +212,48 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
 
         {/* Live Preview Panel */}
         <div className="space-y-6">
-          <div className="bg-card border border-border rounded-xl p-6 shadow-sm sticky top-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Vista Previa</h3>
+          <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 shadow-lg sticky top-6">
+            <h3 className="text-lg font-semibold text-white mb-6 border-b border-slate-800 pb-3 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-blue-500" /> Vista Previa
+            </h3>
             
-            <div className="space-y-4">
-              <div className="flex justify-between items-center pb-4 border-b border-border">
-                <span className="text-muted-foreground text-sm">Intérprete</span>
-                <span className="text-white font-medium text-right max-w-[150px] truncate">
+            <div className="space-y-5">
+              <div className="flex flex-col gap-1">
+                <span className="text-slate-500 text-xs uppercase tracking-wider font-semibold">Intérprete</span>
+                <span className="text-slate-200 font-medium truncate">
                   {selectedInterpreter ? selectedInterpreter.name : "No seleccionado"}
                 </span>
               </div>
               
-              <div className="flex justify-between items-center pb-4 border-b border-border">
-                <span className="text-muted-foreground text-sm">Fecha</span>
-                <span className="text-white font-medium">{date || "--"}</span>
+              <div className="flex flex-col gap-1">
+                <span className="text-slate-500 text-xs uppercase tracking-wider font-semibold">Fecha</span>
+                <span className="text-slate-200 font-medium">{date || "--"}</span>
               </div>
               
-              <div className="flex justify-between items-center pb-4 border-b border-border">
-                <span className="text-muted-foreground text-sm">Horario</span>
-                <span className="text-white font-medium">
+              <div className="flex flex-col gap-1">
+                <span className="text-slate-500 text-xs uppercase tracking-wider font-semibold">Horario</span>
+                <span className="text-slate-200 font-medium">
                   {startTime || "--"} - {endTime || "--"}
                 </span>
               </div>
               
-              <div className="pt-2">
-                <span className="text-muted-foreground text-sm block mb-2">Total a Registrar</span>
-                <div className="text-4xl font-bold text-primary flex items-end gap-2">
-                  {livePreviewMinutes} <span className="text-lg font-normal text-muted-foreground mb-1">min</span>
+              <div className="pt-4 mt-2 border-t border-slate-800">
+                <span className="text-slate-500 text-xs uppercase tracking-wider font-semibold block mb-2">Total a Registrar</span>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-5xl font-bold ${livePreviewMinutes > 0 ? "text-emerald-400" : "text-slate-600"}`}>
+                    {livePreviewMinutes}
+                  </span>
+                  <span className={`text-lg font-medium ${livePreviewMinutes > 0 ? "text-emerald-500/70" : "text-slate-600/70"}`}>
+                    min
+                  </span>
                 </div>
               </div>
               
               {livePreviewMinutes > 0 && (
-                <div className="mt-4 bg-primary/10 border border-primary/20 p-3 rounded-lg flex gap-2">
-                  <AlertCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <p className="text-xs text-primary/90">
-                    Se asignarán {livePreviewMinutes} minutos a <span className="font-mono">verifiedMinutes</span> para su procesamiento en nómina.
+                <div className="mt-6 bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-lg flex gap-3 items-start shadow-inner">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                  <p className="text-sm text-emerald-100/90 leading-relaxed">
+                    Se asignarán <strong className="text-emerald-400">{livePreviewMinutes} minutos</strong> a <span className="font-mono bg-emerald-950/50 px-1 py-0.5 rounded text-emerald-300">verifiedMinutes</span> para su procesamiento en nómina.
                   </p>
                 </div>
               )}
