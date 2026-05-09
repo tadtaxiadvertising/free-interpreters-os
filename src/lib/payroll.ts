@@ -51,6 +51,7 @@ export async function calculatePayroll(
     select: {
       id: true,
       interpretedMinutes: true,
+      verifiedMinutes: true, // Prioritized over interpretedMinutes when present
       accountId: true
     }
   });
@@ -88,8 +89,11 @@ export async function calculatePayroll(
     }
   });
 
-  // Cálculos de minutos
-  const importedMinutes = (productionLogs || []).reduce((sum: number, log: any) => sum + log.interpretedMinutes, 0);
+  // Cálculos de minutos — prioriza verifiedMinutes sobre interpretedMinutes
+  const importedMinutes = (productionLogs || []).reduce((sum: number, log: any) => {
+    const effectiveMinutes = log.verifiedMinutes != null ? log.verifiedMinutes : log.interpretedMinutes;
+    return sum + effectiveMinutes;
+  }, 0);
   const realtimeMinutes = Math.round((callSessions || []).reduce((sum: number, call: any) => sum + (call.durationSeconds || 0), 0) / 60);
   const totalMinutes = importedMinutes + realtimeMinutes;
 
@@ -105,16 +109,22 @@ export async function calculatePayroll(
         ratePerMinute = parseFloat(specificRate.tariffPerHour.toString()) / 60;
       }
     }
-    importedCost += log.interpretedMinutes * ratePerMinute;
+    // Use verifiedMinutes when available for cost calculation
+    const effectiveMinutes = log.verifiedMinutes != null ? log.verifiedMinutes : log.interpretedMinutes;
+    importedCost += effectiveMinutes * ratePerMinute;
   }
 
   const realtimeCost = (callSessions || []).reduce((sum: number, call: any) => sum + parseFloat(call.callCost?.toString() || '0'), 0);
   const grossTotal = importedCost + realtimeCost;
 
   // Bonus de calidad: +5% si promedio QA >= 90%
+  // Auto-Fail Rule: if criticalError === true, QA score counts as 0.00
   let qualityBonus = 0;
   if (qaScores && qaScores.length > 0) {
-    const avgQA = qaScores.reduce((sum: number, qa: any) => sum + (parseFloat(qa.totalScore?.toString()) || 0), 0) / qaScores.length;
+    const avgQA = qaScores.reduce((sum: number, qa: any) => {
+      const score = qa.criticalError ? 0 : (parseFloat(qa.totalScore?.toString()) || 0);
+      return sum + score;
+    }, 0) / qaScores.length;
     if (avgQA >= 90) {
       qualityBonus = grossTotal * 0.05;
     }

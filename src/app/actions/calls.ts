@@ -152,12 +152,11 @@ export async function addManualCall(formData: FormData): Promise<ActionResult<an
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
-  // Verify admin status
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  // Verify admin status via Prisma (eliminates DNS risk from supabase.from())
+  const profile = await db.userProfile.findUnique({
+    where: { id: user.id },
+    select: { role: true }
+  });
 
   if (profile?.role !== 'admin') {
     return { success: false, error: 'Unauthorized', code: 'UNAUTHORIZED' };
@@ -168,7 +167,7 @@ export async function addManualCall(formData: FormData): Promise<ActionResult<an
   const durationMinutes = parseFloat(formData.get('durationMinutes') as string);
   const notes = formData.get('notes') as string;
 
-  if (isNaN(interpreterId) || isNaN(durationMinutes) || !startedAt) {
+  if (isNaN(interpreterId) || isNaN(durationMinutes) || !startedAt || isNaN(startedAt.getTime())) {
     return { success: false, error: 'Invalid input data', code: 'VALIDATION_ERROR' };
   }
 

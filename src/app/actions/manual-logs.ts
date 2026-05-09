@@ -1,6 +1,10 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
+import type { ActionResult } from "@/lib/types";
+
+const db = prisma as any;
 
 export async function createManualLog(data: {
   interpreterId: number;
@@ -8,7 +12,20 @@ export async function createManualLog(data: {
   startTime: string; // HH:mm
   endTime: string; // HH:mm
   totalMinutes: number;
-}) {
+}): Promise<ActionResult<any>> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+
+  // Verify admin role via Prisma
+  const profile = await db.userProfile.findUnique({
+    where: { id: user.id },
+    select: { role: true }
+  });
+  if (profile?.role !== 'admin') {
+    return { success: false, error: 'Admin access required', code: 'UNAUTHORIZED' };
+  }
+
   try {
     const { interpreterId, date, startTime, endTime, totalMinutes } = data;
 
@@ -58,7 +75,11 @@ export async function createManualLog(data: {
   }
 }
 
-export async function getInterpretersForSelect() {
+export async function getInterpretersForSelect(): Promise<ActionResult<any[]>> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+
   try {
     const interpreters = await prisma.interpreter.findMany({
       select: {

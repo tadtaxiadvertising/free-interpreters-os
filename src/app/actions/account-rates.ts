@@ -27,6 +27,10 @@ export async function createAccount(name: string, description?: string): Promise
 }
 
 export async function updateAccount(id: number, name: string, description?: string): Promise<ActionResult<any>> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+
   try {
     const account = await db.account.update({
       where: { id },
@@ -41,6 +45,10 @@ export async function updateAccount(id: number, name: string, description?: stri
 }
 
 export async function deleteAccount(id: number): Promise<ActionResult<any>> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+
   try {
     await db.account.delete({
       where: { id }
@@ -53,10 +61,20 @@ export async function deleteAccount(id: number): Promise<ActionResult<any>> {
   }
 }
 
-export async function getAccounts() {
-  return await db.account.findMany({
-    orderBy: { name: 'asc' }
-  });
+export async function getAccounts(): Promise<ActionResult<any[]>> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+
+  try {
+    const accounts = await db.account.findMany({
+      orderBy: { name: 'asc' }
+    });
+    return { success: true, data: accounts };
+  } catch (error: any) {
+    console.error('Error fetching accounts:', error.message);
+    return { success: false, error: 'Error fetching accounts', code: 'INTERNAL_ERROR' };
+  }
 }
 
 export async function setInterpreterAccountRate(

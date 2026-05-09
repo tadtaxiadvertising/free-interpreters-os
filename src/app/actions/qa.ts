@@ -4,22 +4,34 @@ import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { createNotification } from './notifications';
+import { z } from 'zod';
 
 const db = prisma as any;
 
-export type QAScoreInput = {
-  productionLogId: number;
-  interpreterId: number;
-  protocolScore: number;      // 20%
-  interpretationScore: number; // 40%
-  languageScore: number;       // 20%
-  serviceScore: number;        // 10%
-  technicalScore: number;      // 10%
-  criticalError: boolean;      // Auto-fail
-  comments?: string;
-};
+// Zod schema for QA evaluation input validation
+const QAEvaluationSchema = z.object({
+  productionLogId: z.number().positive(),
+  interpreterId: z.number().positive(),
+  protocolScore: z.number().min(0).max(100),
+  interpretationScore: z.number().min(0).max(100),
+  languageScore: z.number().min(0).max(100),
+  serviceScore: z.number().min(0).max(100),
+  technicalScore: z.number().min(0).max(100),
+  criticalError: z.boolean(),
+  comments: z.string().optional(),
+});
 
-export async function submitQAEvaluation(input: QAScoreInput) {
+export type QAScoreInput = z.infer<typeof QAEvaluationSchema>;
+
+export async function submitQAEvaluation(rawInput: QAScoreInput) {
+  // Validate input with Zod
+  const parseResult = QAEvaluationSchema.safeParse(rawInput);
+  if (!parseResult.success) {
+    const fieldErrors = parseResult.error.flatten().fieldErrors;
+    return { success: false, error: `Validation failed: ${JSON.stringify(fieldErrors)}` };
+  }
+  const input = parseResult.data;
+
   const supabase = await createClient();
 
   // Note: Total score calculation is handled by database trigger trg_calculate_qa_total

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { ActionResult } from '@/lib/types';
+import { createClient } from '@/lib/supabase/server';
 
 const db = prisma as any;
 
@@ -10,6 +11,23 @@ const db = prisma as any;
  * ACTION: Update a system configuration key
  */
 export async function updateSystemConfig(key: string, value: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+
+  // Verify admin role via Prisma
+  const profile = await db.userProfile.findUnique({
+    where: { id: user.id },
+    select: { role: true }
+  });
+  if (profile?.role !== 'admin') {
+    return { success: false, error: 'Admin access required', code: 'UNAUTHORIZED' };
+  }
+
+  if (!key || typeof key !== 'string' || key.length > 100) {
+    return { success: false, error: 'Invalid config key', code: 'VALIDATION_ERROR' };
+  }
+
   try {
     await db.systemConfig.upsert({
       where: { key },
