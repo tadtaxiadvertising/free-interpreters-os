@@ -4,23 +4,34 @@ import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 
+import { z } from 'zod';
+import type { ActionResult } from '@/lib/types';
+
 const db = prisma as any;
 
-export type ProfileUpdateInput = {
-  phone?: string;
-  country?: string;
-  bankName?: string;
-  bankAccount?: string;
-  bankAccountType?: string;
-  bankCedula?: string;
-  notes?: string;
-};
+const ProfileUpdateSchema = z.object({
+  phone: z.string().optional(),
+  country: z.string().optional(),
+  bankName: z.string().optional(),
+  bankAccount: z.string().optional(),
+  bankAccountType: z.string().optional(),
+  bankCedula: z.string().optional(),
+  notes: z.string().optional(),
+});
 
-export async function updateInterpreterProfile(input: ProfileUpdateInput) {
+export type ProfileUpdateInput = z.infer<typeof ProfileUpdateSchema>;
+
+export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Promise<ActionResult<any>> {
+  const parseResult = ProfileUpdateSchema.safeParse(rawInput);
+  if (!parseResult.success) {
+    return { success: false, error: 'Invalid profile data', code: 'VALIDATION_ERROR' };
+  }
+  const input = parseResult.data;
+
   const supabase = await createClient();
   
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Unauthorized' };
+  if (!user) return { success: false, error: 'Unauthorized', code: 'UNAUTHORIZED' };
 
   try {
     // 1. Update UserProfile via Prisma
