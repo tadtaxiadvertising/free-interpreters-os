@@ -31,6 +31,8 @@ model Interpreter {
   monthlyGoal        Int      @default(2000) @map("monthly_goal")
   paymentFrequency   String?  @default("Monthly") @map("payment_frequency")
   paymentDay         String?  @default("1") @map("payment_day")
+  shiftStart         String?  @default("09:00") @map("shift_start")
+  shiftEnd           String?  @default("17:00") @map("shift_end")
   createdAt          DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
