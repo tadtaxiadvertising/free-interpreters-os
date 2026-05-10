@@ -38,6 +38,7 @@ const adminMenu: MenuItem[] = [
   { icon: Users, label: 'Interpreter Roster', href: '/interpreters' },
   { icon: UserPlus, label: 'Recruitment', href: '/recruitment' },
   { icon: Clock, label: 'Production Logs', href: '/production' },
+  { icon: Clock, label: 'Calendario de Metas', href: '/admin/calendar' },
   { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
   { icon: DollarSign, label: 'Payroll & Rates', href: '/payroll' },
   { icon: Clock, label: 'Registro Manual', href: '/admin/production/manual' },
@@ -46,6 +47,7 @@ const adminMenu: MenuItem[] = [
 
 const interpreterMenu: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Mi Dashboard', href: '/dashboard', exact: true },
+  { icon: Clock, label: 'Calendario de Metas', href: '/dashboard/calendar' },
   { icon: Trophy, label: 'Mi Ranking', href: '/dashboard/ranking' },
   { icon: DollarSign, label: 'Mis Ganancias', href: '/dashboard/earnings' },
   { icon: Settings, label: 'Configuración', href: '/dashboard/settings' },
