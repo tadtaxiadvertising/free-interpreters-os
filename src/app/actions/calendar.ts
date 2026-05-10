@@ -44,7 +44,14 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
 
   const dailyStats = new Map<string, number>();
 
-  const getLocalDateStr = (d: Date) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+  const getLocalDateStr = (d: Date) => {
+    return new Intl.DateTimeFormat('en-CA', { 
+      timeZone: 'America/Santo_Domingo', 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit' 
+    }).format(d);
+  };
 
   logs.forEach(log => {
     const dayStr = getLocalDateStr(log.date);
@@ -129,7 +136,14 @@ export async function getComplianceBoard(year: number, month: number) {
     }
   });
 
-  const getLocalDateStr = (d: Date) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+  const getLocalDateStr = (d: Date) => {
+    return new Intl.DateTimeFormat('en-CA', { 
+      timeZone: 'America/Santo_Domingo', 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit' 
+    }).format(d);
+  };
 
   const board = interpreters.map(int => {
     const dailyGoalMinutes = Math.floor((int.monthlyGoal || 2000) / 22);
@@ -144,34 +158,49 @@ export async function getComplianceBoard(year: number, month: number) {
       const isWeekend = d.getDay() === 0 || d.getDay() === 6;
       const dayStr = getLocalDateStr(d);
 
-      let minutes = 0;
+      let logsMinutes = 0;
+      let sessionsMinutes = 0;
+
       intLogs.filter(l => getLocalDateStr(l.date) === dayStr).forEach(l => {
-        minutes += l.interpretedMinutes || 0;
+        logsMinutes += l.interpretedMinutes || 0;
       });
 
       intSessions.filter(s => s.startedAt && getLocalDateStr(s.startedAt) === dayStr).forEach(s => {
-        minutes += s.durationSeconds ? Math.floor(s.durationSeconds / 60) : 0;
+        sessionsMinutes += s.durationSeconds ? Math.floor(s.durationSeconds / 60) : 0;
       });
+
+      const minutes = logsMinutes + sessionsMinutes;
 
       let status = "Not Needed";
       if (!isWeekend) {
         if (minutes === 0) status = "No-Show";
         else if (minutes < dailyGoalMinutes) status = "Late";
+        else if (minutes >= dailyGoalMinutes * 1.1) status = "Overproduction";
         else status = "Fulfilled";
       } else {
-        if (minutes > 0) status = "Fulfilled";
+        if (minutes > 0) status = "Overproduction";
       }
 
       days.push({
         date: dayStr,
         isWeekend,
         minutes,
-        status
+        logsMinutes,
+        sessionsMinutes,
+        status,
+        dailyGoalMinutes
       });
     }
 
+    const mtdMinutes = days.reduce((acc, d) => acc + d.minutes, 0);
+    const monthlyGoal = int.monthlyGoal || 2000;
+    const fulfillmentPercent = monthlyGoal > 0 ? (mtdMinutes / monthlyGoal) * 100 : 0;
+
     return {
       interpreter: int,
+      monthlyGoal,
+      mtdMinutes,
+      fulfillmentPercent,
       days
     };
   });
