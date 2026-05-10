@@ -9,7 +9,9 @@ export async function POST(req: Request) {
     const supabase = await createClient();
     let user = null;
     try {
+      console.log('--- [API_PRESENCE] Calling getUser()...');
       const { data: { user: currentUser } } = await supabase.auth.getUser();
+      console.log('--- [API_PRESENCE] getUser() finished. User found:', !!currentUser);
       user = currentUser;
     } catch (e) {
       // Ignore
