@@ -37,10 +37,19 @@ export async function updateSession(request: NextRequest) {
 
   // We use getSession() first to avoid noisy 'Refresh Token Not Found' errors 
   // from getUser() when there is no valid session.
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+  let session = null;
+  try {
+    const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+    if (!sessionError) {
+      session = currentSession;
+    } else {
+      console.warn('⚠️ MIDDLEWARE: session error', sessionError.message);
+    }
+  } catch (e: any) {
+    // If we get a "Refresh Token Not Found" or similar, it means the session is invalid
+    console.warn('⚠️ MIDDLEWARE: Caught Auth error:', e.message || e);
+    // Continue with session = null
+  }
 
   const user = session?.user || null;
 
