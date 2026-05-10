@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { createPayrollRecord } from '@/lib/payroll';
+import { refreshPayrollRecord } from '@/services/PayrollService';
 import { revalidatePath } from 'next/cache';
 import type { ActionResult } from '@/lib/types';
 
@@ -90,9 +91,14 @@ export async function reconcileMinutes(
       data: { verifiedMinutes }
     });
 
+    // Automatically refresh the payroll record if it exists and is pending
+    if (log.interpreterId) {
+      await refreshPayrollRecord(log.interpreterId, log.date);
+    }
+
     revalidatePath('/payroll');
     revalidatePath('/dashboard');
-    return { success: true, data: { message: 'Minutes successfully reconciled' } };
+    return { success: true, data: { message: 'Minutes successfully reconciled and payroll updated' } };
   } catch (error: any) {
     console.error('Failed to reconcile minutes:', error.message);
     return { success: false, error: 'Internal Server Error' };

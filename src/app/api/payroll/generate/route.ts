@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import crypto from 'crypto';
 import { ProductionLog } from '@prisma/client';
+import { calculateFullPayroll } from '@/services/PayrollService';
 
 export async function POST(request: Request) {
   try {
@@ -43,32 +44,14 @@ export async function POST(request: Request) {
 
       if (unprocessedLogs.length === 0) continue;
 
-      // Calculate totals
-      let totalMinutes = 0;
-      let totalVerified = 0;
-      let usedVerified = false;
+      // Calculate using unified PayrollService
+      const periodStartLogs = new Date(Math.min(...unprocessedLogs.map((l: ProductionLog) => l.date.getTime())));
+      const periodEndLogs = new Date(Math.max(...unprocessedLogs.map((l: ProductionLog) => l.date.getTime())));
+      
+      const calculation = await calculateFullPayroll(interpreter.id, periodStartLogs, periodEndLogs);
 
-      for (const log of unprocessedLogs as any[]) {
-        if (log.verifiedMinutes !== null && log.verifiedMinutes !== undefined) {
-          totalVerified += log.verifiedMinutes;
-          totalMinutes += log.verifiedMinutes;
-          usedVerified = true;
-        } else {
-          totalMinutes += log.interpretedMinutes || 0;
-        }
-      }
-
-      const grossTotal = totalMinutes * Number(interpreter.tariffPerMinute);
-      const qualityBonus = 0; // Or calculate from QAScores
-      const incentivesTotal = 0;
-      const penalidades = 0;
-      const transferDeduction = 0;
-      const netTotal = grossTotal + qualityBonus + incentivesTotal - penalidades - transferDeduction;
-
-      // Generate period range based on logs
-      const dates = unprocessedLogs.map((l: ProductionLog) => l.date);
-      const periodStart = new Date(Math.min(...dates.map((d: Date) => d.getTime())));
-      const periodEnd = new Date(Math.max(...dates.map((d: Date) => d.getTime())));
+      const periodStart = periodStartLogs;
+      const periodEnd = periodEndLogs;
 
       // Unique reconciliation hash
       const reconciliationHash = crypto.createHash('sha256').update(`${interpreter.id}-${periodStart.toISOString()}-${periodEnd.toISOString()}-${Date.now()}`).digest('hex');
@@ -81,14 +64,14 @@ export async function POST(request: Request) {
               interpreterId: interpreter.id,
               periodStart,
               periodEnd,
-              totalMinutes,
-              verifiedMinutes: usedVerified ? totalVerified : null,
-              grossTotal,
-              qualityBonus,
-              incentivesTotal,
-              penalidades,
-              transferDeduction,
-              netTotal,
+              totalMinutes: calculation.totalMinutes,
+              verifiedMinutes: calculation.totalMinutes, // Using totalMinutes as verified since it represents the processed amount
+              grossTotal: calculation.grossTotal,
+              qualityBonus: calculation.qualityBonus,
+              incentivesTotal: calculation.incentivesTotal,
+              penalidades: calculation.penalidades,
+              transferDeduction: calculation.transferDeduction,
+              netTotal: calculation.netTotal,
               status: 'PENDING',
               reconciliationHash
             }

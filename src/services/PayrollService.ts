@@ -1,21 +1,21 @@
-import prisma from '@/lib/prisma';
+﻿import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 type Decimal = Prisma.Decimal;
 
 const db = prisma as any;
 
 // ============================================================
-// PayrollService — Motor de Nómina e Incentivos
-// Lógica aislada para cálculos financieros contra SystemConfig
+// PayrollService â€” Motor de NÃ³mina e Incentivos
+// LÃ³gica aislada para cÃ¡lculos financieros contra SystemConfig
 // ============================================================
 
-/** Estructura de un tier de incentivos leído desde SystemConfig */
+/** Estructura de un tier de incentivos leÃ­do desde SystemConfig */
 interface IncentiveTier {
   minHours: number;
   bonus: number; // Decimal amount stored as number for calc
 }
 
-/** Resultado del cálculo unificado de tiempo */
+/** Resultado del cÃ¡lculo unificado de tiempo */
 interface UnifiedTimeResult {
   importedMinutes: number;
   realtimeMinutes: number;
@@ -23,13 +23,13 @@ interface UnifiedTimeResult {
   totalHours: number;
 }
 
-/** Resultado del cálculo completo de incentivos */
+/** Resultado del cÃ¡lculo completo de incentivos */
 interface IncentiveResult {
   totalIncentive: number;
   matchedTier: string | null; // Key name of the matched tier
 }
 
-/** Resultado completo del motor de nómina con incentivos */
+/** Resultado completo del motor de nÃ³mina con incentivos */
 export interface PayrollCalculationResult {
   interpreterId: number;
   interpreterName: string;
@@ -48,12 +48,12 @@ export interface PayrollCalculationResult {
 /**
  * Lee los tiers de incentivos desde la tabla SystemConfig.
  * Formato esperado en DB:
- *   key: "tier1_hours" → value: "100"  (horas mínimas)
- *   key: "tier1_bonus" → value: "50.00" (monto bono)
- *   key: "tier2_hours" → value: "150"
- *   key: "tier2_bonus" → value: "100.00"
- *   key: "tier3_hours" → value: "200"
- *   key: "tier3_bonus" → value: "200.00"
+ *   key: "tier1_hours" â†’ value: "100"  (horas mÃ­nimas)
+ *   key: "tier1_bonus" â†’ value: "50.00" (monto bono)
+ *   key: "tier2_hours" â†’ value: "150"
+ *   key: "tier2_bonus" â†’ value: "100.00"
+ *   key: "tier3_hours" â†’ value: "200"
+ *   key: "tier3_bonus" â†’ value: "200.00"
  */
 export async function getIncentiveTiers(): Promise<IncentiveTier[]> {
   const configs = await db.systemConfig.findMany({
@@ -64,7 +64,7 @@ export async function getIncentiveTiers(): Promise<IncentiveTier[]> {
     },
   });
 
-  // Agrupa por número de tier
+  // Agrupa por nÃºmero de tier
   const tierMap = new Map<number, Partial<IncentiveTier>>();
 
   for (const config of configs) {
@@ -94,7 +94,7 @@ export async function getIncentiveTiers(): Promise<IncentiveTier[]> {
     }
   }
 
-  // Orden descendente: el tier más alto primero para que matchee el mejor bono
+  // Orden descendente: el tier mÃ¡s alto primero para que matchee el mejor bono
   tiers.sort((a, b) => b.minHours - a.minHours);
 
   return tiers;
@@ -102,24 +102,27 @@ export async function getIncentiveTiers(): Promise<IncentiveTier[]> {
 
 /**
  * Unifica las horas de production_logs y call_sessions
- * para un intérprete en un período dado.
+ * para un intÃ©rprete en un perÃ­odo dado.
  */
 export async function calculateUnifiedTime(
   interpreterId: number,
   periodStart: Date,
   periodEnd: Date
 ): Promise<UnifiedTimeResult> {
-  // 1. Minutos de production_logs (CSV imports)
+  // 1. Minutos de production_logs (CSV imports + Manual logs)
   const productionLogs = await db.productionLog.findMany({
     where: {
       interpreterId,
       date: { gte: periodStart, lte: periodEnd },
     },
-    select: { interpretedMinutes: true },
+    select: { interpretedMinutes: true, verifiedMinutes: true, accountId: true },
   });
 
   const importedMinutes = (productionLogs || []).reduce(
-    (sum: number, log: { interpretedMinutes: number }) => sum + log.interpretedMinutes,
+    (sum: number, log: any) => {
+      const effectiveMinutes = log.verifiedMinutes !== null ? log.verifiedMinutes : (log.interpretedMinutes || 0);
+      return sum + effectiveMinutes;
+    },
     0
   );
 
@@ -146,16 +149,16 @@ export async function calculateUnifiedTime(
 }
 
 /**
- * Calcula el bono de incentivo dinámicamente basado en los tiers de SystemConfig.
- * Retorna el bono del tier más alto que el intérprete haya alcanzado.
+ * Calcula el bono de incentivo dinÃ¡micamente basado en los tiers de SystemConfig.
+ * Retorna el bono del tier mÃ¡s alto que el intÃ©rprete haya alcanzado.
  */
 export async function calculateIncentive(totalHours: number): Promise<IncentiveResult> {
   const tiers = await getIncentiveTiers();
 
-  // Busca el tier más alto alcanzado (ya están ordenados descendente)
+  // Busca el tier mÃ¡s alto alcanzado (ya estÃ¡n ordenados descendente)
   for (const tier of tiers) {
     if (totalHours >= tier.minHours) {
-      // Reconstruir el key para saber cuál tier matcheó
+      // Reconstruir el key para saber cuÃ¡l tier matcheÃ³
       const tierIndex = tiers.indexOf(tier);
       const tierName = `tier${tiers.length - tierIndex}`;
       return {
@@ -169,21 +172,22 @@ export async function calculateIncentive(totalHours: number): Promise<IncentiveR
 }
 
 /**
- * Motor de cálculo completo: unifica tiempo + incentivos + QA + penalidades.
- * Fórmula base: (totalMinutes) × tariffPerMinute = grossTotal
+ * Motor de cÃ¡lculo completo: unifica tiempo + incentivos + QA + penalidades.
+ * FÃ³rmula base: (totalMinutes) Ã— tariffPerMinute = grossTotal
  */
 export async function calculateFullPayroll(
   interpreterId: number,
   periodStart: Date,
   periodEnd: Date
 ): Promise<PayrollCalculationResult> {
-  // 1. Obtener intérprete
+  // 1. Obtener intÃ©rprete y sus tasas por cuenta
   const interpreter = await db.interpreter.findUnique({
     where: { id: interpreterId },
     select: {
       id: true,
       name: true,
       tariffPerMinute: true,
+      accountRates: true
     },
   });
 
@@ -191,18 +195,56 @@ export async function calculateFullPayroll(
     throw new Error(`Interpreter ${interpreterId} not found`);
   }
 
-  const tariffPerMinute = parseFloat(interpreter.tariffPerMinute.toString());
+  const baseRatePerMinute = parseFloat(interpreter.tariffPerMinute.toString());
 
-  // 2. Tiempo unificado
-  const time = await calculateUnifiedTime(interpreterId, periodStart, periodEnd);
+  // 2. Obtener logs de producciÃ³n para cÃ¡lculo detallado de costos
+  const productionLogs = await db.productionLog.findMany({
+    where: {
+      interpreterId,
+      date: { gte: periodStart, lte: periodEnd },
+    },
+    select: { interpretedMinutes: true, verifiedMinutes: true, accountId: true },
+  });
 
-  // 3. Gross total: totalMinutes × tariffPerMinute
-  const grossTotal = Math.round(time.totalMinutes * tariffPerMinute * 100) / 100;
+  // 3. Obtener logs de llamadas en tiempo real
+  const callSessions = await db.callSession.findMany({
+    where: {
+      interpreterId,
+      startedAt: { gte: periodStart, lte: periodEnd },
+      endedAt: { not: null },
+    },
+    select: { durationSeconds: true, callCost: true },
+  });
 
-  // 4. Incentivos dinámicos desde SystemConfig
-  const incentive = await calculateIncentive(time.totalHours);
+  // 4. CÃ¡lculos de Minutos
+  const importedMinutes = (productionLogs || []).reduce((sum: number, log: any) => {
+    return sum + (log.verifiedMinutes !== null ? log.verifiedMinutes : (log.interpretedMinutes || 0));
+  }, 0);
+  const realtimeMinutes = Math.round((callSessions || []).reduce((sum: number, call: any) => sum + (call.durationSeconds || 0), 0) / 60);
+  const totalMinutes = importedMinutes + realtimeMinutes;
+  const totalHours = Math.round((totalMinutes / 60) * 100) / 100;
 
-  // 5. Quality bonus (QA)
+  // 5. CÃ¡lculo de Gross Total (respetando accountRates y verifiedMinutes)
+  let importedCost = 0;
+  for (const log of (productionLogs || [])) {
+    let ratePerMinute = baseRatePerMinute;
+    if (log.accountId) {
+      const specificRate = interpreter.accountRates?.find((r: any) => r.accountId === log.accountId);
+      if (specificRate) {
+        ratePerMinute = parseFloat(specificRate.tariffPerHour.toString()) / 60;
+      }
+    }
+    const effectiveMinutes = log.verifiedMinutes !== null ? log.verifiedMinutes : (log.interpretedMinutes || 0);
+    importedCost += effectiveMinutes * ratePerMinute;
+  }
+
+  const realtimeCost = (callSessions || []).reduce((sum: number, call: any) => sum + parseFloat(call.callCost?.toString() || '0'), 0);
+  const grossTotal = Math.round((importedCost + realtimeCost) * 100) / 100;
+
+  // 6. Incentivos dinÃ¡micos desde SystemConfig
+  const incentive = await calculateIncentive(totalHours);
+
+  // 7. Quality bonus (QA) con Regla de Auto-Fail
   let qualityBonus = 0;
   const qaScores = await db.qAScore.findMany({
     where: {
@@ -213,27 +255,25 @@ export async function calculateFullPayroll(
   });
 
   if (qaScores && qaScores.length > 0) {
-    const avgQA =
-      qaScores.reduce(
-        (sum: number, qa: { totalScore: Decimal | null }) =>
-          sum + (parseFloat(qa.totalScore?.toString() || '0')),
-        0
-      ) / qaScores.length;
+    const avgQA = qaScores.reduce((sum: number, qa: any) => {
+      // Auto-Fail Rule: if criticalError === true, QA score counts as 0.00
+      const score = qa.criticalError ? 0 : (parseFloat(qa.totalScore?.toString()) || 0);
+      return sum + score;
+    }, 0) / qaScores.length;
+
     if (avgQA >= 90) {
       qualityBonus = Math.round(grossTotal * 0.05 * 100) / 100;
     }
   }
 
-  // 6. Penalidades por errores críticos
+  // 8. Penalidades por errores crÃ­ticos (10% del gross por cada uno)
   let penalidades = 0;
-  const criticalErrors = (qaScores || []).filter(
-    (qa: { criticalError: boolean }) => qa.criticalError
-  ).length;
+  const criticalErrors = (qaScores || []).filter((qa: any) => qa.criticalError).length;
   if (criticalErrors > 0) {
     penalidades = Math.round(grossTotal * 0.1 * criticalErrors * 100) / 100;
   }
 
-  // 7. Net total
+  // 9. Net total
   const subtotal = grossTotal + qualityBonus + incentive.totalIncentive - penalidades;
   const transferDeduction = Math.round(subtotal * 0.015 * 100) / 100;
   const netTotal = Math.round((subtotal - transferDeduction) * 100) / 100;
@@ -241,9 +281,9 @@ export async function calculateFullPayroll(
   return {
     interpreterId: interpreter.id,
     interpreterName: interpreter.name,
-    totalMinutes: time.totalMinutes,
-    totalHours: time.totalHours,
-    tariffPerMinute,
+    totalMinutes,
+    totalHours,
+    tariffPerMinute: baseRatePerMinute,
     grossTotal,
     incentivesTotal: incentive.totalIncentive,
     matchedTier: incentive.matchedTier,
@@ -256,7 +296,7 @@ export async function calculateFullPayroll(
 
 /**
  * Recalcula netTotal cuando el admin sobrescribe los minutos verificados.
- * Usa verifiedMinutes en lugar de totalMinutes para el cálculo.
+ * Usa verifiedMinutes en lugar de totalMinutes para el cÃ¡lculo.
  */
 export async function recalculateWithVerifiedMinutes(
   payrollRecordId: string,
@@ -301,4 +341,39 @@ export async function recalculateWithVerifiedMinutes(
     transferDeduction,
     netTotal,
   };
+}
+
+/**
+ * Busca y actualiza un registro de nómina existente si está en estado 'Pendiente' o 'PENDING'.
+ * Útil después de conciliar minutos en un productionLog.
+ */
+export async function refreshPayrollRecord(
+  interpreterId: number,
+  dateWithinPeriod: Date
+): Promise<void> {
+  const record = await db.payrollRecord.findFirst({
+    where: {
+      interpreterId,
+      periodStart: { lte: dateWithinPeriod },
+      periodEnd: { gte: dateWithinPeriod },
+      status: { in: ['Pendiente', 'PENDING'] }
+    }
+  });
+
+  if (record) {
+    const calc = await calculateFullPayroll(interpreterId, record.periodStart, record.periodEnd);
+    await db.payrollRecord.update({
+      where: { id: record.id },
+      data: {
+        totalMinutes: calc.totalMinutes,
+        grossTotal: calc.grossTotal,
+        qualityBonus: calc.qualityBonus,
+        incentivesTotal: calc.incentivesTotal,
+        penalidades: calc.penalidades,
+        transferDeduction: calc.transferDeduction,
+        netTotal: calc.netTotal,
+        verifiedMinutes: calc.totalMinutes
+      }
+    });
+  }
 }
