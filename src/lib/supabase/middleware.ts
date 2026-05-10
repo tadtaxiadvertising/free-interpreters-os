@@ -35,84 +35,71 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // We use getSession() first to avoid noisy 'Refresh Token Not Found' errors 
-  // from getUser() when there is no valid session.
-  let session = null;
+  // 1. Get the user from Supabase Auth
+  // We use getUser() instead of getSession() as recommended by Supabase for security.
+  let user = null;
   try {
-    const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
-    if (!sessionError) {
-      session = currentSession;
-    } else {
-      console.warn('⚠️ MIDDLEWARE: session error', sessionError.message);
+    const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+    if (!userError) {
+      user = currentUser;
     }
-  } catch (e: any) {
-    // If we get a "Refresh Token Not Found" or similar, it means the session is invalid
-    console.warn('⚠️ MIDDLEWARE: Caught Auth error:', e.message || e);
-    // Continue with session = null
+    // Silently ignore errors as they usually mean the user is not logged in 
+    // or the session has expired (Refresh Token Not Found).
+  } catch (e) {
+    // Suppress logs for auth errors to keep console clean
   }
 
-  const user = session?.user || null;
-
-  // If there's a session but we want to be extra sure, we could call getUser()
-  // but for middleware performance and to avoid the specific error reported,
-  // getSession is often sufficient for basic protection.
-  
   const { pathname } = request.nextUrl;
 
-  // Public paths that don't require auth
+  // 2. Public paths that don't require auth
   const publicPaths = ['/login', '/api/health', '/forgot-password', '/reset-password', '/auth'];
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
 
+  // 3. Handle non-authenticated users
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
-  if (user && pathname === '/login') {
-    // Redirect logged-in users away from login
+  // 4. Fetch profile and role ONCE if authenticated
+  let role = 'interpreter';
+  if (user) {
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('role')
       .eq('id', user.id)
       .single();
+    
+    role = profile?.role || 'interpreter';
+  }
 
+  // 5. Handle logged-in users on public pages (like login)
+  if (user && pathname === '/login') {
     const url = request.nextUrl.clone();
-    url.pathname = profile?.role === 'admin' ? '/admin' : '/dashboard';
+    url.pathname = role === 'admin' ? '/admin' : '/dashboard';
     return NextResponse.redirect(url);
   }
 
-  // Role-based route protection
+  // 6. Role-based route protection
   if (user && (pathname.startsWith('/admin') || pathname.startsWith('/dashboard'))) {
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (pathname.startsWith('/admin') && profile?.role !== 'admin') {
+    if (pathname.startsWith('/admin') && role !== 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/dashboard';
       return NextResponse.redirect(url);
     }
 
-    if (pathname.startsWith('/dashboard') && profile?.role === 'admin') {
+    if (pathname.startsWith('/dashboard') && role === 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/admin';
       return NextResponse.redirect(url);
     }
   }
 
-  // Basic role-based root redirection
+  // 7. Basic role-based root redirection
   if (user && pathname === '/') {
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
     const url = request.nextUrl.clone();
-    url.pathname = profile?.role === 'admin' ? '/admin' : '/dashboard';
+    url.pathname = role === 'admin' ? '/admin' : '/dashboard';
     return NextResponse.redirect(url);
   }
 

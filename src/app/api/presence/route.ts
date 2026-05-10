@@ -7,7 +7,13 @@ const db = prisma;
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    let user = null;
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      user = currentUser;
+    } catch (e) {
+      // Ignore
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

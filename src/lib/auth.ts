@@ -7,7 +7,13 @@ import { createClient } from './supabase/server';
  */
 export async function auth() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    user = currentUser;
+  } catch (e) {
+    // Ignore auth errors for the bridge
+  }
   
   return { 
     userId: user?.id || null,

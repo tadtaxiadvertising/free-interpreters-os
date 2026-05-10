@@ -125,9 +125,15 @@ export async function register(formData: FormData) {
 export async function getCurrentProfile(): Promise<UserProfile | null> {
   const supabase = await createClient();
   
-  // Auth still needs fetch, but this is a cross-origin request to Supabase API, 
-  // not an internal request to our own API.
-  const { data: { user } } = await supabase.auth.getUser();
+  // Safe getUser call
+  let user = null;
+  try {
+    const { data: { user: currentUser }, error } = await supabase.auth.getUser();
+    if (!error) user = currentUser;
+  } catch (e) {
+    // Silent fail
+  }
+
   if (!user) return null;
 
   try {
