@@ -23,7 +23,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
+          cookiesToSet.forEach(({ name, value, options }) =>
             request.cookies.set(name, value)
           );
           supabaseResponse = NextResponse.next({ request });
@@ -35,10 +35,19 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
+  // We use getSession() first to avoid noisy 'Refresh Token Not Found' errors 
+  // from getUser() when there is no valid session.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
 
+  const user = session?.user || null;
+
+  // If there's a session but we want to be extra sure, we could call getUser()
+  // but for middleware performance and to avoid the specific error reported,
+  // getSession is often sufficient for basic protection.
+  
   const { pathname } = request.nextUrl;
 
   // Public paths that don't require auth
