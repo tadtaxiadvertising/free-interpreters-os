@@ -73,17 +73,17 @@ export default async function AdminCalendarPage(props: { searchParams: Promise<{
         <table className="w-full text-left text-sm whitespace-nowrap border-collapse">
           <thead>
             <tr className="border-b border-white/10 bg-slate-950/80 backdrop-blur-md">
-              <th className="p-4 font-bold text-slate-200 sticky left-0 bg-slate-950 z-20 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)] border-r border-white/10">
+              <th className="p-4 font-bold text-slate-200 sticky left-0 bg-slate-950 z-20 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)] border-r border-white/10 min-w-[180px] w-[180px]">
                 Intérprete
               </th>
               {/* Resumen MTD */}
-              <th className="p-4 text-center font-bold text-slate-300 sticky left-[200px] sm:left-[250px] bg-slate-900/90 z-20 border-r border-white/10">
+              <th className="p-4 text-center font-bold text-slate-300 sticky left-[180px] bg-slate-900/90 z-20 border-r border-white/10 min-w-[80px] w-[80px]">
                 <div className="flex items-center justify-center gap-1"><TrendingUp className="w-4 h-4 text-emerald-400"/> MTD</div>
               </th>
-              <th className="p-4 text-center font-bold text-slate-300 sticky left-[300px] sm:left-[350px] bg-slate-900/90 z-20 border-r border-white/10">
+              <th className="p-4 text-center font-bold text-slate-300 sticky left-[260px] bg-slate-900/90 z-20 border-r border-white/10 min-w-[80px] w-[80px]">
                 Meta
               </th>
-              <th className="p-4 text-center font-bold text-slate-300 sticky left-[400px] sm:left-[450px] bg-slate-900/90 z-20 border-r border-white/10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)]">
+              <th className="p-4 text-center font-bold text-slate-300 sticky left-[340px] bg-slate-900/90 z-20 border-r border-white/10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)] min-w-[70px] w-[70px]">
                 %
               </th>
 
@@ -97,19 +97,19 @@ export default async function AdminCalendarPage(props: { searchParams: Promise<{
           <tbody>
             {board.map((row) => (
               <tr key={row.interpreter.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
-                <td className="p-4 font-semibold sticky left-0 bg-slate-900 group-hover:bg-slate-800 z-10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)] border-r border-white/10">
+                <td className="p-4 font-semibold sticky left-0 bg-slate-900 group-hover:bg-slate-800 z-10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)] border-r border-white/10 min-w-[180px] w-[180px] truncate">
                   {row.interpreter.name}
                 </td>
                 
                 {/* Columnas Resumen */}
-                <td className="p-3 text-center sticky left-[200px] sm:left-[250px] bg-slate-900/90 group-hover:bg-slate-800/90 z-10 border-r border-white/10 font-bold text-emerald-400">
+                <td className="p-3 text-center sticky left-[180px] bg-slate-900 group-hover:bg-slate-800 z-10 border-r border-white/10 font-bold text-emerald-400 min-w-[80px] w-[80px]">
                   {row.mtdMinutes}
                 </td>
-                <td className="p-3 text-center sticky left-[300px] sm:left-[350px] bg-slate-900/90 group-hover:bg-slate-800/90 z-10 border-r border-white/10 font-medium text-slate-400">
+                <td className="p-3 text-center sticky left-[260px] bg-slate-900 group-hover:bg-slate-800 z-10 border-r border-white/10 font-medium text-slate-400 min-w-[80px] w-[80px]">
                   {row.monthlyGoal}
                 </td>
-                <td className="p-3 text-center sticky left-[400px] sm:left-[450px] bg-slate-900/90 group-hover:bg-slate-800/90 z-10 border-r border-white/10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)]">
-                  <span className={`px-2 py-1 rounded text-xs font-bold ${
+                <td className="p-3 text-center sticky left-[340px] bg-slate-900 group-hover:bg-slate-800 z-10 border-r border-white/10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)] min-w-[70px] w-[70px]">
+                  <span className={`px-2 py-1 rounded text-[10px] font-bold ${
                     row.fulfillmentPercent >= 100 ? 'bg-emerald-500/20 text-emerald-400' : 
                     row.fulfillmentPercent >= 75 ? 'bg-amber-500/20 text-amber-400' : 
                     'bg-rose-500/20 text-rose-400'
