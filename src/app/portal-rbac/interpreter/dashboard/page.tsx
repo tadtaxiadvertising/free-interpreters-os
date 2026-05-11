@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import RbacShell from "@/components/rbac-shell";
-import { listAssignedAccounts } from "@/app/actions/rbac-interpreter";
+import { listAssignedAccounts, revealCredentials } from "@/app/actions/rbac-interpreter";
 import toast from "react-hot-toast";
 
 type AssignedAccount = {
@@ -18,7 +18,8 @@ type AssignedAccount = {
 export default function InterpreterDashboard() {
   const [accounts, setAccounts] = useState<AssignedAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreds, setShowCreds] = useState<Record<string, boolean>>({});
+  const [revealedCreds, setRevealedCreds] = useState<Record<string, string>>({});
+  const [loadingCreds, setLoadingCreds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     listAssignedAccounts()
@@ -27,8 +28,26 @@ export default function InterpreterDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  const toggleCreds = (id: string) => {
-    setShowCreds((prev) => ({ ...prev, [id]: !prev[id] }));
+  const toggleCreds = async (id: string) => {
+    if (revealedCreds[id]) {
+      // Hide if already revealed
+      setRevealedCreds((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+
+    setLoadingCreds((prev) => ({ ...prev, [id]: true }));
+    try {
+      const plaintext = await revealCredentials(id);
+      setRevealedCreds((prev) => ({ ...prev, [id]: plaintext }));
+    } catch (err: any) {
+      toast.error(err.message || "Error al revelar credenciales");
+    } finally {
+      setLoadingCreds((prev) => ({ ...prev, [id]: false }));
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -85,17 +104,17 @@ export default function InterpreterDashboard() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Acceso Directo</label>
-                      <button onClick={() => toggleCreds(acc.id)} className="text-xs text-blue-400 hover:text-white transition-colors">
-                        {showCreds[acc.id] ? "Ocultar" : "Mostrar"}
+                      <button onClick={() => toggleCreds(acc.id)} disabled={loadingCreds[acc.id]} className="text-xs text-blue-400 hover:text-white transition-colors">
+                        {loadingCreds[acc.id] ? "Descifrando..." : revealedCreds[acc.id] ? "Ocultar" : "Mostrar"}
                       </button>
                     </div>
                     <div className="relative group/creds">
-                      <div className="w-full bg-black/40 border border-white/5 rounded-xl p-4 font-mono text-sm text-blue-100 break-all pr-12">
-                        {showCreds[acc.id] ? acc.credentials : "••••••••••••••••••••••••"}
+                      <div className="w-full bg-black/40 border border-white/5 rounded-xl p-4 font-mono text-sm text-blue-100 break-all pr-12 min-h-[50px] flex items-center">
+                        {revealedCreds[acc.id] ? revealedCreds[acc.id] : "••••••••••••••••••••••••"}
                       </div>
-                      {showCreds[acc.id] && (
+                      {revealedCreds[acc.id] && (
                         <button 
-                          onClick={() => copyToClipboard(acc.credentials)}
+                          onClick={() => copyToClipboard(revealedCreds[acc.id])}
                           className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-lg text-slate-400 transition-all"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>

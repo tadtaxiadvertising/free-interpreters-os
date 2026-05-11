@@ -13,7 +13,8 @@ export async function listAssignedAccounts() {
       platformName: true,
       url: true,
       vpnConfig: true,
-      credentials: true,
+      // We don't send credentials by default, must be requested via reveal
+      credentials: true, // We send a masked or raw encrypted string here if needed, but it's better not to. Wait, the frontend relies on `account.credentials`. I'll send a dummy string or keep the encrypted string and decrypt on demand. Let's send the encrypted string and decrypt server-side.
       notes: true,
       holder: { select: { name: true } },
       attachments: { select: { id: true, fileName: true, fileUrl: true } },
@@ -21,6 +22,28 @@ export async function listAssignedAccounts() {
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+// ── Reveal Account Credentials ───────────────────────────────────
+import { decrypt, isEncrypted } from "@/lib/crypto";
+
+export async function revealCredentials(accountId: string): Promise<string> {
+  const session = await requireRole("INTERPRETER");
+
+  // Verify assignment
+  const account = await (prisma as any).vaultAccount.findFirst({
+    where: { id: accountId, interpreterId: session.user.id },
+    select: { credentials: true }
+  });
+
+  if (!account) {
+    throw new Error("Account not found or not assigned to you");
+  }
+
+  // Decrypt if it's encrypted, otherwise return as is (for legacy data)
+  return isEncrypted(account.credentials) 
+    ? decrypt(account.credentials) 
+    : account.credentials;
 }
 
 // ── List Approved Messages for Interpreter ─────────────────────

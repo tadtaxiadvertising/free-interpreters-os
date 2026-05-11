@@ -1,15 +1,17 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
 import RbacShell from "@/components/rbac-shell";
-import { createHolder, createInterpreter, getAdminStats, listUsersByRole } from "@/app/actions/rbac-admin";
+import { createHolder, createInterpreter, getAdminStats, listUsersByRole, listPendingMessages, moderateMessage } from "@/app/actions/rbac-admin";
 import toast from "react-hot-toast";
 
 type Stats = { holders: number; interpreters: number; accounts: number; pendingMessages: number };
 type User = { id: string; email: string; name: string; role: string; createdAt: string };
+type Message = { id: string; content: string; createdAt: string; author: User; recipient: User | null; };
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [pending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<"HOLDER" | "INTERPRETER">("HOLDER");
   const [showForm, setShowForm] = useState(false);
@@ -21,6 +23,7 @@ export default function AdminDashboard() {
   const loadData = () => {
     getAdminStats().then(setStats).catch(() => {});
     listUsersByRole().then(setUsers).catch(() => {});
+    listPendingMessages().then(setMessages).catch(() => {});
   };
 
   const handleCreate = (formData: FormData) => {
@@ -38,6 +41,18 @@ export default function AdminDashboard() {
         loadData();
       } catch (err: any) {
         toast.error(err.message || "Error al crear usuario");
+      }
+    });
+  };
+
+  const handleModerate = (messageId: string, action: "APPROVED" | "REJECTED") => {
+    startTransition(async () => {
+      try {
+        await moderateMessage({ messageId, action });
+        toast.success(`Mensaje ${action === "APPROVED" ? "aprobado" : "rechazado"}`);
+        loadData();
+      } catch (err: any) {
+        toast.error(err.message || "Error al moderar");
       }
     });
   };
@@ -209,6 +224,74 @@ export default function AdminDashboard() {
                 <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
                     No hay usuarios registrados aún
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {/* Message Moderation Inbox */}
+      <div className="rounded-2xl bg-white/5 border border-white/5 overflow-hidden mt-8">
+        <div className="p-6 border-b border-white/5">
+          <h2 className="text-lg font-semibold text-white">Bandeja de Moderación</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-white/5">
+                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-4">Autor</th>
+                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-4">Destinatario</th>
+                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-4">Mensaje</th>
+                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-4">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {messages.map((msg) => (
+                <tr key={msg.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                  <td className="px-6 py-4 text-sm text-slate-300">
+                    <span className="font-semibold">{msg.author.name}</span><br />
+                    <span className="text-xs text-slate-500">{msg.author.role}</span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-300">
+                    {msg.recipient ? (
+                      <>
+                        <span className="font-semibold">{msg.recipient.name}</span><br />
+                        <span className="text-xs text-slate-500">{msg.recipient.role}</span>
+                      </>
+                    ) : (
+                      <span className="text-slate-500 italic">Todos</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    <p className="text-sm text-slate-300 bg-white/5 p-3 rounded-xl border border-white/5 line-clamp-2" title={msg.content}>
+                      {msg.content}
+                    </p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex gap-2">
+                      <button
+                        disabled={pending}
+                        onClick={() => handleModerate(msg.id, "APPROVED")}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                      >
+                        Aprobar
+                      </button>
+                      <button
+                        disabled={pending}
+                        onClick={() => handleModerate(msg.id, "REJECTED")}
+                        className="px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold hover:bg-rose-500/20 transition-colors disabled:opacity-50"
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {messages.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                    No hay mensajes pendientes
                   </td>
                 </tr>
               )}

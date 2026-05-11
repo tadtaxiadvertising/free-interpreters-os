@@ -1,6 +1,7 @@
 "use server";
 import { requireRole } from "@/lib/auth-rbac";
 import prisma from "@/lib/prisma";
+import { encrypt, decrypt, isEncrypted } from "@/lib/crypto";
 import {
   VaultAccountCreateSchema,
   VaultMessageCreateSchema,
@@ -12,12 +13,15 @@ export async function uploadAccount(data: unknown) {
   const session = await requireRole("HOLDER");
   const parsed = VaultAccountCreateSchema.parse(data);
 
+  // Encrypt the credentials before persisting to the database
+  const encryptedCredentials = encrypt(parsed.credentials);
+
   return (prisma as any).vaultAccount.create({
     data: {
       platformName: parsed.platformName,
       url: parsed.url || null,
       vpnConfig: parsed.vpnConfig || null,
-      credentials: parsed.credentials,
+      credentials: encryptedCredentials,
       notes: parsed.notes || null,
       holderId: session.user.id,
       interpreterId: parsed.interpreterId || null,
@@ -43,6 +47,24 @@ export async function listHolderAccounts() {
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+// ── Reveal Account Credentials ───────────────────────────────────
+export async function revealHolderCredentials(accountId: string): Promise<string> {
+  const session = await requireRole("HOLDER");
+
+  const account = await (prisma as any).vaultAccount.findFirst({
+    where: { id: accountId, holderId: session.user.id },
+    select: { credentials: true }
+  });
+
+  if (!account) {
+    throw new Error("Account not found or access denied");
+  }
+
+  return isEncrypted(account.credentials) 
+    ? decrypt(account.credentials) 
+    : account.credentials;
 }
 
 // ── Assign Interpreter to Account ──────────────────────────────

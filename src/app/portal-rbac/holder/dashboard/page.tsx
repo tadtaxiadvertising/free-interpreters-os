@@ -7,6 +7,7 @@ import {
   assignInterpreter,
   listAvailableInterpreters,
   deleteAccount,
+  revealHolderCredentials,
 } from "@/app/actions/rbac-holder";
 import toast from "react-hot-toast";
 
@@ -31,7 +32,8 @@ export default function HolderDashboard() {
   const [loading, setLoading] = useState(true);
   const [pending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
-  const [showCreds, setShowCreds] = useState<Record<string, boolean>>({});
+  const [revealedCreds, setRevealedCreds] = useState<Record<string, string>>({});
+  const [loadingCreds, setLoadingCreds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadData();
@@ -87,8 +89,25 @@ export default function HolderDashboard() {
     });
   };
 
-  const toggleCreds = (id: string) => {
-    setShowCreds((prev) => ({ ...prev, [id]: !prev[id] }));
+  const toggleCreds = async (id: string) => {
+    if (revealedCreds[id]) {
+      setRevealedCreds((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+
+    setLoadingCreds((prev) => ({ ...prev, [id]: true }));
+    try {
+      const plaintext = await revealHolderCredentials(id);
+      setRevealedCreds((prev) => ({ ...prev, [id]: plaintext }));
+    } catch (err: any) {
+      toast.error(err.message || "Error al revelar credenciales");
+    } finally {
+      setLoadingCreds((prev) => ({ ...prev, [id]: false }));
+    }
   };
 
   return (
@@ -261,13 +280,14 @@ export default function HolderDashboard() {
                     <span className="text-xs text-slate-500 uppercase tracking-wider">Credenciales</span>
                     <button
                       onClick={() => toggleCreds(account.id)}
+                      disabled={loadingCreds[account.id]}
                       className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
                     >
-                      {showCreds[account.id] ? "Ocultar" : "Mostrar"}
+                      {loadingCreds[account.id] ? "Descifrando..." : revealedCreds[account.id] ? "Ocultar" : "Mostrar"}
                     </button>
                   </div>
-                  <code className="block bg-black/30 rounded-lg px-3 py-2 text-xs text-slate-300 font-mono">
-                    {showCreds[account.id] ? account.credentials : "••••••••••••••••"}
+                  <code className="block bg-black/30 rounded-lg px-3 py-2 text-xs text-slate-300 font-mono min-h-[35px] flex items-center break-all">
+                    {revealedCreds[account.id] ? revealedCreds[account.id] : "••••••••••••••••"}
                   </code>
                 </div>
 
