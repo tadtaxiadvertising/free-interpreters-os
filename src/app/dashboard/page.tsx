@@ -148,10 +148,15 @@ export default async function InterpreterDashboard() {
   }
 
   // ── 📊 METRICS CALCULATION ──
+  const todayMinutes = (todayCalls || []).reduce((acc: number, call: any) => acc + (call.durationSeconds || 0), 0) / 60;
   const mtdMinutes = (monthCalls || []).reduce((acc: number, call: any) => acc + (call.durationSeconds || 0), 0) / 60;
   const globalGoalHours = parseFloat(await getSystemConfig('standard_monthly_goal_hours', '120'));
   const monthlyGoal = interpreter?.monthlyGoal || (globalGoalHours * 60);
   const mtdProgress = Math.min((mtdMinutes / monthlyGoal) * 100, 100);
+  
+  // Daily target: monthly goal distributed over 22 working days
+  const dailyGoal = monthlyGoal / 22;
+  const todayProgress = Math.min((todayMinutes / dailyGoal) * 100, 100);
   
   const latestQaScore = interpreter?.qaScores?.[0]?.totalScore ? Number(interpreter.qaScores[0].totalScore) : 0;
   const isQaExcellent = latestQaScore >= 95;
@@ -328,29 +333,52 @@ export default async function InterpreterDashboard() {
             </div>
           </div>
 
-          {/* Manual Entry Tool */}
+          {/* Daily Goal Progress */}
           <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-16 bg-amber-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
+            <div className="absolute top-0 right-0 p-16 bg-emerald-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
             <div className="flex items-center justify-between mb-6 relative z-10">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
-                  <Clock size={22} />
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
+                  <TrendingUp size={22} />
                 </div>
-                <h3 className="text-xl font-bold text-white tracking-tight">Registro Manual</h3>
+                <h3 className="text-xl font-bold text-white tracking-tight">Meta Diaria</h3>
               </div>
-              <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-1 rounded-md uppercase tracking-wider border border-amber-500/20">Manual Log</span>
+              <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md uppercase tracking-wider border border-emerald-500/20">Daily Target</span>
             </div>
             <div className="relative z-10">
-              <p className="text-slate-400 text-sm leading-relaxed mb-6">
-                ¿Olvidaste iniciar el temporizador? Registra tus minutos trabajados manualmente para asegurar que tu nómina sea exacta.
-              </p>
-              <Link 
-                href="/dashboard/production/manual"
-                className="flex items-center justify-center gap-3 w-full bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl border border-white/10 transition-all group-hover:border-amber-500/30 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.05)]"
-              >
-                <Plus size={20} className="text-amber-400" />
-                Registrar Producción Manual
-              </Link>
+              <div className="flex justify-between items-end mb-4">
+                <div>
+                  <p className="text-sm text-slate-400 font-medium mb-1">Producción de hoy</p>
+                  <p className="text-3xl font-bold text-white">
+                    <span suppressHydrationWarning>{Math.round(todayMinutes)}</span>
+                    <span className="text-lg text-slate-400"> / {Math.round(dailyGoal)} min</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-slate-400 font-medium mb-1">Restante</p>
+                  <p className="text-xl font-bold text-emerald-400">
+                    {Math.max(0, Math.round(dailyGoal - todayMinutes))} min
+                  </p>
+                </div>
+              </div>
+              
+              <div className="w-full h-4 bg-slate-800/50 rounded-full overflow-hidden border border-white/5">
+                <div 
+                  className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full relative transition-all duration-1000 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                  style={{ width: `${todayProgress}%` }}
+                >
+                  <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                </div>
+              </div>
+              
+              <div className="flex justify-between mt-3">
+                <p className="text-xs text-slate-500 font-medium">{todayProgress.toFixed(1)}% completado</p>
+                {todayProgress >= 100 && (
+                  <p className="text-xs text-emerald-400 font-bold flex items-center gap-1">
+                    <ShieldCheck size={12} /> ¡Meta lograda!
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
