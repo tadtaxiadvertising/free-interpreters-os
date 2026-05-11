@@ -830,7 +830,7 @@ enum one_time_token_type {
 }
 
 // ==========================================
-// NEW RBAC VAULT ARCHITECTURE
+// RBAC VAULT ARCHITECTURE v2 — Production
 // ==========================================
 
 enum RbacRole {
@@ -841,8 +841,8 @@ enum RbacRole {
   @@schema("public")
 }
 
-enum VaultStatus {
-  PENDING
+enum VaultMessageStatus {
+  PENDING_ADMIN
   APPROVED
   REJECTED
 
@@ -850,43 +850,73 @@ enum VaultStatus {
 }
 
 model RbacUser {
-  id        String          @id @default(cuid())
-  email     String          @unique
-  password  String
-  name      String
-  role      RbacRole        @default(INTERPRETER)
-  accounts  VaultAccount[]  @relation("HolderVaultAccounts")
-  messages  VaultMessage[]
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  id                 String            @id @default(cuid())
+  email              String            @unique
+  password           String
+  name               String
+  role               RbacRole          @default(INTERPRETER)
+  ownedAccounts      VaultAccount[]    @relation("HolderVaultAccounts")
+  assignedAccounts   VaultAccount[]    @relation("InterpreterAssigned")
+  sentMessages       VaultMessage[]    @relation("MessageAuthor")
+  receivedMessages   VaultMessage[]    @relation("MessageRecipient")
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
+  @@index([role])
   @@map("rbac_users")
   @@schema("public")
 }
 
 model VaultAccount {
-  id            String      @id @default(cuid())
+  id            String            @id @default(cuid())
   platformName  String
+  url           String?
+  vpnConfig     String?
   credentials   String
-  status        VaultStatus @default(PENDING)
+  notes         String?
   holderId      String
-  holder        RbacUser    @relation("HolderVaultAccounts", fields: [holderId], references: [id])
+  holder        RbacUser          @relation("HolderVaultAccounts", fields: [holderId], references: [id], onDelete: Cascade)
   interpreterId String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  interpreter   RbacUser?         @relation("InterpreterAssigned", fields: [interpreterId], references: [id], onDelete: SetNull)
+  attachments   VaultAttachment[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
+  @@index([holderId])
+  @@index([interpreterId])
   @@map("vault_accounts")
   @@schema("public")
 }
 
-model VaultMessage {
-  id        String      @id @default(cuid())
-  content   String
-  status    VaultStatus @default(PENDING)
-  authorId  String
-  author    RbacUser    @relation(fields: [authorId], references: [id])
-  createdAt DateTime    @default(now())
+model VaultAttachment {
+  id          String       @id @default(cuid())
+  fileName    String
+  fileUrl     String
+  fileSize    Int          @default(0)
+  mimeType    String       @default("application/octet-stream")
+  accountId   String
+  account     VaultAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  uploadedAt  DateTime     @default(now())
 
+  @@index([accountId])
+  @@map("vault_attachments")
+  @@schema("public")
+}
+
+model VaultMessage {
+  id          String             @id @default(cuid())
+  content     String
+  status      VaultMessageStatus @default(PENDING_ADMIN)
+  authorId    String
+  author      RbacUser           @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  recipientId String?
+  recipient   RbacUser?          @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
+  createdAt   DateTime           @default(now())
+
+  @@index([authorId])
+  @@index([recipientId])
+  @@index([status])
   @@map("vault_messages")
   @@schema("public")
 }
+
