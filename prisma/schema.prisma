@@ -828,3 +828,65 @@ enum one_time_token_type {
 
   @@schema("auth")
 }
+
+// ==========================================
+// NEW RBAC VAULT ARCHITECTURE
+// ==========================================
+
+enum RbacRole {
+  ADMIN
+  HOLDER
+  INTERPRETER
+
+  @@schema("public")
+}
+
+enum VaultStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@schema("public")
+}
+
+model RbacUser {
+  id        String          @id @default(cuid())
+  email     String          @unique
+  password  String
+  name      String
+  role      RbacRole        @default(INTERPRETER)
+  accounts  VaultAccount[]  @relation("HolderVaultAccounts")
+  messages  VaultMessage[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@map("rbac_users")
+  @@schema("public")
+}
+
+model VaultAccount {
+  id            String      @id @default(cuid())
+  platformName  String
+  credentials   String
+  status        VaultStatus @default(PENDING)
+  holderId      String
+  holder        RbacUser    @relation("HolderVaultAccounts", fields: [holderId], references: [id])
+  interpreterId String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("vault_accounts")
+  @@schema("public")
+}
+
+model VaultMessage {
+  id        String      @id @default(cuid())
+  content   String
+  status    VaultStatus @default(PENDING)
+  authorId  String
+  author    RbacUser    @relation(fields: [authorId], references: [id])
+  createdAt DateTime    @default(now())
+
+  @@map("vault_messages")
+  @@schema("public")
+}
