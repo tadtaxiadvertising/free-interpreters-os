@@ -1,54 +1,65 @@
 import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import pg from 'pg';
 import bcrypt from 'bcryptjs';
-import 'dotenv/config';
+
+const RbacRole = {
+  ADMIN: "ADMIN",
+  HOLDER: "HOLDER",
+  INTERPRETER: "INTERPRETER"
+} as any;
+
+const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🚀 Iniciando aprovisionamiento de Admin RBAC...');
+  console.log("Seeding RBAC Users...");
+  const password = await bcrypt.hash("password123", 10);
 
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL no definida en el entorno.');
-  }
-
-  const pool = new pg.Pool({ 
-    connectionString: process.env.DATABASE_URL,
-    max: 1,
+  // 1. Admin
+  const admin = await (prisma as any).rbacUser.upsert({
+    where: { email: "admin@freeinterpreters.org" },
+    update: { password, role: RbacRole.ADMIN },
+    create: {
+      email: "admin@freeinterpreters.org",
+      name: "System Admin",
+      password,
+      role: RbacRole.ADMIN,
+    },
   });
-  
-  const adapter = new PrismaPg(pool);
-  
-  // Cast to any for the initialization to avoid IDE-sync lag with newly generated types
-  const prisma = new PrismaClient({ adapter }) as any;
+  console.log(`✅ Admin user created/updated: ${admin.email}`);
 
-  try {
-    const adminEmail = 'admin@freeinterpreters.com';
-    const hashedPassword = await bcrypt.hash('AdminRBAC2026!', 12);
+  // 2. Holder
+  const holder = await (prisma as any).rbacUser.upsert({
+    where: { email: "holder@freeinterpreters.org" },
+    update: { password, role: RbacRole.HOLDER },
+    create: {
+      email: "holder@freeinterpreters.org",
+      name: "Account Holder",
+      password,
+      role: RbacRole.HOLDER,
+    },
+  });
+  console.log(`✅ Holder user created/updated: ${holder.email}`);
 
-    // Using the rbacUser model generated in schema.prisma
-    const admin = await prisma.rbacUser.upsert({
-      where: { email: adminEmail },
-      update: {
-        password: hashedPassword,
-      },
-      create: {
-        email: adminEmail,
-        name: 'Administrador Maestro',
-        password: hashedPassword,
-        role: 'ADMIN',
-      },
-    });
+  // 3. Interpreter
+  const interpreter = await (prisma as any).rbacUser.upsert({
+    where: { email: "interpreter@freeinterpreters.org" },
+    update: { password, role: RbacRole.INTERPRETER },
+    create: {
+      email: "interpreter@freeinterpreters.org",
+      name: "Senior Interpreter",
+      password,
+      role: RbacRole.INTERPRETER,
+    },
+  });
+  console.log(`✅ Interpreter user created/updated: ${interpreter.email}`);
 
-    console.log(`✅ Admin creado/actualizado: ${admin.email}`);
-    console.log('⚠️  RECUERDA: Cambia esta contraseña inmediatamente después del primer login.');
-  } finally {
-    await prisma.$disconnect();
-    await pool.end();
-  }
+  console.log("Seed completed successfully. Use password123 to log in.");
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Error en el seed:', e);
+    console.error(e);
     process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   });

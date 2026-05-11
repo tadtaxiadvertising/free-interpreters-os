@@ -41,6 +41,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = (user as any).role;
+        token.id = user.id;
+      }
+      
+      // En cada refresh de sesión, aseguramos de sacar el rol de la base de datos
+      if (token.id) {
+        const dbUser = await (prisma as any).rbacUser.findUnique({
+          where: { id: token.id as string },
+          select: { role: true },
+        });
+        if (dbUser) {
+          token.role = dbUser.role;
+        }
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token?.id) {
+        session.user.id = token.id as string;
+        (session.user as any).role = token.role as string;
+      }
+      return session;
+    },
+  },
 });
 
 // ── Type augmentation ──

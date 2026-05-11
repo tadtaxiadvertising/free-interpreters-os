@@ -51,7 +51,7 @@ export async function middleware(request: NextRequest) {
         const loginUrl = new URL("/portal-rbac/login", request.url);
         // ANTI-RECURSION: Only redirect if not already going to login
         if (pathname !== "/portal-rbac/login") {
-          return NextResponse.redirect(loginUrl);
+          return NextResponse.redirect(loginUrl, 307);
         }
         // Already on login, pass through
       } else {
@@ -62,12 +62,12 @@ export async function middleware(request: NextRequest) {
         if (pathname === "/portal-rbac" || pathname === "/portal-rbac/") {
           if (role && ROLE_DASHBOARDS[role]) {
             return NextResponse.redirect(
-              new URL(ROLE_DASHBOARDS[role], request.url)
+              new URL(ROLE_DASHBOARDS[role], request.url), 307
             );
           }
           // Unknown role → login
           return NextResponse.redirect(
-            new URL("/portal-rbac/login", request.url)
+            new URL("/portal-rbac/login", request.url), 307
           );
         }
 
@@ -81,7 +81,7 @@ export async function middleware(request: NextRequest) {
 
             // ANTI-RECURSION: Never redirect to the same path
             if (targetUrl.pathname !== pathname) {
-              return NextResponse.redirect(targetUrl);
+              return NextResponse.redirect(targetUrl, 307);
             }
           }
         }
@@ -96,7 +96,7 @@ export async function middleware(request: NextRequest) {
         const dashUrl = new URL(ROLE_DASHBOARDS[role], request.url);
         // ANTI-RECURSION: Ensure we're not on that dashboard already
         if (dashUrl.pathname !== pathname) {
-          return NextResponse.redirect(dashUrl);
+          return NextResponse.redirect(dashUrl, 307);
         }
       }
     }
