@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { authConfig } from "./auth.config";
 
 /**
  * RBAC Auth Configuration — Unified Login
@@ -16,6 +17,7 @@ const LoginSchema = z.object({
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [
     CredentialsProvider({
       credentials: { email: {}, password: {} },
@@ -39,26 +41,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  session: { strategy: "jwt", maxAge: 8 * 60 * 60 }, // 8h session
-  callbacks: {
-    jwt({ token, user }) {
-      if (user) {
-        token.role = (user as any).role;
-        token.id = user.id;
-      }
-      return token;
-    },
-    session({ session, token }) {
-      if (session.user) {
-        (session.user as any).role = token.role;
-        (session.user as any).id = token.id;
-      }
-      return session;
-    },
-  },
-  pages: {
-    signIn: "/portal-rbac/login",
-  },
 });
 
 // ── Type augmentation ──

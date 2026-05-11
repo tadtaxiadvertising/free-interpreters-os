@@ -1,6 +1,6 @@
 import { updateSession } from '@/lib/supabase/middleware';
 import { type NextRequest, NextResponse } from 'next/server';
-import { auth } from "@/lib/auth-rbac";
+import { auth } from "@/lib/auth-rbac-edge";
 
 export async function middleware(request: NextRequest) {
   // 1. Supabase Session Management (Legacy / Main App)
