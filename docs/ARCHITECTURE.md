@@ -27,10 +27,14 @@
 
 | Service              | Repository (Current)    | Easypanel App        | Port | Build Target     | Responsibility                               |
 | :------------------- | :---------------------- | :------------------- | :--- | :--------------- | :------------------------------------------- |
-| **interpreters-os**  | `free-interpreters-os`  | `interpreters`       | 3000 | `Dockerfile`     | UI, Auth, Direct DB (Server Actions)         |
+| **interpreters-os**  | `free-interpreters-os`  | `interpreters`       | 3000 | `Dockerfile`     | UI, Legacy Auth (Supabase), Direct DB        |
+| **portal-rbac**      | `free-interpreters-os`  | `interpreters`       | 3000 | `Dockerfile`     | Secure Vault UI, RBAC Auth (Auth.js)         |
 | **interpreters-api** | `free-interpreters-os`  | `interpreters-api`   | 4000 | `Dockerfile.api` | External REST, webhooks, legacy modules      |
 
-> **Stability Note**: For internal server-side operations, the platform uses **Direct Prisma Access** (Server Actions). This eliminates `EAI_AGAIN` DNS resolution errors that occur when the service attempts to call its own REST endpoints within internal networks.
+> **Dual-Authentication Architecture**: The platform uses two authentication systems in parallel:
+>
+> 1. **Supabase Auth**: Managed auth for the main interpreter roster, onboarding, and dashboard.
+> 2. **Auth.js (NextAuth v5)**: Dedicated, session-based auth for the **Portal RBAC** (`/portal-rbac/*`), providing strict role-based access for Admin, Holders, and Interpreters.
 
 ### 2.2 Communication Flow
 
@@ -49,9 +53,9 @@
 ```
 
 - **Frontend → Backend**: Server-side logic consumes Prisma directly via `src/lib/prisma.ts`.
+- **Portal RBAC**: Protected by `lib/auth-rbac.ts`. Uses `RbacUser` model for local authentication.
 - **Client → Backend**: Client-side interactivity uses Server Actions (`src/app/actions/*`).
-- **External → Backend**: Third-party integrations (webhooks, recruitment forms) use REST endpoints via `Dockerfile.api`.
-- **Auth**: Supabase Auth sessions are verified in Middleware and Server Actions using the session token.
+- **Auth Verification**: Middleware (`src/middleware.ts`) detects the route and verifies the corresponding session (Supabase or Auth.js).
 
 ### 2.3 Database Connection Strategy
 

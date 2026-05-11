@@ -118,3 +118,40 @@ Extended profile linked to Supabase Auth and Roster.
 | `onboardingComplete` | `Boolean` | `Default: false` | Interactive flow status |
 | `termsAcceptedAt` | `DateTime?` | `NULLABLE` | Legal compliance timestamp |
 | `bankName` | `String?` | `NULLABLE` | DR Banking details |
+
+## 8. `rbac_users` (Vault Portal Users)
+
+Dedicated user table for the RBAC Vault portal, using Auth.js.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `String` | `PK, Cuid` | Unique identifier |
+| `email` | `String` | `UNIQUE` | Authentication email |
+| `password` | `String` | `NOT NULL` | Hashed password |
+| `name` | `String` | `NOT NULL` | Full name |
+| `role` | `Enum` | `ADMIN, HOLDER, INTERPRETER` | RBAC Role |
+
+## 9. `vault_accounts` (Credential Storage)
+
+Secure storage for platform credentials managed by Holders.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `String` | `PK, Cuid` | Record ID |
+| `platformName` | `String` | `NOT NULL` | Name of the platform (e.g., Salesforce) |
+| `url` | `String?` | `NULLABLE` | Access URL |
+| `credentials` | `String` | `NOT NULL` | Username/Password (Encrypted in transit) |
+| `holderId` | `String` | `FK -> rbac_users(id)` | The Holder who owns this account |
+| `interpreterId` | `String?` | `FK -> rbac_users(id)` | The Interpreter assigned to use this account |
+
+## 10. `vault_messages` (Administrative Communication)
+
+Internal messaging for account requests and approvals.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `String` | `PK, Cuid` | Message ID |
+| `content` | `String` | `NOT NULL` | Message body |
+| `status` | `Enum` | `PENDING_ADMIN, APPROVED, REJECTED` | Moderation status |
+| `authorId` | `String` | `FK -> rbac_users(id)` | Sender |
+| `recipientId` | `String?` | `FK -> rbac_users(id)` | Receiver |

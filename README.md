@@ -74,7 +74,8 @@ See [easypanel/README.md](./easypanel/README.md) for configuration details.
 
 ## Documentation
 
-- [Architecture](./docs/ARCHITECTURE.md) — System design & service boundaries
+- [Architecture](./docs/ARCHITECTURE.md) — System design & dual-auth strategy
+- [Development Guide](./docs/DEVELOPMENT_GUIDE.md) — Coding standards & workflows
 - [API Specification](./docs/API_SPEC.md) — REST endpoints (Backend)
 - [Data Model](./docs/DATA_MODEL.md) — Database schema reference
 - [Business Logic](./docs/BUSINESS_LOGIC.md) — Payroll, QA, recruitment rules

@@ -4,24 +4,15 @@
 
 ### ✅ Completed Milestones
 
-- **Framework Migration**: Upgraded to Next.js 16.2.4 and React 19.
-- **Recruitment Pipeline (v0.2.0)**: Dashboard and candidate management implemented.
-- **QA Module (v0.3.0)**: Integration of scorecards and quality metrics.
-- **Payroll Engine & Verification (v0.4.0)**: Detailed records, incentives, and `verified_minutes` overrides implemented.
-- **Architecture Stabilization**: Transitioned to **Direct Prisma Access** via Server Actions for all server-side operations to eliminate `EAI_AGAIN` DNS resolution errors.
-- **Dominican Republic Banking**: Integrated mandatory fields for local banking and user profiles.
-- **Auth & Onboarding**: Fully transitioned to **Supabase Auth** with a multi-step interactive onboarding wizard.
-- **UI/UX Refactor**:
-  - Migrated to **Tailwind CSS v4**.
-  - Centralized session management in the `Navbar` profile menu.
-  - Implemented real-time Ranking and Performance leaderboards.
-- **Infrastructure**: Optimized for Easypanel with connection pooling (Port 6543) and Prisma singleton.
+- **RBAC Vault Architecture (v3.5.0)**: Implemented a secure, role-based access control portal using **Auth.js (NextAuth v5)** with dedicated workflows for Admin, Holder, and Interpreter.
+- **Data Isolation & Security**: Established strict data isolation for vault credentials and integrated Zod-based validation across all portal actions.
+- **Dual-Auth Middleware**: Configured unified middleware to handle both Supabase Auth (legacy/main) and Auth.js (portal) sessions.
 
 ### 🛠️ In-Progress / Ongoing
 
-- **Performance Optimization**: Refining SQL queries for large datasets in the Ranking view.
-- **Service Cleanup**: Removing legacy internal `fetch()` calls from server components.
-- **Database Integrity**: Ongoing audit of RLS policies for granular access control.
+- **Vault Encryption**: Implementing field-level encryption for sensitive credentials in the database.
+- **Admin Moderation**: Finalizing the message approval workflow between Holders and Admin.
+- **Mobile Responsiveness**: Optimizing the RBAC Portal UI for mobile devices.
 
 ---
 
