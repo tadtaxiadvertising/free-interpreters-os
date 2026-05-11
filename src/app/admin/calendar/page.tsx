@@ -35,6 +35,8 @@ export default async function AdminCalendarPage(props: { searchParams: Promise<{
   const nextMonth = month === 12 ? 1 : month + 1;
   const nextYear = month === 12 ? year + 1 : year;
 
+  const formatMinutes = (mins: number) => new Intl.NumberFormat('en-US').format(mins);
+
   return (
     <div className="p-8 max-w-full mx-auto text-white">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -103,10 +105,10 @@ export default async function AdminCalendarPage(props: { searchParams: Promise<{
                 
                 {/* Columnas Resumen */}
                 <td className="p-3 text-center sticky left-[180px] bg-slate-900 group-hover:bg-slate-800 z-10 border-r border-white/10 font-bold text-emerald-400 min-w-[80px] w-[80px]">
-                  {row.mtdMinutes}
+                  {formatMinutes(row.mtdMinutes)}
                 </td>
                 <td className="p-3 text-center sticky left-[260px] bg-slate-900 group-hover:bg-slate-800 z-10 border-r border-white/10 font-medium text-slate-400 min-w-[80px] w-[80px]">
-                  {row.monthlyGoal}
+                  {formatMinutes(row.monthlyGoal)}
                 </td>
                 <td className="p-3 text-center sticky left-[340px] bg-slate-900 group-hover:bg-slate-800 z-10 border-r border-white/10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)] min-w-[70px] w-[70px]">
                   <span className={`px-2 py-1 rounded text-[10px] font-bold ${
@@ -146,15 +148,15 @@ export default async function AdminCalendarPage(props: { searchParams: Promise<{
                             <p className="font-bold text-slate-300 mb-2 border-b border-slate-700 pb-1">{d.date}</p>
                             <div className="flex justify-between items-center mb-1">
                               <span className="text-slate-400">Histórico CSV:</span>
-                              <span className="font-mono text-emerald-400">{d.logsMinutes} min</span>
+                              <span className="font-mono text-emerald-400">{formatMinutes(d.logsMinutes)} min</span>
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-slate-400">Sesiones Vivo:</span>
-                              <span className="font-mono text-blue-400">{d.sessionsMinutes} min</span>
+                              <span className="font-mono text-blue-400">{formatMinutes(d.sessionsMinutes)} min</span>
                             </div>
                             <div className="flex justify-between items-center mt-2 pt-1 border-t border-slate-700">
                               <span className="text-slate-300 font-bold">Total:</span>
-                              <span className="font-mono font-bold text-white">{d.minutes} min</span>
+                              <span className="font-mono font-bold text-white">{formatMinutes(d.minutes)} min</span>
                             </div>
                           </div>
                           {/* Tooltip Arrow */}

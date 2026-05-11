@@ -42,6 +42,7 @@ const adminMenu: MenuItem[] = [
   { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
   { icon: DollarSign, label: 'Payroll & Rates', href: '/payroll' },
   { icon: Clock, label: 'Registro Manual', href: '/admin/production/manual' },
+  { icon: Users, label: 'Gestión de Usuarios', href: '/admin/users' },
   { icon: Settings, label: 'System Settings', href: '/settings' },
 ];
 

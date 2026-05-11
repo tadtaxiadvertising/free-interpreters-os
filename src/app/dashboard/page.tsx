@@ -1,7 +1,8 @@
 import React from 'react';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck, RefreshCw, LogIn } from 'lucide-react';
+import Link from 'next/link';
+import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck, RefreshCw, LogIn, Plus } from 'lucide-react';
 import { getSystemConfig } from '@/app/actions/settings';
 import { cn } from '@/lib/utils';
 import { StatusToggle } from '@/components/StatusToggle';
@@ -301,20 +302,57 @@ export default async function InterpreterDashboard() {
           </div>
         </div>
 
-        {/* Call Timer */}
-        <div className="glass rounded-3xl p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <TrendingUp size={22} className="text-blue-400" />
-            <h3 className="text-xl font-bold text-white">Temporizador</h3>
+        {/* Quick Tools & Production Registry */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Call Timer */}
+          <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-16 bg-blue-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
+            <div className="flex items-center justify-between mb-6 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
+                  <TrendingUp size={22} />
+                </div>
+                <h3 className="text-xl font-bold text-white tracking-tight">Temporizador en Vivo</h3>
+              </div>
+              <span className="text-[10px] font-black text-blue-500 bg-blue-500/10 px-2 py-1 rounded-md uppercase tracking-wider border border-blue-500/20">Realtime</span>
+            </div>
+            <div className="relative z-10">
+              <CallTimer
+                activeCall={activeCall ? {
+                  sessionId: activeCall.id,
+                  startedAt: activeCall.startedAt.toISOString(),
+                  tariffSnapshot: Number(activeCall.tariffSnapshot),
+                } : null}
+                currentRate={Number(interpreter.tariffPerMinute)}
+              />
+            </div>
           </div>
-          <CallTimer
-            activeCall={activeCall ? {
-              sessionId: activeCall.id,
-              startedAt: activeCall.startedAt.toISOString(),
-              tariffSnapshot: Number(activeCall.tariffSnapshot),
-            } : null}
-            currentRate={Number(interpreter.tariffPerMinute)}
-          />
+
+          {/* Manual Entry Tool */}
+          <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-16 bg-amber-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
+            <div className="flex items-center justify-between mb-6 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
+                  <Clock size={22} />
+                </div>
+                <h3 className="text-xl font-bold text-white tracking-tight">Registro Manual</h3>
+              </div>
+              <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-1 rounded-md uppercase tracking-wider border border-amber-500/20">Manual Log</span>
+            </div>
+            <div className="relative z-10">
+              <p className="text-slate-400 text-sm leading-relaxed mb-6">
+                ¿Olvidaste iniciar el temporizador? Registra tus minutos trabajados manualmente para asegurar que tu nómina sea exacta.
+              </p>
+              <Link 
+                href="/dashboard/production/manual"
+                className="flex items-center justify-center gap-3 w-full bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl border border-white/10 transition-all group-hover:border-amber-500/30 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.05)]"
+              >
+                <Plus size={20} className="text-amber-400" />
+                Registrar Producción Manual
+              </Link>
+            </div>
+          </div>
         </div>
 
         {/* Recent Calls */}

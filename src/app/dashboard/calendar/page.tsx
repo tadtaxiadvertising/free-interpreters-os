@@ -26,7 +26,10 @@ export default async function InterpreterCalendarPage() {
   const commitment = await getInterpreterCommitment(profile.interpreterId, todayStr);
 
   const tariff = commitment.interpreter.tariffPerMinute ? Number(commitment.interpreter.tariffPerMinute) : 0;
-  const recoveryMoney = (commitment.deficit * tariff).toFixed(2);
+  const recoveryMoney = commitment.deficit * tariff;
+
+  const formatMinutes = (mins: number) => new Intl.NumberFormat('en-US').format(mins);
+  const formatMoney = (amount: number) => `RD$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount)}`;
 
   // Gamification states
   const isOverachieving = commitment.healthScore > 100;
@@ -59,8 +62,8 @@ export default async function InterpreterCalendarPage() {
               <TrendingUp className="w-4 h-4 text-blue-400" />
             </h2>
             <div className="flex items-end gap-2">
-              <span className="text-5xl font-black text-white tracking-tight">{commitment.totalMinutesWeek}</span>
-              <span className="text-slate-400 mb-2 font-medium">/ {commitment.targetMinutesToDate} min esperados</span>
+              <span className="text-5xl font-black text-white tracking-tight">{formatMinutes(commitment.totalMinutesWeek)}</span>
+              <span className="text-slate-400 mb-2 font-medium">/ {formatMinutes(commitment.targetMinutesToDate)} min esperados</span>
             </div>
             
             <div className="mt-5 h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
@@ -94,18 +97,18 @@ export default async function InterpreterCalendarPage() {
             </div>
             <h2 className="text-lg font-bold text-rose-400 mb-2">¡Asegura tu Nómina!</h2>
             <p className="text-sm text-slate-300 mb-5 leading-relaxed">
-              El fin de semana es tu oportunidad. Recupera tus <span className="font-bold text-rose-400">{commitment.deficit} minutos</span> pendientes y asegura <span className="font-bold text-emerald-400">${recoveryMoney} extra</span> en tu próximo pago.
+              El fin de semana es tu oportunidad. Recupera tus <span className="font-bold text-rose-400">{formatMinutes(commitment.deficit)} minutos</span> pendientes y asegura <span className="font-bold text-emerald-400">{formatMoney(recoveryMoney)} extra</span> en tu próximo pago.
             </p>
             
             {commitment.recoverySuggestions && (
               <div className="space-y-3 relative z-10">
                 <div className="bg-black/40 backdrop-blur-sm p-4 rounded-xl flex justify-between items-center border border-white/5">
                   <span className="text-slate-200 font-medium">Sábado</span>
-                  <span className="font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg">+{commitment.recoverySuggestions.saturdayMinutes} min</span>
+                  <span className="font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg">+{formatMinutes(commitment.recoverySuggestions.saturdayMinutes)} min</span>
                 </div>
                 <div className="bg-black/40 backdrop-blur-sm p-4 rounded-xl flex justify-between items-center border border-white/5">
                   <span className="text-slate-200 font-medium">Domingo</span>
-                  <span className="font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg">+{commitment.recoverySuggestions.sundayMinutes} min</span>
+                  <span className="font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg">+{formatMinutes(commitment.recoverySuggestions.sundayMinutes)} min</span>
                 </div>
               </div>
             )}
@@ -125,7 +128,7 @@ export default async function InterpreterCalendarPage() {
 
       <div className="flex items-center gap-3 mb-6 mt-10">
         <h2 className="text-xl font-bold text-slate-200">Registro Diario</h2>
-        <span className="text-xs font-medium text-slate-500 bg-slate-800 px-2 py-1 rounded-md">Meta: {commitment.dailyGoalMinutes} min/día</span>
+        <span className="text-xs font-medium text-slate-500 bg-slate-800 px-2 py-1 rounded-md">Meta: {formatMinutes(commitment.dailyGoalMinutes)} min/día</span>
       </div>
       
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
@@ -164,7 +167,7 @@ export default async function InterpreterCalendarPage() {
                   isOverproducing ? 'text-amber-400' : 
                   isMet ? 'text-emerald-400' : 'text-white'
                 }`}>
-                  {stat.minutes}
+                  {formatMinutes(stat.minutes)}
                 </p>
                 <span className={`text-sm font-medium ${isMet ? 'text-emerald-500/70' : 'text-slate-600'}`}>
                   min
