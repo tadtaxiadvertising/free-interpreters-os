@@ -1,9 +1,7 @@
 "use server";
 import { auth } from "@/lib/auth-rbac";
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 import { z } from "zod";
-
-const prisma = new PrismaClient();
 const AccountSchema = z.object({ platformName: z.string(), credentials: z.string() });
 const MessageSchema = z.object({ content: z.string() });
 
