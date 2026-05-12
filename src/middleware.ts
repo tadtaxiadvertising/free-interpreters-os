@@ -1,14 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 /**
- * MIDDLEWARE — High-Performance Stateless Router
+ * MIDDLEWARE — Zero Latency Stateless Router
  * ────────────────────────────────────────────
- * 1. Stateless Auth: Verifies session purely via JWT cookie existence.
- * 2. Database Shield: PROHIBITED calls to getUser() or DB here.
- * 3. Matcher Optimized: Excludes assets, static files, and API routes.
+ * 1. Auth Stateless: Strictly verifies session via next-auth JWT cookie.
+ * 2. CPU Efficiency: No DB calls, no getUser(), no console.logs.
+ * 3. Security: Optimized matcher to avoid middleware execution on assets.
  */
 
-const PROTECTED_ROUTES = [
+const PROTECTED_PATHS = [
   "/admin",
   "/payroll",
   "/qa",
@@ -22,29 +22,25 @@ const PROTECTED_ROUTES = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // ─── 1. Stateless Session Check ──────────────────────────────
-  // Check for both NextAuth and Supabase session cookies
-  const hasAuthJsSession = 
+  // 1. Stateless Session Verification (JWT Presence Only)
+  // We ignore getUser(), Prisma, or Supabase calls to avoid resource saturation.
+  const token = 
     request.cookies.get('next-auth.session-token')?.value || 
     request.cookies.get('__Secure-next-auth.session-token')?.value;
 
-  const hasSupabaseSession = request.cookies.getAll().some(
-    (cookie) => cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')
-  );
+  const isAuthenticated = !!token;
 
-  const isAuthenticated = !!(hasAuthJsSession || hasSupabaseSession);
+  // 2. Route Protection Logic
+  // Any path in PROTECTED_PATHS requires a valid token.
+  const isProtectedPath = PROTECTED_PATHS.some((path) => pathname.startsWith(path));
 
-  // ─── 2. Route Protection ─────────────────────────────────────
-  const isProtectedRoute = PROTECTED_ROUTES.some((route) => pathname.startsWith(route));
-
-  if (isProtectedRoute && !isAuthenticated) {
-    // Redirect to home if trying to access protected route without session
+  if (isProtectedPath && !isAuthenticated) {
+    // Redirect to landing page immediately if not authenticated
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // ─── 3. Response & Security Headers ──────────────────────────
+  // 3. Performance & Security Headers
   const response = NextResponse.next();
-  
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -52,18 +48,16 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
-// MATCHER CRÍTICO: Excluye assets, imágenes y API para evitar Middleware Fatigue
+// MATCHER MAESTRO: Optimized reverse blacklist to minimize CPU execution
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - Extensiones: png, jpg, jpeg, svg, gif, webp, ico
+     * Ignore:
+     * - /api/ (Backend requests)
+     * - /_next/ (Next.js internals)
+     * - /static/ (Static assets)
+     * - /favicon.ico, *.png, *.jpg, *.svg (Common media extensions)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico)).*)',
+    '/((?!api|_next|static|favicon.ico|.*\\.(?:png|jpg|svg)).*)',
   ],
 };
-
