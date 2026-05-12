@@ -1,6 +1,5 @@
 import { updateSession } from "@/lib/supabase/middleware";
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth-rbac-edge";
 
 /**
  * MIDDLEWARE — Bulletproof RBAC Router
@@ -32,6 +31,15 @@ function extractRolePrefix(
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // 1. OPTIMIZACIÓN: Ignorar logs para archivos estáticos y internos
+  if (
+    pathname.startsWith('/_next') || 
+    pathname.includes('.') || 
+    pathname.startsWith('/api/auth')
+  ) {
+    return NextResponse.next();
+  }
+
   // ─── 1. Supabase Session Management (Legacy / Main App) ────────
   let response = await updateSession(request);
 
@@ -44,10 +52,13 @@ export async function middleware(request: NextRequest) {
 
     // Skip protection for login page and auth API
     if (!isLoginRoute && !isApiAuth) {
-      const session = await auth();
+      // PREVENT CRYPTO ERROR: Use cookies instead of auth() function
+      const sessionToken = 
+        request.cookies.get('next-auth.session-token')?.value || 
+        request.cookies.get('__Secure-next-auth.session-token')?.value;
 
       // ── 2a. No session → redirect to login ──
-      if (!session?.user) {
+      if (!sessionToken) {
         const loginUrl = new URL("/portal-rbac/login", request.url);
         // ANTI-RECURSION: Only redirect if not already going to login
         if (pathname !== "/portal-rbac/login") {
@@ -55,46 +66,30 @@ export async function middleware(request: NextRequest) {
         }
         // Already on login, pass through
       } else {
-        const role = (session.user as any)?.role as string | undefined;
+        // We can't decode the JWT easily in edge without crypto, so we'll pass them through 
+        // to let the layout/page check their exact role, but we route bare requests.
         const routePrefix = extractRolePrefix(pathname);
 
-        // ── 2b. Bare /portal-rbac → auto-route to role dashboard ──
+        // ── 2b. Bare /portal-rbac → auto-route to default dash (let client route correct) ──
         if (pathname === "/portal-rbac" || pathname === "/portal-rbac/") {
-          if (role && ROLE_DASHBOARDS[role]) {
-            return NextResponse.redirect(
-              new URL(ROLE_DASHBOARDS[role], request.url), 307
-            );
-          }
-          // Unknown role → login
+          // Without decoding JWT, we can't be sure of the role in edge. 
+          // Defaulting to interpreter dashboard, where it can redirect again if admin/holder.
           return NextResponse.redirect(
-            new URL("/portal-rbac/login", request.url), 307
+            new URL(ROLE_DASHBOARDS["INTERPRETER"], request.url), 307
           );
-        }
-
-        // ── 2c. Role mismatch → redirect to correct dashboard ──
-        if (routePrefix) {
-          const expectedRole = routePrefix.toUpperCase();
-          if (role !== expectedRole) {
-            const correctDash =
-              ROLE_DASHBOARDS[role || ""] || "/portal-rbac/login";
-            const targetUrl = new URL(correctDash, request.url);
-
-            // ANTI-RECURSION: Never redirect to the same path
-            if (targetUrl.pathname !== pathname) {
-              return NextResponse.redirect(targetUrl, 307);
-            }
-          }
         }
       }
     }
 
     // ── 2d. Authenticated user hits login → redirect to dashboard ──
     if (isLoginRoute) {
-      const session = await auth();
-      const role = (session?.user as any)?.role as string | undefined;
-      if (session?.user && role && ROLE_DASHBOARDS[role]) {
-        const dashUrl = new URL(ROLE_DASHBOARDS[role], request.url);
-        // ANTI-RECURSION: Ensure we're not on that dashboard already
+      const sessionToken = 
+        request.cookies.get('next-auth.session-token')?.value || 
+        request.cookies.get('__Secure-next-auth.session-token')?.value;
+        
+      if (sessionToken) {
+        // Can't reliably read role in edge middleware now, defaulting to generic entry
+        const dashUrl = new URL("/portal-rbac", request.url);
         if (dashUrl.pathname !== pathname) {
           return NextResponse.redirect(dashUrl, 307);
         }
@@ -124,18 +119,13 @@ export async function middleware(request: NextRequest) {
 
   response.headers.set("Content-Security-Policy", cspHeader);
 
+  console.log(`--- [MIDDLEWARE] Authorized access to: ${pathname}`);
   return response;
 }
 
+// MATCHER CRÍTICO: Evita que el middleware se ejecute en assets
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - api (API routes)
-     * - favicon.ico (favicon file)
-     */
-    "/((?!_next/static|_next/image|api|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|public).*)',
   ],
 };

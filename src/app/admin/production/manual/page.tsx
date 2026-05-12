@@ -1,8 +1,28 @@
 "use client";
 
-import { useState, useEffect, useMemo, useTransition, use } from "react";
-import { createManualLog, getInterpretersForSelect } from "@/app/actions/manual-logs";
+import { useState, useEffect, useMemo, use } from "react";
+import { getInterpretersForSelect } from "@/app/actions/manual-logs";
 import { Clock, Calendar, CheckCircle2, AlertCircle, Search, Loader2, User } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+
+const manualLogSchema = z.object({
+  interpreterExternalId: z.string().min(1, "Debe seleccionar un intérprete"),
+  date: z.string().min(1, "La fecha es requerida"),
+  startTime: z.string().min(1, "Hora de inicio es requerida"),
+  endTime: z.string().min(1, "Hora de fin es requerida"),
+}).refine(data => {
+  if (!data.date || !data.startTime || !data.endTime) return true;
+  const start = new Date(`${data.date}T${data.startTime}:00`).getTime();
+  const end = new Date(`${data.date}T${data.endTime}:00`).getTime();
+  return end > start;
+}, {
+  message: "La hora de fin debe ser posterior a la hora de inicio",
+  path: ["endTime"]
+});
+
+type ManualLogForm = z.infer<typeof manualLogSchema>;
 
 export default function ManualLogPage(props: { params: Promise<any> }) {
   const params = use(props.params);
@@ -10,14 +30,29 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
   const [interpreters, setInterpreters] = useState<{ id: number; name: string; externalId: string }[]>([]);
   const [search, setSearch] = useState("");
   const [loadingInitial, setLoadingInitial] = useState(true);
-
-  const [interpreterId, setInterpreterId] = useState<number | null>(null);
-  const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [isPending, startTransition] = useTransition();
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors, isSubmitting }
+  } = useForm<ManualLogForm>({
+    resolver: zodResolver(manualLogSchema),
+    defaultValues: {
+      interpreterExternalId: "",
+      date: "",
+      startTime: "",
+      endTime: ""
+    }
+  });
+
+  const watchInterpreterId = watch("interpreterExternalId");
+  const watchDate = watch("date");
+  const watchStartTime = watch("startTime");
+  const watchEndTime = watch("endTime");
 
   useEffect(() => {
     async function load() {
@@ -31,7 +66,7 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
   }, []);
 
   const filteredInterpreters = useMemo(() => {
-    if (!search) return interpreters.slice(0, 50); // limit to 50 when no search
+    if (!search) return interpreters.slice(0, 50);
     const lower = search.toLowerCase();
     return interpreters
       .filter((i) => i.name.toLowerCase().includes(lower) || i.externalId.toLowerCase().includes(lower))
@@ -39,47 +74,53 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
   }, [search, interpreters]);
 
   const selectedInterpreter = useMemo(() => {
-    return interpreters.find((i) => i.id === interpreterId) || null;
-  }, [interpreterId, interpreters]);
+    return interpreters.find((i) => i.externalId === watchInterpreterId) || null;
+  }, [watchInterpreterId, interpreters]);
 
   const livePreviewMinutes = useMemo(() => {
-    if (!date || !startTime || !endTime) return 0;
-    const start = new Date(`${date}T${startTime}:00`);
-    const end = new Date(`${date}T${endTime}:00`);
+    if (!watchDate || !watchStartTime || !watchEndTime) return 0;
+    const start = new Date(`${watchDate}T${watchStartTime}:00`);
+    const end = new Date(`${watchDate}T${watchEndTime}:00`);
     const diff = end.getTime() - start.getTime();
     if (diff <= 0 || isNaN(diff)) return 0;
     return Math.floor(diff / 60000);
-  }, [date, startTime, endTime]);
+  }, [watchDate, watchStartTime, watchEndTime]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!interpreterId || !date || !startTime || !endTime || livePreviewMinutes <= 0) {
-      setMessage({ type: "error", text: "Por favor completa todos los campos correctamente." });
-      return;
-    }
+  const onSubmit = async (data: ManualLogForm) => {
+    setMessage(null);
+    try {
+      const startIso = new Date(`${data.date}T${data.startTime}:00`).toISOString();
+      const endIso = new Date(`${data.date}T${data.endTime}:00`).toISOString();
 
-    startTransition(async () => {
-      setMessage(null);
-      const res = await createManualLog({ 
-        interpreterId, 
-        date, 
-        startTime, 
-        endTime, 
-        totalMinutes: livePreviewMinutes 
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const secret = process.env.NEXT_PUBLIC_API_SECRET_KEY || 'manual-entry-secret';
+
+      const response = await fetch(`${apiUrl}/api/v1/calls/manual`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${secret}`
+        },
+        body: JSON.stringify({
+          interpreterId: data.interpreterExternalId,
+          startTime: startIso,
+          endTime: endIso,
+          notes: "Registro Manual UI"
+        })
       });
-      
-      if (res.success) {
-        setMessage({ type: "success", text: "Registro manual creado exitosamente. Los minutos se han asignado a Nómina." });
-        // Reset form
-        setDate("");
-        setStartTime("");
-        setEndTime("");
-        setInterpreterId(null);
-        setSearch("");
-      } else {
-        setMessage({ type: "error", text: res.error || "Ocurrió un error inesperado." });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "Ocurrió un error al registrar en el API");
       }
-    });
+
+      setMessage({ type: "success", text: "Registro manual creado exitosamente." });
+      reset();
+      setSearch("");
+    } catch (error: any) {
+      console.error(error);
+      setMessage({ type: "error", text: error.message || "Ocurrió un error inesperado." });
+    }
   };
 
   return (
@@ -87,14 +128,13 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-white">Registro Manual de Tiempos</h1>
         <p className="text-slate-400 mt-2">
-          Agrega horas interpretadas manualmente. Este registro se sincronizará automáticamente con el Payroll Engine.
+          Agrega horas interpretadas manualmente. Validado mediante Zod y enviado al Backend API.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-6 bg-slate-900/50 border border-slate-800 p-6 rounded-xl shadow-lg">
+        <form onSubmit={handleSubmit(onSubmit)} className="lg:col-span-2 space-y-6 bg-slate-900/50 border border-slate-800 p-6 rounded-xl shadow-lg">
           
-          {/* Interpreter Selection */}
           <div className="space-y-3">
             <label className="text-sm font-medium text-slate-200 flex items-center gap-2">
               <User className="w-4 h-4 text-blue-500" />
@@ -110,6 +150,7 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
+            {errors.interpreterExternalId && <span className="text-red-400 text-sm">{errors.interpreterExternalId.message}</span>}
             
             {loadingInitial ? (
               <div className="flex items-center gap-2 text-sm text-slate-400 py-2">
@@ -124,16 +165,16 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
                     <button
                       type="button"
                       key={int.id}
-                      onClick={() => setInterpreterId(int.id)}
+                      onClick={() => setValue("interpreterExternalId", int.externalId, { shouldValidate: true })}
                       className={`w-full text-left px-4 py-3 hover:bg-slate-800 transition-colors flex items-center justify-between border-b border-slate-800/50 last:border-0 ${
-                        interpreterId === int.id ? "bg-slate-800 border-l-4 border-l-blue-500" : ""
+                        watchInterpreterId === int.externalId ? "bg-slate-800 border-l-4 border-l-blue-500" : ""
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <span className="font-mono text-xs bg-slate-800 text-blue-400 px-2 py-1 rounded-md">[{int.externalId}]</span>
-                        <span className={`text-sm ${interpreterId === int.id ? "text-white font-medium" : "text-slate-300"}`}>{int.name}</span>
+                        <span className={`text-sm ${watchInterpreterId === int.externalId ? "text-white font-medium" : "text-slate-300"}`}>{int.name}</span>
                       </div>
-                      {interpreterId === int.id && <CheckCircle2 className="w-4 h-4 text-blue-500" />}
+                      {watchInterpreterId === int.externalId && <CheckCircle2 className="w-4 h-4 text-blue-500" />}
                     </button>
                   ))
                 )}
@@ -149,16 +190,14 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
             <div className="relative">
               <input
                 type="date"
-                required
+                {...register("date")}
                 className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all [&::-webkit-calendar-picker-indicator]:invert-[0.8]"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
               />
+              {errors.date && <span className="text-red-400 text-sm mt-1">{errors.date.message}</span>}
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Start Time */}
             <div className="space-y-3">
               <label className="text-sm font-medium text-slate-200 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-blue-500" />
@@ -167,15 +206,13 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
               <div className="relative">
                 <input
                   type="time"
-                  required
+                  {...register("startTime")}
                   className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all [&::-webkit-calendar-picker-indicator]:invert-[0.8]"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
                 />
+                {errors.startTime && <span className="text-red-400 text-sm mt-1">{errors.startTime.message}</span>}
               </div>
             </div>
 
-            {/* End Time */}
             <div className="space-y-3">
               <label className="text-sm font-medium text-slate-200 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-blue-500" />
@@ -184,11 +221,10 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
               <div className="relative">
                 <input
                   type="time"
-                  required
+                  {...register("endTime")}
                   className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all [&::-webkit-calendar-picker-indicator]:invert-[0.8]"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
                 />
+                {errors.endTime && <span className="text-red-400 text-sm mt-1">{errors.endTime.message}</span>}
               </div>
             </div>
           </div>
@@ -202,11 +238,11 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
 
           <button
             type="submit"
-            disabled={isPending || !interpreterId || livePreviewMinutes <= 0}
+            disabled={isSubmitting || livePreviewMinutes <= 0}
             className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 px-4 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
           >
-            {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-            {isPending ? "Registrando..." : "Registrar Tiempo Manual"}
+            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+            {isSubmitting ? "Registrando..." : "Registrar Tiempo Manual"}
           </button>
         </form>
 
@@ -227,13 +263,13 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
               
               <div className="flex flex-col gap-1">
                 <span className="text-slate-500 text-xs uppercase tracking-wider font-semibold">Fecha</span>
-                <span className="text-slate-200 font-medium">{date || "--"}</span>
+                <span className="text-slate-200 font-medium">{watchDate || "--"}</span>
               </div>
               
               <div className="flex flex-col gap-1">
                 <span className="text-slate-500 text-xs uppercase tracking-wider font-semibold">Horario</span>
                 <span className="text-slate-200 font-medium">
-                  {startTime || "--"} - {endTime || "--"}
+                  {watchStartTime || "--"} - {watchEndTime || "--"}
                 </span>
               </div>
               
@@ -253,7 +289,7 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
                 <div className="mt-6 bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-lg flex gap-3 items-start shadow-inner">
                   <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                   <p className="text-sm text-emerald-100/90 leading-relaxed">
-                    Se asignarán <strong className="text-emerald-400">{livePreviewMinutes} minutos</strong> a <span className="font-mono bg-emerald-950/50 px-1 py-0.5 rounded text-emerald-300">verifiedMinutes</span> para su procesamiento en nómina.
+                    Se enviará un registro manual a la API para <strong className="text-emerald-400">{livePreviewMinutes} minutos</strong> de servicio.
                   </p>
                 </div>
               )}
