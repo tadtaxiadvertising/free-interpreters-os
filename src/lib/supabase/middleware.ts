@@ -11,8 +11,6 @@ export async function updateSession(request: NextRequest) {
     );
     return NextResponse.next({ request });
   }
-
-  console.log(`--- [MIDDLEWARE] Requesting: ${request.nextUrl.pathname}`);
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -21,7 +19,6 @@ export async function updateSession(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          console.log('--- [MIDDLEWARE] Cookies.getAll() called');
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
@@ -38,20 +35,16 @@ export async function updateSession(request: NextRequest) {
   );
 
   // 1. Get the user from Supabase Auth
-  // We use getUser() instead of getSession() as recommended by Supabase for security.
   let user = null;
   try {
-    console.log('--- [MIDDLEWARE] Calling getUser()...');
     const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
-    console.log('--- [MIDDLEWARE] getUser() finished. User found:', !!currentUser);
     if (!userError) {
       user = currentUser;
     }
-    // Silently ignore errors as they usually mean the user is not logged in 
-    // or the session has expired (Refresh Token Not Found).
   } catch (e) {
-    // Suppress logs for auth errors to keep console clean
+    // Suppress logs for auth errors
   }
+
 
   const { pathname } = request.nextUrl;
 
