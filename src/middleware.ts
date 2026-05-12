@@ -31,17 +31,20 @@ function extractRolePrefix(
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. OPTIMIZACIÓN: Ignorar logs para archivos estáticos y internos
-  if (
-    pathname.startsWith('/_next') || 
-    pathname.includes('.') || 
-    pathname.startsWith('/api/auth')
-  ) {
-    return NextResponse.next();
+  // ─── 1. Route Classification ─────────────────────────────────
+  const protectedPrefixes = ["/admin", "/payroll", "/qa", "/dashboard", "/portal-rbac"];
+  const isProtectedRoute = protectedPrefixes.some((prefix) => pathname.startsWith(prefix));
+  
+  // ─── 2. Session Management (Conditional) ──────────────────────
+  let response: NextResponse;
+  
+  if (isProtectedRoute || pathname === "/login") {
+    // Only execute getUser() and DB calls on protected routes or login
+    response = await updateSession(request);
+  } else {
+    // Light response for public routes (including root /)
+    response = NextResponse.next({ request });
   }
-
-  // ─── 1. Supabase Session Management (Legacy / Main App) ────────
-  let response = await updateSession(request);
 
   // ─── 2. RBAC Portal Protection ─────────────────────────────────
   const isPortalRoute = pathname.startsWith("/portal-rbac");
