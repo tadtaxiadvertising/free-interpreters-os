@@ -22,8 +22,18 @@ const PROTECTED_PATHS = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // 0. SAFETY VALVE: Absolute bypass for API, Next internals and static assets
+  // This prevents any middleware logic (cookies, auth) from running on these paths.
+  if (
+    pathname.startsWith('/api') || 
+    pathname.startsWith('/_next') || 
+    pathname.startsWith('/static') ||
+    pathname.includes('.')
+  ) {
+    return NextResponse.next();
+  }
+
   // 1. Stateless Session Verification (JWT Presence Only)
-  // We ignore getUser(), Prisma, or Supabase calls to avoid resource saturation.
   const token = 
     request.cookies.get('next-auth.session-token')?.value || 
     request.cookies.get('__Secure-next-auth.session-token')?.value;
@@ -31,33 +41,26 @@ export async function middleware(request: NextRequest) {
   const isAuthenticated = !!token;
 
   // 2. Route Protection Logic
-  // Any path in PROTECTED_PATHS requires a valid token.
   const isProtectedPath = PROTECTED_PATHS.some((path) => pathname.startsWith(path));
 
   if (isProtectedPath && !isAuthenticated) {
-    // Redirect to landing page immediately if not authenticated
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // 3. Performance & Security Headers
-  const response = NextResponse.next();
-  response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-
-  return response;
+  return NextResponse.next();
 }
 
-// MATCHER MAESTRO: Optimized reverse blacklist to minimize CPU execution
+// MATCHER MAESTRO: Optimized blacklist to minimize CPU execution
 export const config = {
   matcher: [
     /*
-     * Ignore:
-     * - /api/ (Backend requests)
-     * - /_next/ (Next.js internals)
-     * - /static/ (Static assets)
-     * - /favicon.ico, *.png, *.jpg, *.svg (Common media extensions)
+     * Match all request paths except for the ones starting with:
+     * - api (backend routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
      */
-    '/((?!api|_next|static|favicon.ico|.*\\.(?:png|jpg|svg)).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };
+

@@ -11,20 +11,12 @@ import pg from 'pg';
 const prismaClientSingleton = (): PrismaClient => {
   if (!process.env.DATABASE_URL) {
     console.warn('⚠️ PRISMA: DATABASE_URL is missing. Database features will be disabled.');
-    // Return a dummy client that doesn't try to connect immediately
     return new PrismaClient(); 
   }
   
-  try {
-    const url = new URL(process.env.DATABASE_URL);
-    console.log(`🔌 PRISMA: Connecting to database at ${url.host} (masked user/pass)`);
-  } catch (e) {
-    console.log(`🔌 PRISMA: Connecting to database (URL parsing failed)`);
-  }
-  
   const pool = new pg.Pool({ 
-    connectionString: process.env.DATABASE_URL, // Ensure this uses port 6543 (Connection Pooler)
-    max: process.env.NODE_ENV === 'production' ? 3 : 10, // Optimized for 457MB VPS on Easypanel
+    connectionString: process.env.DATABASE_URL,
+    max: process.env.NODE_ENV === 'production' ? 2 : 10, // Reduced to 2 for 457MB VPS
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
   });
@@ -32,27 +24,19 @@ const prismaClientSingleton = (): PrismaClient => {
   const adapter = new PrismaPg(pool);
   
   return new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     adapter,
   });
 };
 
 declare global {
-  var _prisma: undefined | PrismaClient;
+  var _prisma: PrismaClient | undefined;
 }
 
-// Use a Proxy to lazily instantiate the Prisma Client
-// This prevents Next.js page data collection from throwing Edge environment errors
-const prisma = new Proxy({} as PrismaClient, {
-  get: (target, prop) => {
-    if (!globalThis._prisma) {
-      globalThis._prisma = prismaClientSingleton();
-    }
-    const value = (globalThis._prisma as any)[prop];
-    return typeof value === 'function' ? value.bind(globalThis._prisma) : value;
-  }
-});
+// Singleton pattern for Next.js to prevent multiple instances
+const prisma = globalThis._prisma ?? prismaClientSingleton();
 
 export default prisma;
 
-if (process.env.NODE_ENV !== 'production') globalThis._prisma = globalThis._prisma || prismaClientSingleton();
+if (process.env.NODE_ENV !== 'production') globalThis._prisma = prisma;
+

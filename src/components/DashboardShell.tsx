@@ -54,14 +54,15 @@ export function DashboardShell({ children, role, userName, notifications = [], r
 
     window.addEventListener('beforeunload', setOffline);
 
-    // Heartbeat every 45 seconds
+    // Heartbeat every 60 seconds
     const interval = setInterval(() => {
       fetch('/api/presence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'heartbeat' }),
       });
-    }, 45000);
+    }, 60000);
+
 
     return () => {
       window.removeEventListener('beforeunload', setOffline);
