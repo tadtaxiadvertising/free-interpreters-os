@@ -137,10 +137,10 @@ export default async function ProductionPage() {
                       <div 
                         className={cn(
                           "h-full rounded-full",
-                          log.adherence?.toNumber()! >= 90 ? "bg-green-500" :
-                          log.adherence?.toNumber()! >= 80 ? "bg-yellow-500" : "bg-red-500"
+                          (log.adherence?.toNumber() ?? 0) >= 90 ? "bg-green-500" :
+                          (log.adherence?.toNumber() ?? 0) >= 80 ? "bg-yellow-500" : "bg-red-500"
                         )}
-                        style={{ width: `${log.adherence?.toNumber()}%` }}
+                        style={{ width: `${log.adherence?.toNumber() ?? 0}%` }}
                       />
                     </div>
                     <span className="text-xs font-bold text-white">{log.adherence?.toString()}%</span>

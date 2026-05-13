@@ -5,8 +5,9 @@ const db = prisma;
 import { revalidatePath } from 'next/cache';
 import { ActionResult } from '@/lib/types';
 import { createClient } from '@/lib/supabase/server';
+import { Account, InterpreterAccountRate } from '@prisma/client';
 
-export async function createAccount(name: string, description?: string): Promise<ActionResult<any>> {
+export async function createAccount(name: string, description?: string): Promise<ActionResult<Account>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
@@ -26,7 +27,7 @@ export async function createAccount(name: string, description?: string): Promise
   }
 }
 
-export async function updateAccount(id: number, name: string, description?: string): Promise<ActionResult<any>> {
+export async function updateAccount(id: number, name: string, description?: string): Promise<ActionResult<Account>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
@@ -44,7 +45,7 @@ export async function updateAccount(id: number, name: string, description?: stri
   }
 }
 
-export async function deleteAccount(id: number): Promise<ActionResult<any>> {
+export async function deleteAccount(id: number): Promise<ActionResult<void>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
@@ -61,7 +62,7 @@ export async function deleteAccount(id: number): Promise<ActionResult<any>> {
   }
 }
 
-export async function getAccounts(): Promise<ActionResult<any[]>> {
+export async function getAccounts(): Promise<ActionResult<Account[]>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
@@ -81,7 +82,7 @@ export async function setInterpreterAccountRate(
   interpreterId: number,
   accountId: number,
   tariffPerHour: number
-): Promise<ActionResult<any>> {
+): Promise<ActionResult<InterpreterAccountRate>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
@@ -132,7 +133,7 @@ export async function setInterpreterAccountRate(
 export async function deleteInterpreterAccountRate(
   interpreterId: number,
   accountId: number
-): Promise<ActionResult<any>> {
+): Promise<ActionResult<void>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };

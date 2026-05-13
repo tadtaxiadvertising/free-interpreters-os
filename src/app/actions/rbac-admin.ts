@@ -14,7 +14,7 @@ export async function createHolder(data: unknown) {
   const { email, password, name } = HolderProvisionSchema.parse(data);
   const hashedPassword = await bcrypt.hash(password, 12);
 
-  return (prisma as any).rbacUser.create({
+  return prisma.rbacUser.create({
     data: { email, password: hashedPassword, name, role: "HOLDER" },
     select: { id: true, email: true, name: true, role: true, createdAt: true },
   });
@@ -26,7 +26,7 @@ export async function createInterpreter(data: unknown) {
   const { email, password, name } = InterpreterProvisionSchema.parse(data);
   const hashedPassword = await bcrypt.hash(password, 12);
 
-  return (prisma as any).rbacUser.create({
+  return prisma.rbacUser.create({
     data: { email, password: hashedPassword, name, role: "INTERPRETER" },
     select: { id: true, email: true, name: true, role: true, createdAt: true },
   });
@@ -37,7 +37,7 @@ export async function listUsersByRole(role?: string) {
   await requireRole("ADMIN");
   const where = role ? { role: role as any } : {};
 
-  return (prisma as any).rbacUser.findMany({
+  return prisma.rbacUser.findMany({
     where,
     select: { id: true, email: true, name: true, role: true, createdAt: true },
     orderBy: { createdAt: "desc" },
@@ -49,7 +49,7 @@ export async function moderateMessage(data: unknown) {
   await requireRole("ADMIN");
   const { messageId, action } = VaultMessageModerateSchema.parse(data);
 
-  return (prisma as any).vaultMessage.update({
+  return prisma.vaultMessage.update({
     where: { id: messageId },
     data: { status: action },
   });
@@ -59,7 +59,7 @@ export async function moderateMessage(data: unknown) {
 export async function listPendingMessages() {
   await requireRole("ADMIN");
 
-  return (prisma as any).vaultMessage.findMany({
+  return prisma.vaultMessage.findMany({
     where: { status: "PENDING_ADMIN" },
     include: {
       author: { select: { id: true, name: true, email: true, role: true } },
@@ -74,10 +74,10 @@ export async function getAdminStats() {
   await requireRole("ADMIN");
 
   const [holders, interpreters, accounts, pendingMessages] = await Promise.all([
-    (prisma as any).rbacUser.count({ where: { role: "HOLDER" } }),
-    (prisma as any).rbacUser.count({ where: { role: "INTERPRETER" } }),
-    (prisma as any).vaultAccount.count(),
-    (prisma as any).vaultMessage.count({ where: { status: "PENDING_ADMIN" } }),
+    prisma.rbacUser.count({ where: { role: "HOLDER" } }),
+    prisma.rbacUser.count({ where: { role: "INTERPRETER" } }),
+    prisma.vaultAccount.count(),
+    prisma.vaultMessage.count({ where: { status: "PENDING_ADMIN" } }),
   ]);
 
   return { holders, interpreters, accounts, pendingMessages };

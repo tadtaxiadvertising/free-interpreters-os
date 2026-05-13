@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { ActionResult } from '@/lib/types';
 
-const db = prisma as any;
+const db = prisma;
 
 const ProfileUpdateSchema = z.object({
   phone: z.string().optional(),
@@ -21,7 +21,7 @@ const ProfileUpdateSchema = z.object({
 
 export type ProfileUpdateInput = z.infer<typeof ProfileUpdateSchema>;
 
-export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Promise<ActionResult<any>> {
+export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Promise<ActionResult<void>> {
   const parseResult = ProfileUpdateSchema.safeParse(rawInput);
   if (!parseResult.success) {
     return { success: false, error: 'Invalid profile data', code: 'VALIDATION_ERROR' };
@@ -65,8 +65,9 @@ export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Pr
             notas: input.notes
           }
         });
-      } catch (interpError: any) {
-        console.warn('Sync with interpreters table failed:', interpError.message);
+      } catch (interpError: unknown) {
+        const errorMsg = interpError instanceof Error ? interpError.message : 'Unknown error';
+        console.warn('Sync with interpreters table failed:', errorMsg);
       }
     }
 
@@ -75,8 +76,9 @@ export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Pr
     revalidatePath('/dashboard/earnings');
     
     return { success: true };
-  } catch (error: any) {
-    console.error('Unexpected Profile Update Error:', error.message);
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Unexpected Profile Update Error:', errorMsg);
     return { success: false, error: 'An unexpected error occurred while updating profile.' };
   }
 }

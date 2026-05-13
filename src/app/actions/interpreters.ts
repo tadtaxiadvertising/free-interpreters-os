@@ -5,20 +5,21 @@ import prisma from '@/lib/prisma';
 import { InterpreterSchema, InterpreterInput } from '@/lib/validators';
 import { ActionResult } from '@/lib/types';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { Interpreter, Prisma } from '@prisma/client';
 
 const db = prisma;
 
 /**
  * ACTION: Create Interpreter
  */
-export async function createInterpreter(data: InterpreterInput): Promise<ActionResult<any>> {
+export async function createInterpreter(data: InterpreterInput): Promise<ActionResult<Interpreter>> {
   try {
     const validated = InterpreterSchema.parse(data);
     const { password, ...interpreterData } = validated;
 
     // 1. Create interpreter record
     const interpreter = await db.interpreter.create({
-      data: interpreterData as any,
+      data: interpreterData,
     });
 
     // 2. If password provided, create Auth user and UserProfile
@@ -65,18 +66,21 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
     revalidatePath('/interpreters');
     revalidatePath('/admin');
     return { success: true, data: interpreter };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = (error as Prisma.PrismaClientKnownRequestError).code;
     console.error('Error in createInterpreter action:', error);
-    if (error.code === 'P2002') {
+    if (errorCode === 'P2002') {
+      const meta = (error as Prisma.PrismaClientKnownRequestError).meta as any;
       return { 
         success: false, 
-        error: `An interpreter with this ${error.meta?.target?.[0]} already exists.`,
+        error: `An interpreter with this ${meta?.target?.[0]} already exists.`,
         code: 'CONFLICT'
       };
     }
     return { 
       success: false, 
-      error: error.message || 'Failed to create interpreter',
+      error: errorMsg || 'Failed to create interpreter',
       code: 'INTERNAL_ERROR'
     };
   }
@@ -86,7 +90,7 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
 /**
  * ACTION: Update Interpreter
  */
-export async function updateInterpreter(id: number, data: Partial<InterpreterInput>): Promise<ActionResult<any>> {
+export async function updateInterpreter(id: number, data: Partial<InterpreterInput>): Promise<ActionResult<{ id: number; name: string }>> {
   try {
     const validated = InterpreterSchema.partial().parse(data);
 
@@ -99,11 +103,12 @@ export async function updateInterpreter(id: number, data: Partial<InterpreterInp
     revalidatePath('/interpreters');
     revalidatePath(`/interpreters/${id}`);
     return { success: true, data: interpreter };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in updateInterpreter action:', error);
     return { 
       success: false, 
-      error: error.message || 'Failed to update interpreter',
+      error: errorMsg || 'Failed to update interpreter',
       code: 'INTERNAL_ERROR'
     };
   }
@@ -148,11 +153,12 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
     revalidatePath('/interpreters');
     revalidatePath('/admin');
     return { success: true };
-  } catch (error: any) {
-    console.error('Error in deleteInterpreter action:', error.message);
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error in deleteInterpreter action:', errorMsg);
     return { 
       success: false, 
-      error: error.message || 'Failed to delete interpreter',
+      error: errorMsg || 'Failed to delete interpreter',
       code: 'INTERNAL_ERROR'
     };
   }
@@ -216,7 +222,7 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
             displayName: interpreter.name,
             interpreterId: interpreter.id,
             onboardingComplete: true
-          } as any,
+          },
           create: {
             id: authUser.id,
             email: interpreter.emailCorporativo,
@@ -224,7 +230,7 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
             role: 'interpreter',
             interpreterId: interpreter.id,
             onboardingComplete: true
-          } as any
+          }
         });
         userProfileId = profile.id;
       }
@@ -240,9 +246,10 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
     }
 
     return { success: true };
-  } catch (error: any) {
-    console.error('Error resetting password:', error.message);
-    return { success: false, error: error.message, code: 'INTERNAL_ERROR' };
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error resetting password:', errorMsg);
+    return { success: false, error: errorMsg, code: 'INTERNAL_ERROR' };
   }
 }
 
@@ -259,8 +266,9 @@ export async function updateRealtimeStatus(id: number, status: 'Online' | 'Offli
     revalidatePath('/interpreters');
     revalidatePath('/dashboard');
     return { success: true };
-  } catch (error: any) {
-    console.error('Error updating realtime status:', error.message);
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error updating realtime status:', errorMsg);
     return { success: false, error: 'Failed to update status' };
   }
 }

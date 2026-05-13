@@ -4,8 +4,9 @@ import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+import { CallSession } from '@prisma/client';
 
-const db = prisma as any;
+const db = prisma;
 
 export async function startCall(): Promise<ActionResult<{ sessionId: number; startedAt: string }>> {
   const supabase = await createClient();
@@ -63,10 +64,14 @@ export async function startCall(): Promise<ActionResult<{ sessionId: number; sta
     revalidatePath('/dashboard');
     return {
       success: true,
-      data: { sessionId: session.id, startedAt: session.startedAt.toISOString() },
+      data: { 
+        sessionId: session.id, 
+        startedAt: session.startedAt?.toISOString() ?? new Date().toISOString() 
+      },
     };
-  } catch (error: any) {
-    console.error('Error starting call:', error.message);
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error starting call:', errorMsg);
     return { success: false, error: 'Error starting call', code: 'INTERNAL_ERROR' };
   }
 }
@@ -110,13 +115,14 @@ export async function endCall(
         callCost: Number(session.callCost) ?? 0,
       },
     };
-  } catch (error: any) {
-    console.error('Error ending call:', error.message);
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error ending call:', errorMsg);
     return { success: false, error: 'Error ending call', code: 'INTERNAL_ERROR' };
   }
 }
 
-export async function getActiveCall(): Promise<ActionResult<any>> {
+export async function getActiveCall(): Promise<ActionResult<CallSession | null>> {
   const supabase = await createClient();
   
   const { data: { user } } = await supabase.auth.getUser();
@@ -140,13 +146,14 @@ export async function getActiveCall(): Promise<ActionResult<any>> {
     });
 
     return { success: true, data: session ?? null };
-  } catch (error: any) {
-    console.error('Error fetching active call:', error.message);
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error fetching active call:', errorMsg);
     return { success: false, error: 'Error fetching active call', code: 'INTERNAL_ERROR' };
   }
 }
 
-export async function addManualCall(formData: FormData): Promise<ActionResult<any>> {
+export async function addManualCall(formData: FormData): Promise<ActionResult<CallSession>> {
   const supabase = await createClient();
   
   const { data: { user } } = await supabase.auth.getUser();
@@ -199,8 +206,9 @@ export async function addManualCall(formData: FormData): Promise<ActionResult<an
 
     revalidatePath('/admin/calls');
     return { success: true, data: session };
-  } catch (error: any) {
-    console.error('Error adding manual call:', error.message);
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error adding manual call:', errorMsg);
     return { success: false, error: 'Error adding manual call', code: 'INTERNAL_ERROR' };
   }
 }

@@ -3,6 +3,7 @@
 import prismaClient from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
+import { UserRole } from '@/lib/types';
 
 const prisma = prismaClient;
 
@@ -27,7 +28,7 @@ export async function getAdminUsers() {
   });
 }
 
-export async function updateUserRole(userId: string, role: string) {
+export async function updateUserRole(userId: string, role: UserRole) {
   const { user } = await auth();
   if (!user || user.role !== 'admin') {
     throw new Error('Unauthorized');
@@ -35,7 +36,7 @@ export async function updateUserRole(userId: string, role: string) {
 
   await prisma.userProfile.update({
     where: { id: userId },
-    data: { role: role as any }
+    data: { role }
   });
 
   revalidatePath('/admin/users');

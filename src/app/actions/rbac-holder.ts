@@ -16,7 +16,7 @@ export async function uploadAccount(data: unknown) {
   // Encrypt the credentials before persisting to the database
   const encryptedCredentials = encrypt(parsed.credentials);
 
-  return (prisma as any).vaultAccount.create({
+  return prisma.vaultAccount.create({
     data: {
       platformName: parsed.platformName,
       url: parsed.url || null,
@@ -39,7 +39,7 @@ export async function uploadAccount(data: unknown) {
 export async function listHolderAccounts() {
   const session = await requireRole("HOLDER");
 
-  return (prisma as any).vaultAccount.findMany({
+  return prisma.vaultAccount.findMany({
     where: { holderId: session.user.id },
     include: {
       interpreter: { select: { id: true, name: true, email: true } },
@@ -53,7 +53,7 @@ export async function listHolderAccounts() {
 export async function revealHolderCredentials(accountId: string): Promise<string> {
   const session = await requireRole("HOLDER");
 
-  const account = await (prisma as any).vaultAccount.findFirst({
+  const account = await prisma.vaultAccount.findFirst({
     where: { id: accountId, holderId: session.user.id },
     select: { credentials: true }
   });
@@ -73,7 +73,7 @@ export async function assignInterpreter(data: unknown) {
   const { accountId, interpreterId } = AccountAssignSchema.parse(data);
 
   // Data isolation: ensure the account belongs to this holder
-  const account = await (prisma as any).vaultAccount.findFirst({
+  const account = await prisma.vaultAccount.findFirst({
     where: { id: accountId, holderId: session.user.id },
   });
 
@@ -82,7 +82,7 @@ export async function assignInterpreter(data: unknown) {
   }
 
   // Verify interpreter exists and has INTERPRETER role
-  const interpreter = await (prisma as any).rbacUser.findFirst({
+  const interpreter = await prisma.rbacUser.findFirst({
     where: { id: interpreterId, role: "INTERPRETER" },
   });
 
@@ -90,7 +90,7 @@ export async function assignInterpreter(data: unknown) {
     throw new Error("Interpreter not found");
   }
 
-  return (prisma as any).vaultAccount.update({
+  return prisma.vaultAccount.update({
     where: { id: accountId },
     data: { interpreterId },
   });
@@ -101,7 +101,7 @@ export async function sendMessage(data: unknown) {
   const session = await requireRole("HOLDER");
   const parsed = VaultMessageCreateSchema.parse(data);
 
-  return (prisma as any).vaultMessage.create({
+  return prisma.vaultMessage.create({
     data: {
       content: parsed.content,
       authorId: session.user.id,
@@ -115,7 +115,7 @@ export async function sendMessage(data: unknown) {
 export async function listHolderMessages() {
   const session = await requireRole("HOLDER");
 
-  return (prisma as any).vaultMessage.findMany({
+  return prisma.vaultMessage.findMany({
     where: { authorId: session.user.id },
     include: {
       recipient: { select: { id: true, name: true, role: true } },
@@ -128,7 +128,7 @@ export async function listHolderMessages() {
 export async function listAvailableInterpreters() {
   await requireRole("HOLDER");
 
-  return (prisma as any).rbacUser.findMany({
+  return prisma.rbacUser.findMany({
     where: { role: "INTERPRETER" },
     select: { id: true, name: true, email: true },
     orderBy: { name: "asc" },
@@ -139,7 +139,7 @@ export async function listAvailableInterpreters() {
 export async function deleteAccount(accountId: string) {
   const session = await requireRole("HOLDER");
 
-  const account = await (prisma as any).vaultAccount.findFirst({
+  const account = await prisma.vaultAccount.findFirst({
     where: { id: accountId, holderId: session.user.id },
   });
 
@@ -147,7 +147,7 @@ export async function deleteAccount(accountId: string) {
     throw new Error("Account not found or access denied");
   }
 
-  return (prisma as any).vaultAccount.delete({
+  return prisma.vaultAccount.delete({
     where: { id: accountId },
   });
 }

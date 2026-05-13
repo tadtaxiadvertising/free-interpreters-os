@@ -2,8 +2,9 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import type { UserProfile } from '@/lib/types';
+import type { UserProfile, UserRole } from '@/lib/types';
 import prismaClient from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 const prisma = prismaClient;
 
@@ -39,8 +40,9 @@ export async function login(formData: FormData) {
     const role = profile?.role || 'interpreter';
     console.log(`[AUTH_LOGIN] User role: ${role}`);
     return { success: true, role };
-  } catch (dbError: any) {
-    console.error('[AUTH_LOGIN] Prisma error fetching profile:', dbError.message);
+  } catch (dbError: unknown) {
+    const errorMsg = dbError instanceof Error ? dbError.message : 'Unknown database error';
+    console.error('[AUTH_LOGIN] Prisma error fetching profile:', errorMsg);
     // Fallback to minimal info if DB is struggling
     return { success: true, role: 'interpreter' };
   }
@@ -107,8 +109,9 @@ export async function register(formData: FormData) {
       });
       
       console.log('[AUTH_REGISTER] Registration successful via Prisma');
-    } catch (dbError: any) {
-      console.error('[AUTH_REGISTER] Prisma error during profile creation:', dbError.message);
+    } catch (dbError: unknown) {
+      const errorMsg = dbError instanceof Error ? dbError.message : 'Unknown database error';
+      console.error('[AUTH_REGISTER] Prisma error during profile creation:', errorMsg);
       return { 
         success: true, 
         role, 
@@ -130,14 +133,14 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
   try {
     const { data: { user: currentUser }, error } = await supabase.auth.getUser();
     if (!error) user = currentUser;
-  } catch (e) {
+  } catch (_e) {
     // Silent fail
   }
 
   if (!user) return null;
 
   try {
-    const profile: any = await (prisma.userProfile as any).findUnique({
+    const profile = await prisma.userProfile.findUnique({
       where: { id: user.id },
       select: {
         id: true,
@@ -189,7 +192,7 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
     return {
       id: profile.id,
       email: profile.email,
-      role: profile.role as any,
+      role: profile.role as UserRole,
       interpreter_id: profile.interpreterId,
       display_name: profile.displayName || '',
       terms_accepted_at: profile.termsAcceptedAt?.toISOString() || null,
@@ -201,8 +204,9 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
       onboarding_complete: profile.onboardingComplete || false,
       created_at: profile.createdAt?.toISOString() || new Date().toISOString(),
     };
-  } catch (error: any) {
-    console.error('❌ AUTH: Prisma profile fetch failed:', error.message);
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown database error';
+    console.error('❌ AUTH: Prisma profile fetch failed:', errorMsg);
     return null;
   }
 }

@@ -6,7 +6,7 @@ import prisma from "@/lib/prisma";
 export async function listAssignedAccounts() {
   const session = await requireRole("INTERPRETER");
 
-  return (prisma as any).vaultAccount.findMany({
+  return prisma.vaultAccount.findMany({
     where: { interpreterId: session.user.id },
     select: {
       id: true,
@@ -31,7 +31,7 @@ export async function revealCredentials(accountId: string): Promise<string> {
   const session = await requireRole("INTERPRETER");
 
   // Verify assignment
-  const account = await (prisma as any).vaultAccount.findFirst({
+  const account = await prisma.vaultAccount.findFirst({
     where: { id: accountId, interpreterId: session.user.id },
     select: { credentials: true }
   });
@@ -50,7 +50,7 @@ export async function revealCredentials(accountId: string): Promise<string> {
 export async function listInterpreterMessages() {
   const session = await requireRole("INTERPRETER");
 
-  return (prisma as any).vaultMessage.findMany({
+  return prisma.vaultMessage.findMany({
     where: {
       recipientId: session.user.id,
       status: "APPROVED",  // Only approved messages visible
@@ -66,7 +66,7 @@ export async function listInterpreterMessages() {
 export async function getInterpreterProfile() {
   const session = await requireRole("INTERPRETER");
 
-  const user = await (prisma as any).rbacUser.findUnique({
+  const user = await prisma.rbacUser.findUnique({
     where: { id: session.user.id },
     select: {
       id: true,

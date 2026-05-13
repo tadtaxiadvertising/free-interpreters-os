@@ -71,3 +71,26 @@ export interface TimerLocalState {
   startedAt: string; // ISO 8601
   interpreterId: number;
 }
+
+export interface ComplianceDay {
+  date: string;
+  isWeekend: boolean;
+  minutes: number;
+  logsMinutes: number;
+  sessionsMinutes: number;
+  status: string;
+  dailyGoalMinutes: number;
+}
+
+export interface ComplianceBoardRow {
+  interpreter: {
+    id: number;
+    name: string;
+    shiftStart?: string | null;
+    shiftEnd?: string | null;
+  };
+  monthlyGoal: number;
+  mtdMinutes: number;
+  fulfillmentPercent: number;
+  days: ComplianceDay[];
+}

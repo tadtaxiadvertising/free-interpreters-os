@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import { MoreVertical, Shield, Link as LinkIcon, Trash2, Edit } from 'lucide-react';
 import { updateUserRole } from '@/app/actions/admin-users';
+import { UserProfile } from '@prisma/client';
 
-export function UserActions({ user }: { user: any }) {
+export function UserActions({ user }: { user: UserProfile }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 

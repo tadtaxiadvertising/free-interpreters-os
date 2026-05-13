@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import { getComplianceBoard } from "@/app/actions/calendar";
 import { Calendar, CheckCircle, Clock, XCircle } from "lucide-react";
+import { ComplianceBoardRow, ComplianceDay } from "@/lib/types";
 
 export default function ComplianceBoard() {
-  const [boardData, setBoardData] = useState<any[]>([]);
+  const [boardData, setBoardData] = useState<ComplianceBoardRow[]>([]);
   const [loading, setLoading] = useState(true);
   
   const currentYear = new Date().getFullYear();
@@ -44,7 +45,7 @@ export default function ComplianceBoard() {
           <thead className="bg-slate-50 text-slate-600">
             <tr>
               <th className="px-4 py-3 font-medium whitespace-nowrap sticky left-0 bg-slate-50 z-10 border-r border-slate-200">Intérprete</th>
-              {boardData[0]?.days.map((d: any, i: number) => (
+              {boardData[0]?.days.map((d: ComplianceDay, i: number) => (
                 <th key={i} className={`px-2 py-3 font-medium text-center min-w-[40px] ${d.isWeekend ? 'bg-indigo-50/50' : ''}`}>
                   {d.date.split('-')[2]}
                 </th>
@@ -58,7 +59,7 @@ export default function ComplianceBoard() {
                   {row.interpreter.name}
                   <div className="text-xs text-slate-500 font-normal">{row.interpreter.shiftStart} - {row.interpreter.shiftEnd}</div>
                 </td>
-                {row.days.map((d: any, i: number) => {
+                {row.days.map((d: ComplianceDay, i: number) => {
                   let bgColor = "bg-slate-50";
                   let Icon = null;
                   

@@ -44,8 +44,9 @@ export async function generatePayrollPeriod(
           await createPayrollRecord(interpreter.id, periodStart, periodEnd);
           successCount++;
         }
-      } catch (err: any) {
-        console.error(`Error generating payroll for interpreter ${interpreter.id}:`, err.message);
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        console.error(`Error generating payroll for interpreter ${interpreter.id}:`, errorMsg);
       }
     }
 
