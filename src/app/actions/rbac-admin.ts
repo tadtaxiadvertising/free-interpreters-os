@@ -62,8 +62,8 @@ export async function listPendingMessages() {
   return prisma.vaultMessage.findMany({
     where: { status: "PENDING_ADMIN" },
     include: {
-      author: { select: { id: true, name: true, email: true, role: true } },
-      recipient: { select: { id: true, name: true, email: true, role: true } },
+      author: { select: { id: true, name: true, email: true, role: true, createdAt: true } },
+      recipient: { select: { id: true, name: true, email: true, role: true, createdAt: true } },
     },
     orderBy: { createdAt: "desc" },
   });

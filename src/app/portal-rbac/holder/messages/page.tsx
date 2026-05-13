@@ -33,8 +33,8 @@ export default function HolderMessages() {
   const loadData = () => {
     setLoading(true);
     Promise.all([
-      listHolderMessages().then(setMessages),
-      listAvailableInterpreters().then(setInterpreters),
+      listHolderMessages().then(data => setMessages(data as any)),
+      listAvailableInterpreters().then(setInterpreters as any),
     ])
       .catch(() => {})
       .finally(() => setLoading(false));

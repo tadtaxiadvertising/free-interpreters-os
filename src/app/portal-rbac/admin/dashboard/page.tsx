@@ -2,11 +2,12 @@
 import { useEffect, useState, useTransition } from "react";
 import RbacShell from "@/components/rbac-shell";
 import { createHolder, createInterpreter, getAdminStats, listUsersByRole, listPendingMessages, moderateMessage } from "@/app/actions/rbac-admin";
+import type { RbacRole } from "@prisma/client";
 import toast from "react-hot-toast";
 
 type Stats = { holders: number; interpreters: number; accounts: number; pendingMessages: number };
-type User = { id: string; email: string; name: string; role: string; createdAt: string };
-type Message = { id: string; content: string; createdAt: string; author: User; recipient: User | null; };
+type User = { id: string; email: string; name: string; role: RbacRole | string; createdAt: Date | string };
+type Message = { id: string; content: string; createdAt: Date | string; author: User; recipient: User | null; };
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -22,8 +23,8 @@ export default function AdminDashboard() {
 
   const loadData = () => {
     getAdminStats().then(setStats).catch(() => {});
-    listUsersByRole().then(setUsers).catch(() => {});
-    listPendingMessages().then(setMessages).catch(() => {});
+    listUsersByRole().then(data => setUsers(data as any)).catch(() => {});
+    listPendingMessages().then(data => setMessages(data as any)).catch(() => {});
   };
 
   const handleCreate = (formData: FormData) => {

@@ -12,7 +12,7 @@ export function UserActions({ user }: { user: UserProfile }) {
   const handleRoleChange = async (newRole: string) => {
     setIsUpdating(true);
     try {
-      await updateUserRole(user.id, newRole);
+      await updateUserRole(user.id, newRole as any);
       setIsOpen(false);
     } catch (error) {
       alert('Error updating role');

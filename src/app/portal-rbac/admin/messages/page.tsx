@@ -25,7 +25,7 @@ export default function AdminMessages() {
   const loadMessages = () => {
     setLoading(true);
     listPendingMessages()
-      .then(setMessages)
+      .then(data => setMessages(data as any))
       .catch(() => toast.error("Error al cargar mensajes"))
       .finally(() => setLoading(false));
   };

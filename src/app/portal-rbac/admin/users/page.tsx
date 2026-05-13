@@ -2,9 +2,10 @@
 import { useEffect, useState, useTransition } from "react";
 import RbacShell from "@/components/rbac-shell";
 import { listUsersByRole, createHolder, createInterpreter } from "@/app/actions/rbac-admin";
+import type { RbacRole } from "@prisma/client";
 import toast from "react-hot-toast";
 
-type User = { id: string; email: string; name: string; role: string; createdAt: string };
+type User = { id: string; email: string; name: string; role: RbacRole | string; createdAt: Date | string };
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
