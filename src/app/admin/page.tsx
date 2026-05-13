@@ -58,29 +58,17 @@ export default async function AdminDashboard() {
           id: true,
           externalId: true,
           name: true,
-          status: true,
           realtimeStatus: true,
           campaign: true,
-          languageA: true,
-          languageB: true,
           tariffPerMinute: true,
-          emailCorporativo: true,
-          pais: true,
-          metodoPago: true,
-          cuentaPago: true,
-          documentosCompleto: true,
-          notas: true,
-          banco: true,
-          tipoCuenta: true,
-          cedulaRnc: true,
           updatedAt: true,
-          createdAt: true,
-          productionLogs: { where: { date: { gte: monthStart } } }
         }
       }),
       prisma.callSession.findMany({ 
         where: { endedAt: null }, 
-        include: { 
+        select: {
+          id: true,
+          interpreterId: true,
           interpreter: {
             select: {
               id: true,
@@ -88,12 +76,21 @@ export default async function AdminDashboard() {
               externalId: true,
               realtimeStatus: true
             }
-          } 
+          }
         } 
       }),
-      prisma.callSession.findMany({ where: { startedAt: { gte: todayStart } } }),
-      prisma.callSession.findMany({ where: { startedAt: { gte: monthStart }, endedAt: { not: null } } }),
-      prisma.productionLog.findMany({ where: { date: { gte: monthStart } } })
+      prisma.callSession.findMany({ 
+        where: { startedAt: { gte: todayStart } },
+        select: { durationSeconds: true, callCost: true }
+      }),
+      prisma.callSession.findMany({ 
+        where: { startedAt: { gte: monthStart }, endedAt: { not: null } },
+        select: { durationSeconds: true, callCost: true, interpreterId: true }
+      }),
+      prisma.productionLog.findMany({ 
+        where: { date: { gte: monthStart } },
+        select: { interpretedMinutes: true, interpreterId: true }
+      })
     ]);
   } catch (error) {
     console.error('❌ ADMIN: Database fetch failed:', error);
