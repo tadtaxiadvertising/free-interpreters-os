@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const db = prisma as any;
+const db = prisma;
 import { 
   InterpreterSchema, 
   ProductionLogSchema, 
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const type = formData.get('type') as string; // 'interpreters' | 'production' | 'qa'
-
+    
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
     const stream = Readable.from(buffer);
     
-    const results: any[] = [];
+    const results: Record<string, string>[] = [];
     
     await new Promise((resolve, reject) => {
       stream
@@ -61,15 +61,16 @@ export async function POST(req: NextRequest) {
             create: validated,
           });
           successCount++;
-        } catch (e: any) {
+        } catch (e: unknown) {
+          const message = e instanceof Error ? e.message : 'Unknown error';
           errorCount++;
-          errors.push(`Row ${results.indexOf(row) + 1}: ${e.message}`);
+          errors.push(`Row ${results.indexOf(row) + 1}: ${message}`);
         }
       }
     } else if (type === 'production') {
       // Pre-fetch accounts for mapping
       const accounts = await db.account.findMany();
-      const accountMap = new Map(accounts.map((a: any) => [a.name.toLowerCase(), a.id]));
+      const accountMap = new Map(accounts.map((a: { name: string; id: number }) => [a.name.toLowerCase(), a.id]));
 
       for (const row of results) {
         try {
@@ -101,9 +102,10 @@ export async function POST(req: NextRequest) {
 
           await db.productionLog.create({ data: validated });
           successCount++;
-        } catch (e: any) {
+        } catch (e: unknown) {
+          const message = e instanceof Error ? e.message : 'Unknown error';
           errorCount++;
-          errors.push(`Row ${results.indexOf(row) + 1}: ${e.message}`);
+          errors.push(`Row ${results.indexOf(row) + 1}: ${message}`);
         }
       }
     }
@@ -115,8 +117,9 @@ export async function POST(req: NextRequest) {
       errors: errors.slice(0, 10) 
     });
 
-  } catch (error: any) {
-    console.error('Import error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
+    console.error('Import error:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 
-const db = prisma as any;
+const db = prisma;
 
 /**
  * Accept legal terms — records the signatureDate on the user's profile.
@@ -29,8 +29,7 @@ export async function acceptTerms(): Promise<ActionResult> {
 
     revalidatePath('/dashboard');
     return { success: true };
-  } catch (err: any) {
-    console.error('[ONBOARDING] acceptTerms fatal error:', err);
+  } catch (_err) {
     return { success: false, error: 'Error inesperado al procesar la firma', code: 'INTERNAL_ERROR' };
   }
 }
@@ -89,8 +88,7 @@ export async function saveBankingDetails(data: {
 
     revalidatePath('/dashboard');
     return { success: true };
-  } catch (err: any) {
-    console.error('[ONBOARDING] saveBankingDetails fatal error:', err);
+  } catch (_err) {
     return { success: false, error: 'Ocurrió un error inesperado al guardar los datos', code: 'INTERNAL_ERROR' };
   }
 }
@@ -134,8 +132,7 @@ export async function completeOnboarding(): Promise<ActionResult> {
 
     revalidatePath('/dashboard');
     return { success: true };
-  } catch (err: any) {
-    console.error('[ONBOARDING] completeOnboarding fatal error:', err);
+  } catch (_err) {
     return { success: false, error: 'Error inesperado al finalizar el onboarding', code: 'INTERNAL_ERROR' };
   }
 }

@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-const db = prisma as any;
+const db = prisma;
 import { revalidatePath } from 'next/cache';
 import { ActionResult } from '@/lib/types';
 import { createClient } from '@/lib/supabase/server';
@@ -39,7 +39,7 @@ export async function updateAccount(id: number, name: string, description?: stri
     revalidatePath('/admin/payrates');
     revalidatePath('/settings');
     return { success: true, data: account };
-  } catch (error) {
+  } catch (_error) {
     return { success: false, error: 'Error al actualizar la cuenta', code: 'INTERNAL_ERROR' };
   }
 }
@@ -56,7 +56,7 @@ export async function deleteAccount(id: number): Promise<ActionResult<any>> {
     revalidatePath('/admin/payrates');
     revalidatePath('/settings');
     return { success: true };
-  } catch (error) {
+  } catch (_error) {
     return { success: false, error: 'Error al eliminar la cuenta (puede tener registros asociados)', code: 'INTERNAL_ERROR' };
   }
 }

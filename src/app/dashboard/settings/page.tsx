@@ -183,7 +183,7 @@ export default async function SettingsPage() {
           <div className="p-4 rounded-2xl bg-blue-500/5 border border-blue-500/10 flex gap-4">
             <Info className="text-blue-400 shrink-0" size={20} />
             <p className="text-xs text-gray-400 leading-relaxed">
-              Payments are processed every 15 days in Dominican Pesos (DOP). Ensure the Cédula matches the bank account holder's identity to avoid payment rejection.
+              Payments are processed every 15 days in Dominican Pesos (DOP). Ensure the Cédula matches the bank account holder&apos;s identity to avoid payment rejection.
             </p>
           </div>
         </div>

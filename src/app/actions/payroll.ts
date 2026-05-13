@@ -54,9 +54,10 @@ export async function generatePayrollPeriod(
       success: true, 
       data: { message: `Successfully generated ${successCount} payroll records.` }
     };
-  } catch (error: any) {
-    console.error('Failed to generate payroll:', error.message);
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Failed to generate payroll:', message);
+    return { success: false, error: message };
   }
 }
 
@@ -99,8 +100,7 @@ export async function reconcileMinutes(
     revalidatePath('/payroll');
     revalidatePath('/dashboard');
     return { success: true, data: { message: 'Minutes successfully reconciled and payroll updated' } };
-  } catch (error: any) {
-    console.error('Failed to reconcile minutes:', error.message);
+  } catch (_error: unknown) {
     return { success: false, error: 'Internal Server Error' };
   }
 }

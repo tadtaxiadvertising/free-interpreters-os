@@ -1,8 +1,8 @@
-﻿import prisma from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 type Decimal = Prisma.Decimal;
 
-const db = prisma as any;
+const db = prisma;
 
 // ============================================================
 // PayrollService â€” Motor de NÃ³mina e Incentivos
@@ -116,10 +116,10 @@ export async function calculateUnifiedTime(
       date: { gte: periodStart, lte: periodEnd },
     },
     select: { interpretedMinutes: true, verifiedMinutes: true, accountId: true },
-  });
+  }) as ProductionLogRecord[];
 
   const importedMinutes = (productionLogs || []).reduce(
-    (sum: number, log: any) => {
+    (sum: number, log: ProductionLogRecord) => {
       const effectiveMinutes = log.verifiedMinutes !== null ? log.verifiedMinutes : (log.interpretedMinutes || 0);
       return sum + effectiveMinutes;
     },
@@ -180,7 +180,7 @@ export async function calculateFullPayroll(
   periodStart: Date,
   periodEnd: Date
 ): Promise<PayrollCalculationResult> {
-  // 1. Obtener intÃ©rprete y sus tasas por cuenta
+  // 1. Obtener intérprete y sus tasas por cuenta
   const interpreter = await db.interpreter.findUnique({
     where: { id: interpreterId },
     select: {
@@ -197,14 +197,14 @@ export async function calculateFullPayroll(
 
   const baseRatePerMinute = parseFloat(interpreter.tariffPerMinute.toString());
 
-  // 2. Obtener logs de producciÃ³n para cÃ¡lculo detallado de costos
+  // 2. Obtener logs de producción para cálculo detallado de costos
   const productionLogs = await db.productionLog.findMany({
     where: {
       interpreterId,
       date: { gte: periodStart, lte: periodEnd },
     },
     select: { interpretedMinutes: true, verifiedMinutes: true, accountId: true },
-  });
+  }) as ProductionLogRecord[];
 
   // 3. Obtener logs de llamadas en tiempo real
   const callSessions = await db.callSession.findMany({
@@ -214,22 +214,22 @@ export async function calculateFullPayroll(
       endedAt: { not: null },
     },
     select: { durationSeconds: true, callCost: true },
-  });
+  }) as unknown as CallSessionRecord[];
 
-  // 4. CÃ¡lculos de Minutos
-  const importedMinutes = (productionLogs || []).reduce((sum: number, log: any) => {
+  // 4. Cálculos de Minutos
+  const importedMinutes = (productionLogs || []).reduce((sum: number, log: ProductionLogRecord) => {
     return sum + (log.verifiedMinutes !== null ? log.verifiedMinutes : (log.interpretedMinutes || 0));
   }, 0);
-  const realtimeMinutes = Math.round((callSessions || []).reduce((sum: number, call: any) => sum + (call.durationSeconds || 0), 0) / 60);
+  const realtimeMinutes = Math.round((callSessions || []).reduce((sum: number, call: CallSessionRecord) => sum + (call.durationSeconds || 0), 0) / 60);
   const totalMinutes = importedMinutes + realtimeMinutes;
   const totalHours = Math.round((totalMinutes / 60) * 100) / 100;
 
-  // 5. CÃ¡lculo de Gross Total (respetando accountRates y verifiedMinutes)
+  // 5. Cálculo de Gross Total (respetando accountRates y verifiedMinutes)
   let importedCost = 0;
   for (const log of (productionLogs || [])) {
     let ratePerMinute = baseRatePerMinute;
     if (log.accountId) {
-      const specificRate = interpreter.accountRates?.find((r: any) => r.accountId === log.accountId);
+      const specificRate = interpreter.accountRates?.find((r: { accountId: number | null }) => r.accountId === log.accountId);
       if (specificRate) {
         ratePerMinute = parseFloat(specificRate.tariffPerHour.toString()) / 60;
       }
@@ -238,10 +238,10 @@ export async function calculateFullPayroll(
     importedCost += effectiveMinutes * ratePerMinute;
   }
 
-  const realtimeCost = (callSessions || []).reduce((sum: number, call: any) => sum + parseFloat(call.callCost?.toString() || '0'), 0);
+  const realtimeCost = (callSessions || []).reduce((sum: number, call: CallSessionRecord) => sum + parseFloat(call.callCost?.toString() || '0'), 0);
   const grossTotal = Math.round((importedCost + realtimeCost) * 100) / 100;
 
-  // 6. Incentivos dinÃ¡micos desde SystemConfig
+  // 6. Incentivos dinámicos desde SystemConfig
   const incentive = await calculateIncentive(totalHours);
 
   // 7. Quality bonus (QA) con Regla de Auto-Fail
@@ -252,12 +252,12 @@ export async function calculateFullPayroll(
       auditDate: { gte: periodStart, lte: periodEnd },
     },
     select: { totalScore: true, criticalError: true },
-  });
+  }) as QAScoreRecord[];
 
   if (qaScores && qaScores.length > 0) {
-    const avgQA = qaScores.reduce((sum: number, qa: any) => {
+    const avgQA = qaScores.reduce((sum: number, qa: QAScoreRecord) => {
       // Auto-Fail Rule: if criticalError === true, QA score counts as 0.00
-      const score = qa.criticalError ? 0 : (parseFloat(qa.totalScore?.toString()) || 0);
+      const score = qa.criticalError ? 0 : (parseFloat(qa.totalScore?.toString() || '0') || 0);
       return sum + score;
     }, 0) / qaScores.length;
 
@@ -266,9 +266,9 @@ export async function calculateFullPayroll(
     }
   }
 
-  // 8. Penalidades por errores crÃ­ticos (10% del gross por cada uno)
+  // 8. Penalidades por errores críticos (10% del gross por cada uno)
   let penalidades = 0;
-  const criticalErrors = (qaScores || []).filter((qa: any) => qa.criticalError).length;
+  const criticalErrors = (qaScores || []).filter((qa: QAScoreRecord) => qa.criticalError).length;
   if (criticalErrors > 0) {
     penalidades = Math.round(grossTotal * 0.1 * criticalErrors * 100) / 100;
   }
@@ -320,7 +320,7 @@ export async function recalculateWithVerifiedMinutes(
     throw new Error(`PayrollRecord ${payrollRecordId} not found`);
   }
 
-  const tariffPerMinute = parseFloat(record.interpreter.tariffPerMinute.toString());
+  const tariffPerMinute = record.interpreter ? parseFloat(record.interpreter.tariffPerMinute.toString()) : 0;
   const grossTotal = Math.round(verifiedMinutes * tariffPerMinute * 100) / 100;
 
   // Recalcular incentivo con las horas verificadas
@@ -328,8 +328,8 @@ export async function recalculateWithVerifiedMinutes(
   const incentive = await calculateIncentive(verifiedHours);
 
   // Mantener qualityBonus y penalidades originales
-  const qualityBonus = parseFloat(record.qualityBonus.toString());
-  const penalidades = parseFloat(record.penalidades.toString());
+  const qualityBonus = record.qualityBonus ? parseFloat(record.qualityBonus.toString()) : 0;
+  const penalidades = record.penalidades ? parseFloat(record.penalidades.toString()) : 0;
 
   const subtotal = grossTotal + qualityBonus + incentive.totalIncentive - penalidades;
   const transferDeduction = Math.round(subtotal * 0.015 * 100) / 100;
