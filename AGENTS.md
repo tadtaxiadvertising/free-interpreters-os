@@ -5,8 +5,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Pinned Version (Verified by Easypanel success log)
 
-- **Next.js**: `16.2.4` (Strictly Required)
-- **React**: `19.2.4`
+- **Next.js**: `15.2.6` (Strictly Required)
+- **React**: `19.0.0`
 - **Prisma**: `7.8.0` (with `@prisma/adapter-pg`)
 
 ## Critical Breaking Changes (vs. Next.js 15)
