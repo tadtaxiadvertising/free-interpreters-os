@@ -7,7 +7,7 @@ import { auth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import React from 'react';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60; // 1 minute ISR to protect Supabase
 
 export default async function PayratesPage(props: { searchParams: Promise<{ manageAccounts?: string }> }) {
   const { userId } = await auth();
