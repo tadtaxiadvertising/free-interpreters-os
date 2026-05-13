@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import type { UserProfile, UserRole } from '@/lib/types';
 import prismaClient from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
+
 
 const prisma = prismaClient;
 
@@ -133,7 +133,7 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
   try {
     const { data: { user: currentUser }, error } = await supabase.auth.getUser();
     if (!error) user = currentUser;
-  } catch (_e) {
+  } catch {
     // Silent fail
   }
 

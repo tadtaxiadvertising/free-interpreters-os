@@ -1,5 +1,6 @@
 "use server";
 import { requireRole } from "@/lib/auth-rbac";
+import { RbacRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import {
@@ -35,7 +36,7 @@ export async function createInterpreter(data: unknown) {
 // ── List All Users by Role ─────────────────────────────────────
 export async function listUsersByRole(role?: string) {
   await requireRole("ADMIN");
-  const where = role ? { role: role as any } : {};
+  const where = role ? { role: role as RbacRole } : {};
 
   return prisma.rbacUser.findMany({
     where,
