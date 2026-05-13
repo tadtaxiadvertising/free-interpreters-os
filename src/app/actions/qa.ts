@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { createNotification } from './notifications';
 import { z } from 'zod';
 
-const db = prisma as any;
+const db = prisma;
 
 // Zod schema for QA evaluation input validation
 const QAEvaluationSchema = z.object({
@@ -101,17 +101,19 @@ export async function submitQAEvaluation(rawInput: QAScoreInput) {
           });
         }
       }
-    } catch (notifyErr: any) {
-      console.error('Notification failed but QA saved:', notifyErr.message);
+    } catch (notifyErr: unknown) {
+      const message = notifyErr instanceof Error ? notifyErr.message : 'Unknown error';
+      console.error('Notification failed but QA saved:', message);
     }
 
     revalidatePath('/qa');
     revalidatePath(`/dashboard`);
     
     return { success: true, data };
-  } catch (error: any) {
-    console.error('QA Submission Error:', error.message);
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('QA Submission Error:', message);
+    return { success: false, error: message };
   }
 }
 

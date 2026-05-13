@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 
-const db = prisma as any;
+const db = prisma;
 
 export type CreateNotificationInput = {
   userId: string;
@@ -28,9 +28,10 @@ export async function createNotification(input: CreateNotificationInput) {
 
     revalidatePath('/'); // Global revalidation for the bell icon
     return { success: true, data: notification };
-  } catch (error: any) {
-    console.error('Failed to create notification:', error.message);
-    return { success: false, error: 'Internal server error' };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    console.error('Failed to create notification:', message);
+    return { success: false, error: message };
   }
 }
 
@@ -43,9 +44,10 @@ export async function markNotificationAsRead(id: string) {
 
     revalidatePath('/');
     return { success: true };
-  } catch (error: any) {
-    console.error('Failed to update notification:', error.message);
-    return { success: false, error: 'Failed to update notification' };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to update notification';
+    console.error('Failed to update notification:', message);
+    return { success: false, error: message };
   }
 }
 

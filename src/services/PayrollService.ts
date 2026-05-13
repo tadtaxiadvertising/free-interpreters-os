@@ -29,6 +29,22 @@ interface IncentiveResult {
   matchedTier: string | null; // Key name of the matched tier
 }
 
+interface ProductionLogRecord {
+  interpretedMinutes: number | null;
+  verifiedMinutes: number | null;
+  accountId: number | null;
+}
+
+interface CallSessionRecord {
+  durationSeconds: number | null;
+  callCost: Prisma.Decimal | null;
+}
+
+interface QAScoreRecord {
+  totalScore: Prisma.Decimal | null;
+  criticalError: boolean | null;
+}
+
 /** Resultado completo del motor de nÃ³mina con incentivos */
 export interface PayrollCalculationResult {
   interpreterId: number;
