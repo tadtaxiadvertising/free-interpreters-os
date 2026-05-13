@@ -18,7 +18,6 @@ export function middleware(req: NextRequest) {
 
   // Redirección rápida si intenta entrar a una zona protegida sin sesión
   if (isProtectedRoute && !sessionToken) {
-    console.log(`[MIDDLEWARE] Redirigiendo a / por falta de token en: ${pathname}`);
     return NextResponse.redirect(new URL('/', req.url));
   }
 

@@ -4,8 +4,13 @@ import pg from 'pg';
 
 /**
  * PRISMA CLIENT SINGLETON (OS FRONTEND)
+ * ============================================================
  * Optimizado para evitar "Too many connections" y fugas de recursos.
  * Forzamos max: 1 para respetar el límite del ecosistema en Supabase Transaction Mode.
+ *
+ * CRITICAL: Cached in ALL environments (dev + production).
+ * Previous bug: Only cached in dev → production leaked PrismaClient instances.
+ * ============================================================
  */
 const globalForPrisma = globalThis as unknown as { _prisma: PrismaClient | undefined };
 
@@ -34,4 +39,5 @@ const prisma = globalForPrisma._prisma ?? prismaClientSingleton();
 
 export default prisma;
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma._prisma = prisma;
+// Cache in ALL environments — prevents connection pool exhaustion in production
+globalForPrisma._prisma = prisma;

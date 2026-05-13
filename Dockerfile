@@ -1,6 +1,6 @@
 # ============================================================
 # FREE INTERPRETERS — FRONTEND MULTI-SERVICE DOCKERFILE
-# Target: Easypanel (Docker/VPS)
+# Target: Easypanel (Docker/VPS) — STANDALONE + REACT COMPILER
 # ============================================================
 
 # --- STAGE 1: Dependencies ---
@@ -22,7 +22,7 @@ COPY . .
 # Generate Prisma Client for the frontend (NextAuth / Server Actions)
 RUN npx prisma generate
 
-# Build-time args
+# Build-time args (injected by Easypanel)
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_API_URL
@@ -39,9 +39,12 @@ ENV NODE_ENV=production
 ENV DATABASE_URL=$DATABASE_URL
 ENV DIRECT_URL=$DIRECT_URL
 
+# Limit Node.js heap to prevent OOM during build on constrained VPS
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
 RUN npm run build
 
-# --- STAGE 3: Runner ---
+# --- STAGE 3: Runner (Ultra-Lean ~150MB) ---
 FROM node:22-alpine AS runner
 RUN apk add --no-cache libc6-compat openssl curl
 WORKDIR /app
@@ -49,16 +52,18 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy standalone build
+# Copy standalone build (only server.js + minimal node_modules)
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Runtime config
+# Runtime config: Aggressive memory management for VPS
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+# Limit heap to 256MB → triggers GC early, prevents container OOM
+ENV NODE_OPTIONS="--max-old-space-size=256"
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://127.0.0.1:3000/ || exit 1

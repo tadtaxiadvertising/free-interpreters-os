@@ -9,7 +9,7 @@ import React from 'react';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PayratesPage({ searchParams }: { searchParams: { manageAccounts?: string } }) {
+export default async function PayratesPage(props: { searchParams: Promise<{ manageAccounts?: string }> }) {
   const { userId } = await auth();
   if (!userId) redirect('/login');
 
@@ -42,6 +42,7 @@ export default async function PayratesPage({ searchParams }: { searchParams: { m
     orderBy: { name: 'asc' }
   });
 
+  const searchParams = await props.searchParams;
   const showManageAccounts = searchParams.manageAccounts === 'true';
 
   return (

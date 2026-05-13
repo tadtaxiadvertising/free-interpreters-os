@@ -9,9 +9,7 @@ export async function auth() {
   const supabase = await createClient();
   let user = null;
   try {
-    console.log('--- [AUTH_BRIDGE] Calling getUser()...');
     const { data: { user: currentUser } } = await supabase.auth.getUser();
-    console.log('--- [AUTH_BRIDGE] getUser() finished. User found:', !!currentUser);
     user = currentUser;
   } catch (e) {
     // Ignore auth errors for the bridge
