@@ -39,8 +39,8 @@ ENV NODE_ENV=production
 ENV DATABASE_URL=$DATABASE_URL
 ENV DIRECT_URL=$DIRECT_URL
 
-# Limit Node.js heap to prevent OOM during build on constrained VPS
-ENV NODE_OPTIONS="--max-old-space-size=512"
+# Increase Node.js heap to prevent OOM during build on constrained VPS
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 RUN npm run build
 

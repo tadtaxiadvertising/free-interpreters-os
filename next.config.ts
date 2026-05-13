@@ -19,7 +19,9 @@ const nextConfig: NextConfig = {
 
   // React 19 Compiler: Eliminates unnecessary re-renders at build time
   // Frees CPU cycles by moving memoization from runtime to compile-time
-  reactCompiler: true,
+  experimental: {
+    reactCompiler: true,
+  },
 
   // Prisma must run in Node.js, not Edge Runtime
   serverExternalPackages: ["@prisma/client", "prisma", "@prisma/adapter-pg", "pg"],
