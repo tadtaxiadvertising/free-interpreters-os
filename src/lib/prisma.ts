@@ -3,11 +3,12 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 
 /**
- * PRISMA CLIENT SINGLETON
- * Standard implementation for Supabase PostgreSQL.
- * Note: We are migrating towards Supabase JS Client, but keeping this 
- * for compatibility with existing Server Actions.
+ * PRISMA CLIENT SINGLETON (OS FRONTEND)
+ * Optimizado para evitar "Too many connections" y fugas de recursos.
+ * Forzamos max: 1 para respetar el límite del ecosistema en Supabase Transaction Mode.
  */
+const globalForPrisma = globalThis as unknown as { _prisma: PrismaClient | undefined };
+
 const prismaClientSingleton = (): PrismaClient => {
   if (!process.env.DATABASE_URL) {
     console.warn('⚠️ PRISMA: DATABASE_URL is missing. Database features will be disabled.');
@@ -16,7 +17,7 @@ const prismaClientSingleton = (): PrismaClient => {
   
   const pool = new pg.Pool({ 
     connectionString: process.env.DATABASE_URL,
-    max: process.env.NODE_ENV === 'production' ? 2 : 10, // Reduced to 2 for 457MB VPS
+    max: 1, // Límite estricto para no saturar Supabase
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
   });
@@ -24,19 +25,13 @@ const prismaClientSingleton = (): PrismaClient => {
   const adapter = new PrismaPg(pool);
   
   return new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    log: ['error', 'warn'],
     adapter,
   });
 };
 
-declare global {
-  var _prisma: PrismaClient | undefined;
-}
-
-// Singleton pattern for Next.js to prevent multiple instances
-const prisma = globalThis._prisma ?? prismaClientSingleton();
+const prisma = globalForPrisma._prisma ?? prismaClientSingleton();
 
 export default prisma;
 
-if (process.env.NODE_ENV !== 'production') globalThis._prisma = prisma;
-
+if (process.env.NODE_ENV !== 'production') globalForPrisma._prisma = prisma;
