@@ -58,7 +58,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Runtime config: Aggressive memory management for VPS
-ENV PORT=3000
+ENV PORT=80
 ENV HOSTNAME="0.0.0.0"
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -66,9 +66,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS="--max-old-space-size=256"
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://127.0.0.1:3000/ || exit 1
+  CMD curl -f http://127.0.0.1:80/ || exit 1
 
 USER nextjs
-EXPOSE 3000
+EXPOSE 80
 
 CMD ["node", "server.js"]
