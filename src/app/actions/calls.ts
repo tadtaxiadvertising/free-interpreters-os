@@ -4,61 +4,64 @@ import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
-import { CallSession } from '@prisma/client';
+import { CallSession, Prisma } from '@prisma/client';
+import { z } from 'zod';
 
 const db = prisma;
 
+/**
+ * ACTION: Start Call Session
+ */
 export async function startCall(): Promise<ActionResult<{ sessionId: number; startedAt: string }>> {
-  const supabase = await createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
-
   try {
-    // Use Prisma for profile lookup
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+
+    // 1. Get profile and check active calls in a single lean query
     const profile = await db.userProfile.findUnique({
       where: { id: user.id },
-      select: { interpreterId: true }
-    });
-
-    if (!profile?.interpreterId) {
-      return { success: false, error: 'No interpreter linked', code: 'NOT_FOUND' };
-    }
-
-    // Check for existing active call via Prisma
-    const activeCall = await db.callSession.findFirst({
-      where: {
-        interpreterId: profile.interpreterId,
-        endedAt: null
+      select: { 
+        interpreterId: true,
+        interpreter: {
+          select: {
+            tariffPerMinute: true,
+            callSessions: {
+              where: { endedAt: null },
+              select: { id: true },
+              take: 1
+            }
+          }
+        }
       }
     });
 
-    if (activeCall) {
+    if (!profile?.interpreterId || !profile.interpreter) {
+      return { success: false, error: 'Interpreter profile not found', code: 'NOT_FOUND' };
+    }
+
+    const { interpreterId, interpreter } = profile;
+
+    if (interpreter.callSessions.length > 0) {
       return { success: false, error: 'A call is already active', code: 'CONFLICT' };
     }
 
-    // Fetch current tariff via Prisma
-    const interpreter = await db.interpreter.findUnique({
-      where: { id: profile.interpreterId },
-      select: { tariffPerMinute: true }
-    });
+    // 2. Atomic session creation and status update
+    const session = await db.$transaction(async (tx) => {
+      const newSession = await tx.callSession.create({
+        data: {
+          interpreterId: interpreterId,
+          tariffSnapshot: interpreter.tariffPerMinute,
+        },
+        select: { id: true, startedAt: true }
+      });
 
-    if (!interpreter) {
-      return { success: false, error: 'Interpreter record not found', code: 'NOT_FOUND' };
-    }
+      await tx.interpreter.update({
+        where: { id: profile.interpreterId! },
+        data: { realtimeStatus: 'Busy' }
+      });
 
-    // Create call session via Prisma
-    const session = await db.callSession.create({
-      data: {
-        interpreterId: profile.interpreterId,
-        tariffSnapshot: interpreter.tariffPerMinute,
-      }
-    });
-
-    // Auto-set status to Busy via Prisma
-    await db.interpreter.update({
-      where: { id: profile.interpreterId },
-      data: { realtimeStatus: 'Busy' }
+      return newSession;
     });
 
     revalidatePath('/dashboard');
@@ -70,41 +73,45 @@ export async function startCall(): Promise<ActionResult<{ sessionId: number; sta
       },
     };
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error starting call:', errorMsg);
-    return { success: false, error: 'Error starting call', code: 'INTERNAL_ERROR' };
+    console.error('🔴 ERROR [startCall]:', error);
+    return { success: false, error: 'Failed to start call session', code: 'INTERNAL_ERROR' };
   }
 }
 
-export async function endCall(
-  sessionId: number
-): Promise<ActionResult<{ durationSeconds: number; callCost: number }>> {
-  const supabase = await createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
-
+/**
+ * ACTION: End Call Session
+ */
+export async function endCall(sessionId: number): Promise<ActionResult<{ durationSeconds: number; callCost: number }>> {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+
     const profile = await db.userProfile.findUnique({
       where: { id: user.id },
       select: { interpreterId: true }
     });
 
     if (!profile?.interpreterId) {
-      return { success: false, error: 'No interpreter linked', code: 'NOT_FOUND' };
+      return { success: false, error: 'Unauthorized profile', code: 'UNAUTHORIZED' };
     }
 
-    // End the session via Prisma
-    // The database trigger trg_calculate_call_metrics will handle duration and cost
-    const session = await db.callSession.update({
-      where: { id: sessionId },
-      data: { endedAt: new Date() }
-    });
+    const { interpreterId } = profile;
 
-    // Set status back to Online via Prisma
-    await db.interpreter.update({
-      where: { id: profile.interpreterId },
-      data: { realtimeStatus: 'Online' }
+    // End session and reset status atomically
+    const session = await db.$transaction(async (tx) => {
+      const updated = await tx.callSession.update({
+        where: { id: sessionId, interpreterId },
+        data: { endedAt: new Date() },
+        select: { durationSeconds: true, callCost: true }
+      });
+
+      await tx.interpreter.update({
+        where: { id: interpreterId },
+        data: { realtimeStatus: 'Online' }
+      });
+
+      return updated;
     });
 
     revalidatePath('/dashboard');
@@ -116,27 +123,26 @@ export async function endCall(
       },
     };
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error ending call:', errorMsg);
-    return { success: false, error: 'Error ending call', code: 'INTERNAL_ERROR' };
+    console.error('🔴 ERROR [endCall]:', error);
+    return { success: false, error: 'Failed to end call session', code: 'INTERNAL_ERROR' };
   }
 }
 
+/**
+ * ACTION: Get Active Call
+ */
 export async function getActiveCall(): Promise<ActionResult<CallSession | null>> {
-  const supabase = await createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
-
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+
     const profile = await db.userProfile.findUnique({
       where: { id: user.id },
       select: { interpreterId: true }
     });
 
-    if (!profile?.interpreterId) {
-      return { success: true, data: null };
-    }
+    if (!profile?.interpreterId) return { success: true, data: null };
 
     const session = await db.callSession.findFirst({
       where: {
@@ -145,42 +151,49 @@ export async function getActiveCall(): Promise<ActionResult<CallSession | null>>
       }
     });
 
-    return { success: true, data: session ?? null };
+    return { success: true, data: session };
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error fetching active call:', errorMsg);
-    return { success: false, error: 'Error fetching active call', code: 'INTERNAL_ERROR' };
+    console.error('🔴 ERROR [getActiveCall]:', error);
+    return { success: false, error: 'Failed to fetch active call', code: 'INTERNAL_ERROR' };
   }
 }
 
-export async function addManualCall(formData: FormData): Promise<ActionResult<CallSession>> {
-  const supabase = await createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+const ManualCallSchema = z.object({
+  interpreterId: z.coerce.number(),
+  startedAt: z.string().transform(s => new Date(s)),
+  durationMinutes: z.coerce.number().positive(),
+  notes: z.string().optional()
+});
 
-  // Verify admin status via Prisma (eliminates DNS risk from supabase.from())
-  const profile = await db.userProfile.findUnique({
-    where: { id: user.id },
-    select: { role: true }
-  });
-
-  if (profile?.role !== 'admin') {
-    return { success: false, error: 'Unauthorized', code: 'UNAUTHORIZED' };
-  }
-
-  const interpreterId = parseInt(formData.get('interpreterId') as string);
-  const startedAt = new Date(formData.get('startedAt') as string);
-  const durationMinutes = parseFloat(formData.get('durationMinutes') as string);
-  const notes = formData.get('notes') as string;
-
-  if (isNaN(interpreterId) || isNaN(durationMinutes) || !startedAt || isNaN(startedAt.getTime())) {
-    return { success: false, error: 'Invalid input data', code: 'VALIDATION_ERROR' };
-  }
-
+/**
+ * ACTION: Add Manual Call Entry (Admin)
+ */
+export async function addManualCall(formData: FormData): Promise<ActionResult<{ id: number }>> {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+
+    const profile = await db.userProfile.findUnique({
+      where: { id: user.id },
+      select: { role: true }
+    });
+
+    if (profile?.role !== 'admin') {
+      return { success: false, error: 'Unauthorized: Admin only', code: 'UNAUTHORIZED' };
+    }
+
+    const rawData = {
+      interpreterId: formData.get('interpreterId'),
+      startedAt: formData.get('startedAt'),
+      durationMinutes: formData.get('durationMinutes'),
+      notes: formData.get('notes'),
+    };
+
+    const validated = ManualCallSchema.parse(rawData);
+
     const interpreter = await db.interpreter.findUnique({
-      where: { id: interpreterId },
+      where: { id: validated.interpreterId },
       select: { tariffPerMinute: true }
     });
 
@@ -188,27 +201,31 @@ export async function addManualCall(formData: FormData): Promise<ActionResult<Ca
       return { success: false, error: 'Interpreter not found', code: 'NOT_FOUND' };
     }
 
-    const durationSeconds = Math.round(durationMinutes * 60);
-    const endedAt = new Date(startedAt.getTime() + durationSeconds * 1000);
+    const durationSeconds = Math.round(validated.durationMinutes * 60);
+    const endedAt = new Date(validated.startedAt.getTime() + durationSeconds * 1000);
     const callCost = (durationSeconds / 60) * Number(interpreter.tariffPerMinute);
 
     const session = await db.callSession.create({
       data: {
-        interpreterId,
-        startedAt,
+        interpreterId: validated.interpreterId,
+        startedAt: validated.startedAt,
         endedAt,
         durationSeconds,
         tariffSnapshot: interpreter.tariffPerMinute,
         callCost,
-        notes: notes || 'Manual entry by Administrator',
-      }
+        notes: validated.notes || 'Manual entry by Administrator',
+      },
+      select: { id: true }
     });
 
     revalidatePath('/admin/calls');
-    return { success: true, data: session };
+    return { success: true, data: { id: session.id } };
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error adding manual call:', errorMsg);
-    return { success: false, error: 'Error adding manual call', code: 'INTERNAL_ERROR' };
+    if (error instanceof z.ZodError) {
+      return { success: false, error: 'Invalid input data', code: 'VALIDATION_ERROR' };
+    }
+    console.error('🔴 ERROR [addManualCall]:', error);
+    return { success: false, error: 'Failed to record manual call', code: 'INTERNAL_ERROR' };
   }
 }
+
