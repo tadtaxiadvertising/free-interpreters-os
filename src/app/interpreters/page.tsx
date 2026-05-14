@@ -40,7 +40,7 @@ async function getInterpreters() {
         createdAt: true,
       }
     });
-    return interpreters as any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+    return interpreters as any[];  
   } catch (error) {
     console.error('Error fetching interpreters from DB:', error);
     return [];

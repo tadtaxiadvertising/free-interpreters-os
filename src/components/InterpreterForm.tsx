@@ -7,7 +7,7 @@ import { createInterpreter, updateInterpreter } from '@/app/actions/interpreters
 interface InterpreterFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   initialData?: any;
   interpreterId?: number;
 }
@@ -44,10 +44,10 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
     try {
       let result;
       if (isEditing) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         result = await updateInterpreter(interpreterId, data as any);
       } else {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         result = await createInterpreter(data as any);
       }
 

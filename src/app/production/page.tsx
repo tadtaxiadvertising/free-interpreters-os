@@ -16,7 +16,7 @@ interface ProductionLog {
   id: number;
   interpretedMinutes: number | null;
   callsAttended: number | null;
-  adherence: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  adherence: any;  
   date: Date;
   interpreter: { name: string | null } | null;
 }

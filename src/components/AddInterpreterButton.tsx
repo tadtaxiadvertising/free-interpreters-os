@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 interface AddInterpreterButtonProps {
   label?: string;
   mode?: 'create' | 'edit';
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   initialData?: any;
   variant?: 'primary' | 'ghost';
 }
