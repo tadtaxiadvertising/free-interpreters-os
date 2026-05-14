@@ -39,6 +39,7 @@ ENV DATABASE_URL=$DATABASE_URL
 ENV DIRECT_URL=$DIRECT_URL
 ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
 ENV NEXTAUTH_URL=$NEXTAUTH_URL
+
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
@@ -69,8 +70,20 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
-# CRÍTICO: 0.0.0.0 hace que Next.js sea visible desde fuera del contenedor
 ENV HOSTNAME="0.0.0.0"
+
+# Runtime Secrets (must be provided via Easypanel env vars)
+# These were ARGs in builder stage, but we need them at runtime.
+# Easypanel usually injects them as env vars automatically if defined in the UI.
+# But if we want to default them or ensure they are present:
+ARG DATABASE_URL
+ARG DIRECT_URL
+ARG NEXTAUTH_SECRET
+ARG NEXTAUTH_URL
+ENV DATABASE_URL=$DATABASE_URL
+ENV DIRECT_URL=$DIRECT_URL
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
+ENV NEXTAUTH_URL=$NEXTAUTH_URL
 
 # MEMORY OPTIMIZATION: Para VPS de <150MB RAM
 # Forzamos al recolector de basura (GC) a ser agresivo antes de llegar al límite del contenedor

@@ -28,6 +28,8 @@ import pg from 'pg';
 const globalForPrisma = globalThis as unknown as {
   _prisma: PrismaClient | undefined;
   _pool: pg.Pool | undefined;
+  _prismaShutdownRegistered: boolean | undefined;
+  _isShuttingDown: boolean | undefined;
 };
 
 function createPrismaClient(): PrismaClient {
@@ -78,14 +80,13 @@ globalForPrisma._prisma = prisma;
 export default prisma;
 
 // ── Shutdown Graceful ────────────────────────────────────────
-if (typeof process !== 'undefined') {
-  let isShuttingDown = false;
-
+if (typeof process !== 'undefined' && !globalForPrisma._prismaShutdownRegistered) {
   const shutdown = async () => {
-    if (isShuttingDown) return;
-    isShuttingDown = true;
+    // Evitar múltiples ejecuciones concurrentes
+    if (globalForPrisma._isShuttingDown) return;
+    globalForPrisma._isShuttingDown = true;
 
-    console.log('🔄 PRISMA: Graceful shutdown initiated...');
+    console.log('🔄 PRISMA: Graceful shutdown initiated (free-interpreters-os)...');
     try {
       // 1. Desconectar Prisma
       await prisma.$disconnect();
@@ -96,19 +97,15 @@ if (typeof process !== 'undefined') {
         globalForPrisma._pool = undefined;
       }
       
-      console.log('✅ PRISMA: Pool closed cleanly.');
+      console.log('✅ PRISMA: Connection & Pool closed cleanly (free-interpreters-os).');
     } catch (err) {
       console.error('⚠️ PRISMA: Error during shutdown:', err instanceof Error ? err.message : err);
-    } finally {
-      // No salimos del proceso aquí; dejamos que Node lo haga naturalmente
-      // o que Docker lo termine tras el timeout de SIGTERM.
     }
   };
 
-  // Evita registrar múltiples listeners en hot-reload (Next.js dev)
-  process.removeAllListeners('SIGTERM');
-  process.removeAllListeners('SIGINT');
-  
+  // Registramos los handlers solo una vez en la vida del proceso
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
+  
+  globalForPrisma._prismaShutdownRegistered = true;
 }
