@@ -24,9 +24,8 @@ import prisma from '@/lib/prisma';
  * ============================================================
  */
 
-// Timeout para la query de salud — 3s es suficiente para detectar
-// problemas sin bloquear el pool de conexiones innecesariamente
-const HEALTH_QUERY_TIMEOUT_MS = 3000;
+// Timeout para la query de salud — 5s es más resiliente para Supabase Free Tier
+const HEALTH_QUERY_TIMEOUT_MS = 5000;
 
 export const dynamic = 'force-dynamic'; // Next.js: nunca cachear esta ruta
 

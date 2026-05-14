@@ -28,10 +28,10 @@ function createPrismaClient(): PrismaClient {
   // Use PgBouncer compatible pool settings
   const pool = new pg.Pool({
     connectionString,
-    max: 2,           // Very tight limit for frontend actions
-    min: 0,
-    idleTimeoutMillis: 15000,      // Aggressive release
-    connectionTimeoutMillis: 5000, // Fail fast
+    max: 5,           // Increased from 2 to prevent healthcheck timeouts
+    min: 1,           // Keep at least one connection ready
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
     allowExitOnIdle: true,
   });
 
@@ -74,25 +74,25 @@ export default prisma;
 
 // ── Shutdown Logic ───────────────────────────────────────────
 if (typeof process !== 'undefined' && !globalForPrisma._prismaShutdownRegistered) {
-  const shutdown = async () => {
+  const shutdown = async (signal: string) => {
     if (globalForPrisma._isShuttingDown) return;
     globalForPrisma._isShuttingDown = true;
 
-    console.log('🔄 PRISMA: Graceful shutdown (free-interpreters-os)...');
+    console.log(`🔄 PRISMA: Graceful shutdown initiated (free-interpreters-os) [${signal}]...`);
     try {
       await prisma.$disconnect();
       if (globalForPrisma._pool) {
         await globalForPrisma._pool.end();
         globalForPrisma._pool = undefined;
       }
-      console.log('✅ PRISMA: Connections closed cleanly.');
+      console.log('✅ PRISMA: Connection & Pool closed cleanly (free-interpreters-os).');
     } catch (err) {
       console.error('⚠️ PRISMA: Shutdown error:', err);
     }
   };
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
   globalForPrisma._prismaShutdownRegistered = true;
 }
 

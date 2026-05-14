@@ -78,8 +78,8 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_ROLE=$NEXT_PUBLIC_APP_ROLE
 ENV DATABASE_URL=$DATABASE_URL
 ENV DIRECT_URL=$DIRECT_URL
-# Limit heap to 256MB → triggers GC early, prevents container OOM
-ENV NODE_OPTIONS="--max-old-space-size=256"
+# Limit heap to 512MB → triggers GC earlier than host limit, prevents hard OOM kill
+ENV NODE_OPTIONS="--max-old-space-size=512"
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://127.0.0.1:80/ || exit 1
