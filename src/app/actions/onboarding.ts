@@ -1,9 +1,9 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+import { validateAction } from '@/lib/auth/actions';
 
 const db = prisma;
 
@@ -11,16 +11,13 @@ const db = prisma;
  * Accept legal terms — records the signatureDate on the user's profile.
  */
 export async function acceptTerms(): Promise<ActionResult> {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const auth = await validateAction();
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
+  try {
     const now = new Date();
-    
-    // Use Prisma instead of Supabase client
     await db.userProfile.update({
-      where: { id: user.id },
+      where: { id: auth.user.id },
       data: {
         termsAcceptedAt: now,
         signatureDate: now,
@@ -29,7 +26,8 @@ export async function acceptTerms(): Promise<ActionResult> {
 
     revalidatePath('/dashboard');
     return { success: true };
-  } catch {
+  } catch (error) {
+    console.error('[ONBOARDING] acceptTerms error:', error);
     return { success: false, error: 'Error inesperado al procesar la firma', code: 'INTERNAL_ERROR' };
   }
 }
@@ -43,35 +41,31 @@ export async function saveBankingDetails(data: {
   bankAccountType?: string;
   bankCedula: string;
 }): Promise<ActionResult> {
+  const auth = await validateAction();
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
+  if (!data.bankName?.trim() || !data.bankAccount?.trim() || !data.bankCedula?.trim()) {
+    return { success: false, error: 'Todos los campos bancarios son obligatorios', code: 'VALIDATION_ERROR' };
+  }
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+    // ── Execute in Transaction ──────────────────────────
+    await db.$transaction(async (tx) => {
+      // 1. Update User Profile
+      const profile = await tx.userProfile.update({
+        where: { id: auth.user.id },
+        data: {
+          bankName: data.bankName.trim(),
+          bankAccount: data.bankAccount.trim(),
+          bankAccountType: data.bankAccountType?.trim() || null,
+          bankCedula: data.bankCedula.trim(),
+        },
+        select: { interpreterId: true }
+      });
 
-    if (!data.bankName?.trim() || !data.bankAccount?.trim() || !data.bankCedula?.trim()) {
-      return { success: false, error: 'Todos los campos bancarios son obligatorios', code: 'VALIDATION_ERROR' };
-    }
-
-    // 1. Update User Profile via Prisma
-    const profile = await db.userProfile.update({
-      where: { id: user.id },
-      data: {
-        bankName: data.bankName.trim(),
-        bankAccount: data.bankAccount.trim(),
-        bankAccountType: data.bankAccountType?.trim() || null,
-        bankCedula: data.bankCedula.trim(),
-      },
-      select: { interpreterId: true }
-    });
-
-    if (!profile) {
-      return { success: false, error: 'No se encontró tu perfil de usuario.', code: 'NOT_FOUND' };
-    }
-
-    // 2. Sync with Interpreter record if linked
-    if (profile.interpreterId) {
-      try {
-        await db.interpreter.update({
+      // 2. Sync with Interpreter record if linked
+      if (profile?.interpreterId) {
+        await tx.interpreter.update({
           where: { id: profile.interpreterId },
           data: {
             banco: data.bankName.trim(),
@@ -79,16 +73,14 @@ export async function saveBankingDetails(data: {
             tipoCuenta: data.bankAccountType?.trim() || null,
             cedulaRnc: data.bankCedula.trim(),
           },
-          select: { id: true }
         });
-      } catch (intError) {
-        console.warn('[ONBOARDING] Sync interpreter error:', intError instanceof Error ? intError.message : 'Unknown error');
       }
-    }
+    });
 
     revalidatePath('/dashboard');
     return { success: true };
-  } catch {
+  } catch (error) {
+    console.error('[ONBOARDING] saveBankingDetails error:', error);
     return { success: false, error: 'Ocurrió un error inesperado al guardar los datos', code: 'INTERNAL_ERROR' };
   }
 }
@@ -97,42 +89,34 @@ export async function saveBankingDetails(data: {
  * Mark onboarding as complete — enables full dashboard access.
  */
 export async function completeOnboarding(): Promise<ActionResult> {
+  const auth = await validateAction();
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+    // ── Execute in Transaction ──────────────────────────
+    await db.$transaction(async (tx) => {
+      const profile = await tx.userProfile.update({
+        where: { id: auth.user.id },
+        data: { onboardingComplete: true },
+        select: { interpreterId: true }
+      });
 
-    // Update user profile via Prisma
-    const profile = await db.userProfile.update({
-      where: { id: user.id },
-      data: { onboardingComplete: true },
-      select: { interpreterId: true }
-    });
-
-    if (!profile) {
-      return { success: false, error: 'Perfil no encontrado al intentar finalizar.', code: 'NOT_FOUND' };
-    }
-
-    // Sync with interpreter record via Prisma
-    if (profile.interpreterId) {
-      try {
-        await db.interpreter.update({
+      if (profile?.interpreterId) {
+        await tx.interpreter.update({
           where: { id: profile.interpreterId },
           data: {
             documentosCompleto: true,
             metodoPago: 'Transferencia Bancaria',
             status: 'Activo'
-          },
-          select: { id: true }
+          }
         });
-      } catch (intError) {
-        console.warn('[ONBOARDING] Sync interpreter error:', intError instanceof Error ? intError.message : 'Unknown error');
       }
-    }
+    });
 
     revalidatePath('/dashboard');
     return { success: true };
-  } catch {
+  } catch (error) {
+    console.error('[ONBOARDING] completeOnboarding error:', error);
     return { success: false, error: 'Error inesperado al finalizar el onboarding', code: 'INTERNAL_ERROR' };
   }
 }
@@ -145,14 +129,15 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
   bankingComplete: boolean;
   onboardingComplete: boolean;
 }>> {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const auth = await validateAction();
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
-    // Use Prisma for profile lookup
+  try {
+    // Use the profile already fetched by validateAction/getCurrentUser if available
+    // But since profile is selective in validateAction, let's re-fetch or improve helper.
+    // For now, let's just use the auth.profile if it has the fields, or fetch specifically.
     const profile = await db.userProfile.findUnique({
-      where: { id: user.id },
+      where: { id: auth.user.id },
       select: {
         termsAcceptedAt: true,
         bankName: true,
@@ -162,9 +147,7 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
       }
     });
 
-    if (!profile) {
-      return { success: false, error: 'Profile not found', code: 'NOT_FOUND' };
-    }
+    if (!profile) return { success: false, error: 'Profile not found', code: 'NOT_FOUND' };
 
     return {
       success: true,
@@ -175,7 +158,7 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
       },
     };
   } catch (err) {
-    console.error('[ONBOARDING] getOnboardingStatus error:', err instanceof Error ? err.message : 'Unknown error');
+    console.error('[ONBOARDING] getOnboardingStatus error:', err);
     return { success: false, error: 'Error fetching onboarding status', code: 'INTERNAL_ERROR' };
   }
 }

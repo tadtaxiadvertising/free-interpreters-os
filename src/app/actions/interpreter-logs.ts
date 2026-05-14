@@ -1,41 +1,47 @@
 'use server';
 
-import prismaClient from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { auth } from '@/lib/auth';
-import { getCurrentProfile } from './auth';
+import { validateAction } from '@/lib/auth/actions';
+import { ActionResult } from '@/lib/types';
 import { refreshPayrollRecord } from '@/services/PayrollService';
 
-const prisma = prismaClient;
+const db = prisma;
 
-export async function createInterpreterLog(formData: FormData) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
+export async function createInterpreterLog(formData: FormData): Promise<ActionResult> {
+  const auth = await validateAction('interpreter');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
-  const profile = await getCurrentProfile();
-  if (!profile || !profile.interpreter_id) {
-    throw new Error('User not linked to an interpreter profile');
+  const profile = auth.profile;
+  if (!profile.interpreterId) {
+    return { success: false, error: 'User not linked to an interpreter profile', code: 'BAD_REQUEST' };
   }
 
-  const date = new Date(formData.get('date') as string);
-  const interpretedMinutes = parseInt(formData.get('minutes') as string, 10);
-  const callsAttended = parseInt(formData.get('calls') as string, 10) || 0;
+  const dateStr = formData.get('date') as string;
+  const minutesStr = formData.get('minutes') as string;
+  const callsStr = formData.get('calls') as string;
   const observations = formData.get('observations') as string;
 
+  const date = new Date(dateStr);
+  const interpretedMinutes = parseInt(minutesStr, 10);
+  const callsAttended = parseInt(callsStr, 10) || 0;
+
   if (isNaN(interpretedMinutes) || interpretedMinutes <= 0) {
-    return { error: 'Invalid minutes' };
+    return { success: false, error: 'Invalid minutes', code: 'VALIDATION_ERROR' };
   }
 
   // Prevent logging for future dates
-  if (date > new Date()) {
-    return { error: 'Cannot log production for future dates' };
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  if (date > today) {
+    return { success: false, error: 'Cannot log production for future dates', code: 'VALIDATION_ERROR' };
   }
 
   try {
     // Check if log already exists for this date
-    const existingLog = await prisma.productionLog.findFirst({
+    const existingLog = await db.productionLog.findFirst({
       where: {
-        interpreterId: profile.interpreter_id,
+        interpreterId: profile.interpreterId,
         date: {
           equals: date
         }
@@ -43,12 +49,16 @@ export async function createInterpreterLog(formData: FormData) {
     });
 
     if (existingLog) {
-      return { error: 'A log already exists for this date. Please contact an admin to modify it.' };
+      return { 
+        success: false, 
+        error: 'A log already exists for this date. Please contact an admin to modify it.',
+        code: 'CONFLICT'
+      };
     }
 
-    await prisma.productionLog.create({
+    await db.productionLog.create({
       data: {
-        interpreterId: profile.interpreter_id,
+        interpreterId: profile.interpreterId,
         date,
         interpretedMinutes,
         callsAttended,
@@ -59,7 +69,7 @@ export async function createInterpreterLog(formData: FormData) {
     });
 
     // Refresh payroll record for this period
-    await refreshPayrollRecord(profile.interpreter_id, date);
+    await refreshPayrollRecord(profile.interpreterId, date);
 
     revalidatePath('/dashboard');
     revalidatePath('/production');
@@ -67,7 +77,6 @@ export async function createInterpreterLog(formData: FormData) {
     return { success: true };
   } catch (error) {
     console.error('Error creating production log:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return { error: 'Failed to create log: ' + message };
+    return { success: false, error: 'Failed to create log', code: 'INTERNAL_ERROR' };
   }
 }

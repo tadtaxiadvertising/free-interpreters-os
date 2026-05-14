@@ -1,16 +1,16 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-const db = prisma;
 import { revalidatePath } from 'next/cache';
 import { ActionResult } from '@/lib/types';
-import { createClient } from '@/lib/supabase/server';
 import { Account, InterpreterAccountRate } from '@prisma/client';
+import { validateAction } from '@/lib/auth/actions';
+
+const db = prisma;
 
 export async function createAccount(name: string, description?: string): Promise<ActionResult<Account>> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
     const account = await db.account.create({
@@ -28,9 +28,8 @@ export async function createAccount(name: string, description?: string): Promise
 }
 
 export async function updateAccount(id: number, name: string, description?: string): Promise<ActionResult<Account>> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
     const account = await db.account.update({
@@ -46,9 +45,8 @@ export async function updateAccount(id: number, name: string, description?: stri
 }
 
 export async function deleteAccount(id: number): Promise<ActionResult<void>> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
     await db.account.delete({
@@ -63,9 +61,8 @@ export async function deleteAccount(id: number): Promise<ActionResult<void>> {
 }
 
 export async function getAccounts(): Promise<ActionResult<Account[]>> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const auth = await validateAction();
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
     const accounts = await db.account.findMany({
@@ -83,47 +80,43 @@ export async function setInterpreterAccountRate(
   accountId: number,
   tariffPerHour: number
 ): Promise<ActionResult<InterpreterAccountRate>> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    // Get old rate for audit
-    const oldRate = await db.interpreterAccountRate.findUnique({
-      where: {
-        interpreterId_accountId: { interpreterId, accountId }
-      }
-    });
+    // ── Execute in Transaction ──────────────────────────
+    const result = await db.$transaction(async (tx) => {
+      // 1. Get old rate for audit
+      const oldRate = await tx.interpreterAccountRate.findUnique({
+        where: {
+          interpreterId_accountId: { interpreterId, accountId }
+        }
+      });
 
-    const rate = await db.interpreterAccountRate.upsert({
-      where: {
-        interpreterId_accountId: {
-          interpreterId,
-          accountId,
+      // 2. Upsert the rate
+      const rate = await tx.interpreterAccountRate.upsert({
+        where: {
+          interpreterId_accountId: { interpreterId, accountId },
         },
-      },
-      update: {
-        tariffPerHour: tariffPerHour,
-      },
-      create: {
-        interpreterId,
-        accountId,
-        tariffPerHour: tariffPerHour,
-      },
-    });
+        update: { tariffPerHour },
+        create: { interpreterId, accountId, tariffPerHour },
+      });
 
-    // Create Audit Log
-    await db.payrateAuditLog.create({
-      data: {
-        interpreterId,
-        oldRate: oldRate?.tariffPerHour,
-        newRate: tariffPerHour,
-        changedBy: user.id
-      }
+      // 3. Create Audit Log
+      await tx.payrateAuditLog.create({
+        data: {
+          interpreterId,
+          oldRate: oldRate?.tariffPerHour,
+          newRate: tariffPerHour,
+          changedBy: auth.user.id
+        }
+      });
+
+      return rate;
     });
 
     revalidatePath('/admin/payrates');
-    return { success: true, data: rate };
+    return { success: true, data: result };
   } catch (error) {
     console.error('Error setting account rate:', error);
     return { success: false, error: 'Error setting account rate', code: 'INTERNAL_ERROR' };
@@ -134,17 +127,13 @@ export async function deleteInterpreterAccountRate(
   interpreterId: number,
   accountId: number
 ): Promise<ActionResult<void>> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
     await db.interpreterAccountRate.delete({
       where: {
-        interpreterId_accountId: {
-          interpreterId,
-          accountId,
-        },
+        interpreterId_accountId: { interpreterId, accountId },
       },
     });
 

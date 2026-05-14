@@ -6,6 +6,7 @@ import { InterpreterSchema, InterpreterInput } from '@/lib/validators';
 import { ActionResult } from '@/lib/types';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Interpreter, Prisma } from '@prisma/client';
+import { validateAction } from '@/lib/auth/actions';
 
 const db = prisma;
 
@@ -13,65 +14,65 @@ const db = prisma;
  * ACTION: Create Interpreter
  */
 export async function createInterpreter(data: InterpreterInput): Promise<ActionResult<Interpreter>> {
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
     const validated = InterpreterSchema.parse(data);
     const { password, ...interpreterData } = validated;
 
-    // 1. Create interpreter record
-    const interpreter = await db.interpreter.create({
-      data: interpreterData,
-    });
-
-    // 2. If password provided, create Auth user and UserProfile
-    if (password) {
-      if (!interpreterData.emailCorporativo) {
-        return { success: false, error: 'Email corporativo is required for account creation' };
-      }
-
-      const supabaseAdmin = createAdminClient();
-      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: interpreterData.emailCorporativo,
-        password: password,
-        email_confirm: true,
-        user_metadata: { display_name: interpreterData.name }
+    const result = await db.$transaction(async (tx) => {
+      // 1. Create interpreter record
+      const interpreter = await tx.interpreter.create({
+        data: interpreterData,
       });
 
-      if (authError) {
-        console.error('Auth creation failed:', authError.message);
-        return { 
-          success: false, 
-          error: `Interpreter created, but account setup failed: ${authError.message}` 
-        };
+      // 2. If password provided, create Auth user and UserProfile
+      if (password) {
+        if (!interpreterData.emailCorporativo) {
+          throw new Error('Email corporativo is required for account creation');
+        }
+
+        const supabaseAdmin = createAdminClient();
+        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+          email: interpreterData.emailCorporativo,
+          password: password,
+          email_confirm: true,
+          user_metadata: { display_name: interpreterData.name }
+        });
+
+        if (authError) throw authError;
+
+        if (authUser.user) {
+          await tx.userProfile.upsert({
+            where: { id: authUser.user.id },
+            update: {
+              email: interpreterData.emailCorporativo,
+              displayName: interpreterData.name,
+              interpreterId: interpreter.id
+            },
+            create: {
+              id: authUser.user.id,
+              email: interpreterData.emailCorporativo,
+              displayName: interpreterData.name,
+              role: 'interpreter',
+              interpreterId: interpreter.id
+            }
+          });
+        }
       }
 
-      if (authUser.user) {
-        await db.userProfile.upsert({
-          where: { id: authUser.user.id },
-          update: {
-            email: interpreterData.emailCorporativo,
-            displayName: interpreterData.name,
-            interpreterId: interpreter.id
-          },
-          create: {
-            id: authUser.user.id,
-            email: interpreterData.emailCorporativo,
-            displayName: interpreterData.name,
-            role: 'interpreter',
-            interpreterId: interpreter.id
-          }
-        });
-      }
-    }
+      return interpreter;
+    });
 
     revalidatePath('/interpreters');
     revalidatePath('/admin');
-    return { success: true, data: interpreter };
+    return { success: true, data: result };
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    const errorCode = (error as Prisma.PrismaClientKnownRequestError).code;
     console.error('Error in createInterpreter action:', error);
-    if (errorCode === 'P2002') {
-      const meta = (error as Prisma.PrismaClientKnownRequestError).meta as Record<string, unknown> | undefined;
+    
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const meta = error.meta as Record<string, unknown> | undefined;
       const target = Array.isArray(meta?.target) ? meta?.target[0] : 'field';
       return { 
         success: false, 
@@ -79,19 +80,19 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
         code: 'CONFLICT'
       };
     }
-    return { 
-      success: false, 
-      error: errorMsg || 'Failed to create interpreter',
-      code: 'INTERNAL_ERROR'
-    };
+
+    const errorMsg = error instanceof Error ? error.message : 'Failed to create interpreter';
+    return { success: false, error: errorMsg, code: 'INTERNAL_ERROR' };
   }
 }
-
 
 /**
  * ACTION: Update Interpreter
  */
 export async function updateInterpreter(id: number, data: Partial<InterpreterInput>): Promise<ActionResult<{ id: number; name: string }>> {
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
     const validated = InterpreterSchema.partial().parse(data);
 
@@ -105,13 +106,8 @@ export async function updateInterpreter(id: number, data: Partial<InterpreterInp
     revalidatePath(`/interpreters/${id}`);
     return { success: true, data: interpreter };
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in updateInterpreter action:', error);
-    return { 
-      success: false, 
-      error: errorMsg || 'Failed to update interpreter',
-      code: 'INTERNAL_ERROR'
-    };
+    return { success: false, error: 'Failed to update interpreter', code: 'INTERNAL_ERROR' };
   }
 }
 
@@ -119,49 +115,38 @@ export async function updateInterpreter(id: number, data: Partial<InterpreterInp
  * ACTION: Delete Interpreter (with Auth User)
  */
 export async function deleteInterpreter(id: number): Promise<ActionResult> {
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
-    // 1. Get interpreter and profile via Prisma
-    const interpreter = await db.interpreter.findUnique({
-      where: { id },
-      include: { 
-        userProfile: {
-          select: { id: true }
-        } 
+    await db.$transaction(async (tx) => {
+      // 1. Get interpreter and profile
+      const interpreter = await tx.interpreter.findUnique({
+        where: { id },
+        include: { userProfile: { select: { id: true } } }
+      });
+
+      if (!interpreter) throw new Error('Interpreter not found');
+
+      // 2. Delete Supabase Auth user if linked
+      if (interpreter.userProfile) {
+        const supabaseAdmin = createAdminClient();
+        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(interpreter.userProfile.id);
+        if (authError) console.warn('Failed to delete auth user:', authError.message);
+        
+        await tx.userProfile.delete({ where: { id: interpreter.userProfile.id } });
       }
-    });
 
-    if (!interpreter) {
-      return { success: false, error: 'Interpreter not found', code: 'NOT_FOUND' };
-    }
-
-    // 2. Delete Supabase Auth user if linked
-    if (interpreter.userProfile) {
-      const supabaseAdmin = createAdminClient();
-      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(interpreter.userProfile.id);
-      if (authError) {
-        console.warn('Failed to delete auth user:', authError.message);
-      }
-      
-      // Delete user profile via Prisma
-      await db.userProfile.delete({ where: { id: interpreter.userProfile.id } });
-    }
-
-    // 3. Delete interpreter via Prisma
-    await db.interpreter.delete({
-      where: { id },
+      // 3. Delete interpreter
+      await tx.interpreter.delete({ where: { id } });
     });
 
     revalidatePath('/interpreters');
     revalidatePath('/admin');
     return { success: true };
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error in deleteInterpreter action:', errorMsg);
-    return { 
-      success: false, 
-      error: errorMsg || 'Failed to delete interpreter',
-      code: 'INTERNAL_ERROR'
-    };
+    console.error('Error in deleteInterpreter action:', error);
+    return { success: false, error: 'Failed to delete interpreter', code: 'INTERNAL_ERROR' };
   }
 }
 
