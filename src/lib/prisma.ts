@@ -73,33 +73,42 @@ function createPrismaClient(): PrismaClient {
 const prisma = globalForPrisma._prisma ?? createPrismaClient();
 
 // Cache en TODOS los entornos (dev + production)
-// En dev previene warnings de "multiple PrismaClient instances"
-// En production previene pool exhaustion por cold-starts
 globalForPrisma._prisma = prisma;
 
 export default prisma;
 
 // ── Shutdown Graceful ────────────────────────────────────────
-// Cuando Docker envía SIGTERM (Easypanel restart/redeploy),
-// cerramos el pool limpiamente para no dejar conexiones fantasma
-// en Supabase que consumen el límite del plan gratuito.
 if (typeof process !== 'undefined') {
+  let isShuttingDown = false;
+
   const shutdown = async () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
     console.log('🔄 PRISMA: Graceful shutdown initiated...');
     try {
+      // 1. Desconectar Prisma
       await prisma.$disconnect();
+      
+      // 2. Cerrar el Pool de pg
       if (globalForPrisma._pool) {
         await globalForPrisma._pool.end();
+        globalForPrisma._pool = undefined;
       }
+      
       console.log('✅ PRISMA: Pool closed cleanly.');
     } catch (err) {
-      console.error('⚠️ PRISMA: Error during shutdown:', err);
+      console.error('⚠️ PRISMA: Error during shutdown:', err instanceof Error ? err.message : err);
+    } finally {
+      // No salimos del proceso aquí; dejamos que Node lo haga naturalmente
+      // o que Docker lo termine tras el timeout de SIGTERM.
     }
   };
 
-  // Evita registrar múltiples listeners en hot-reload
+  // Evita registrar múltiples listeners en hot-reload (Next.js dev)
   process.removeAllListeners('SIGTERM');
   process.removeAllListeners('SIGINT');
+  
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 }

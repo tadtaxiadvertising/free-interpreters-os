@@ -34,6 +34,11 @@ export async function GET() {
   const start = performance.now();
 
   try {
+    // ── Pre-check: Environment ─────────────────────────
+    if (!process.env.DATABASE_URL) {
+      throw new Error('CONFIG_ERROR: DATABASE_URL is missing');
+    }
+
     // ── DB Probe con timeout ────────────────────────────
     // Usamos Promise.race para garantizar que el endpoint responde
     // incluso si PgBouncer o Supabase están lentos/colgados.

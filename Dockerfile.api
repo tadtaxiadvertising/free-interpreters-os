@@ -70,13 +70,17 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 # CRÍTICO: 0.0.0.0 hace que Next.js sea visible desde fuera del contenedor
-# Sin esto, Easypanel ve el puerto pero no recibe tráfico (estado amarillo)
 ENV HOSTNAME="0.0.0.0"
 
+# MEMORY OPTIMIZATION: Para VPS de <150MB RAM
+# Forzamos al recolector de basura (GC) a ser agresivo antes de llegar al límite del contenedor
+ENV NODE_OPTIONS="--max-old-space-size=100 --heapsnapshot-near-heap-limit=1"
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://0.0.0.0:3000/api/health || exit 1
+  CMD curl -f http://127.0.0.1:3000/api/health || exit 1
 
 USER nextjs
 EXPOSE 3000
 
+# Iniciamos con node directamente para ahorrar RAM (npm consume ~30MB extra)
 CMD ["node", "server.js"]
