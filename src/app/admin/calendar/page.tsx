@@ -6,7 +6,7 @@ import Link from 'next/link';
 import prisma from '@/lib/prisma';
 import { ChevronLeft, ChevronRight, CalendarDays, TrendingUp } from 'lucide-react';
 
-export const revalidate = 60; // 1 minute ISR to protect Supabase
+export const dynamic = 'force-dynamic';
 
 export default async function AdminCalendarPage(props: { searchParams: Promise<{ month?: string; year?: string }> }) {
   const supabase = await createClient();
