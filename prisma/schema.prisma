@@ -4,8 +4,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  schemas  = ["auth", "public"]
+  provider  = "postgresql"
+  // DATABASE_URL → PgBouncer (puerto 6543, Transaction Mode)
+  // DIRECT_URL  → Conexión directa (puerto 5432, para migraciones)
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["auth", "public"]
 }
 
 model Interpreter {
