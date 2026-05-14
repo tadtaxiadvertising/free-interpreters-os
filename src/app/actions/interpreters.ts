@@ -153,6 +153,32 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
 /**
  * ACTION: Reset/Set Interpreter Password
  */
+export async function getInterpretersForSelect(): Promise<ActionResult<{ id: number; name: string; externalId: string }[]>> {
+  const auth = await validateAction();
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
+  try {
+    const interpreters = await db.interpreter.findMany({
+      select: {
+        id: true,
+        name: true,
+        externalId: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    });
+
+    return { success: true, data: interpreters };
+  } catch (error: unknown) {
+    console.error('🔴 ERROR [getInterpretersForSelect]:', error);
+    return { success: false, error: 'Error al obtener intérpretes', code: 'INTERNAL_ERROR' };
+  }
+}
+
+/**
+ * ACTION: Reset/Set Interpreter Password
+ */
 export async function resetInterpreterPassword(id: number, password: string): Promise<ActionResult> {
   const auth = await validateAction('admin');
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
@@ -227,8 +253,15 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
  * ACTION: Toggle Realtime Status
  */
 export async function updateRealtimeStatus(id: number, status: 'Online' | 'Offline' | 'Busy'): Promise<ActionResult> {
+  const auth = await validateAction(['admin', 'interpreter']);
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
-    // Note: status updates are lightweight, no need for full auth check if ID matches (future)
+    // If user is interpreter, they can only update their own status
+    if (auth.profile.role === 'interpreter' && auth.profile.interpreterId !== id) {
+      return { success: false, error: 'Acceso denegado', code: 'UNAUTHORIZED' };
+    }
+
     await db.interpreter.update({
       where: { id },
       data: { realtimeStatus: status },
@@ -240,7 +273,7 @@ export async function updateRealtimeStatus(id: number, status: 'Online' | 'Offli
     return { success: true };
   } catch (error: unknown) {
     console.error('🔴 ERROR [updateRealtimeStatus]:', error);
-    return { success: false, error: 'Error al actualizar estado en tiempo real' };
+    return { success: false, error: 'Error al actualizar estado en tiempo real', code: 'INTERNAL_ERROR' };
   }
 }
 

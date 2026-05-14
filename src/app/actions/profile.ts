@@ -1,7 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
+import { validateAction } from '@/lib/auth/actions';
 import { revalidatePath } from 'next/cache';
 
 import { z } from 'zod';
@@ -22,21 +22,19 @@ const ProfileUpdateSchema = z.object({
 export type ProfileUpdateInput = z.infer<typeof ProfileUpdateSchema>;
 
 export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Promise<ActionResult<void>> {
+  const auth = await validateAction('interpreter');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   const parseResult = ProfileUpdateSchema.safeParse(rawInput);
   if (!parseResult.success) {
     return { success: false, error: 'Invalid profile data', code: 'VALIDATION_ERROR' };
   }
   const input = parseResult.data;
 
-  const supabase = await createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Unauthorized', code: 'UNAUTHORIZED' };
-
   try {
     // 1. Update UserProfile via Prisma
     const profile = await db.userProfile.update({
-      where: { id: user.id },
+      where: { id: auth.user.id },
       data: {
         bankName: input.bankName,
         bankAccount: input.bankAccount,
@@ -63,7 +61,8 @@ export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Pr
             tipoCuenta: input.bankAccountType,
             cedulaRnc: input.bankCedula,
             notas: input.notes
-          }
+          },
+          select: { id: true }
         });
       } catch (interpError: unknown) {
         const errorMsg = interpError instanceof Error ? interpError.message : 'Unknown error';

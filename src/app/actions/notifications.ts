@@ -27,7 +27,8 @@ export async function createNotification(input: CreateNotificationInput) {
         message: input.message,
         type: input.type || 'info',
         link: input.link
-      }
+      },
+      select: { id: true }
     });
 
     revalidatePath('/'); 
@@ -45,7 +46,8 @@ export async function markNotificationAsRead(id: string) {
   try {
     await db.notification.update({
       where: { id },
-      data: { isRead: true }
+      data: { isRead: true },
+      select: { id: true }
     });
 
     revalidatePath('/');

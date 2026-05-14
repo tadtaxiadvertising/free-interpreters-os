@@ -1,7 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
+import { validateAction } from '@/lib/auth/actions';
 import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { CallSession, Prisma } from '@prisma/client';
@@ -13,14 +13,14 @@ const db = prisma;
  * ACTION: Start Call Session
  */
 export async function startCall(): Promise<ActionResult<{ sessionId: number; startedAt: string }>> {
+  const auth = await validateAction('interpreter');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
 
     // 1. Get profile and check active calls in a single lean query
     const profile = await db.userProfile.findUnique({
-      where: { id: user.id },
+      where: { id: auth.user.id },
       select: { 
         interpreterId: true,
         interpreter: {
@@ -58,7 +58,8 @@ export async function startCall(): Promise<ActionResult<{ sessionId: number; sta
 
       await tx.interpreter.update({
         where: { id: profile.interpreterId! },
-        data: { realtimeStatus: 'Busy' }
+        data: { realtimeStatus: 'Busy' },
+        select: { id: true }
       });
 
       return newSession;
@@ -82,16 +83,11 @@ export async function startCall(): Promise<ActionResult<{ sessionId: number; sta
  * ACTION: End Call Session
  */
 export async function endCall(sessionId: number): Promise<ActionResult<{ durationSeconds: number; callCost: number }>> {
+  const auth = await validateAction('interpreter');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
-
-    const profile = await db.userProfile.findUnique({
-      where: { id: user.id },
-      select: { interpreterId: true }
-    });
-
+    const profile = auth.profile;
     if (!profile?.interpreterId) {
       return { success: false, error: 'Unauthorized profile', code: 'UNAUTHORIZED' };
     }
@@ -108,7 +104,8 @@ export async function endCall(sessionId: number): Promise<ActionResult<{ duratio
 
       await tx.interpreter.update({
         where: { id: interpreterId },
-        data: { realtimeStatus: 'Online' }
+        data: { realtimeStatus: 'Online' },
+        select: { id: true }
       });
 
       return updated;
@@ -132,16 +129,11 @@ export async function endCall(sessionId: number): Promise<ActionResult<{ duratio
  * ACTION: Get Active Call
  */
 export async function getActiveCall(): Promise<ActionResult<CallSession | null>> {
+  const auth = await validateAction('interpreter');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
-
-    const profile = await db.userProfile.findUnique({
-      where: { id: user.id },
-      select: { interpreterId: true }
-    });
-
+    const profile = auth.profile;
     if (!profile?.interpreterId) return { success: true, data: null };
 
     const session = await db.callSession.findFirst({
@@ -169,19 +161,10 @@ const ManualCallSchema = z.object({
  * ACTION: Add Manual Call Entry (Admin)
  */
 export async function addManualCall(formData: FormData): Promise<ActionResult<{ id: number }>> {
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
-
-    const profile = await db.userProfile.findUnique({
-      where: { id: user.id },
-      select: { role: true }
-    });
-
-    if (profile?.role !== 'admin') {
-      return { success: false, error: 'Unauthorized: Admin only', code: 'UNAUTHORIZED' };
-    }
 
     const rawData = {
       interpreterId: formData.get('interpreterId'),

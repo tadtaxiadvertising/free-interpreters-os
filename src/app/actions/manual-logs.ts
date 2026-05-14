@@ -1,7 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { validateAction } from "@/lib/auth/actions";
 import type { ActionResult } from "@/lib/types";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
@@ -20,19 +20,10 @@ const ManualLogSchema = z.object({
  * ACTION: Create Manual Production Log
  */
 export async function createManualLog(data: unknown): Promise<ActionResult<{ id: number }>> {
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
-
-    const profile = await db.userProfile.findUnique({
-      where: { id: user.id },
-      select: { role: true }
-    });
-
-    if (profile?.role !== 'admin') {
-      return { success: false, error: 'Acceso administrativo requerido', code: 'UNAUTHORIZED' };
-    }
 
     const validated = ManualLogSchema.parse(data);
     const { interpreterId, date, startTime, endTime, totalMinutes } = validated;
@@ -90,11 +81,10 @@ export async function createManualLog(data: unknown): Promise<ActionResult<{ id:
  * ACTION: Get Interpreters for Select
  */
 export async function getInterpretersForSelect(): Promise<ActionResult<{ id: number; name: string; externalId: string }[]>> {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const auth = await validateAction();
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
+  try {
     const interpreters = await db.interpreter.findMany({
       select: {
         id: true,
