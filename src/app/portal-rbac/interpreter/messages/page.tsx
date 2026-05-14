@@ -17,7 +17,7 @@ export default function InterpreterMessages() {
 
   useEffect(() => {
     listInterpreterMessages()
-      .then(data => setMessages(data as any))
+      .then(data => setMessages(data as unknown as Message[]))
       .catch(() => toast.error("Error al cargar mensajes"))
       .finally(() => setLoading(false));
   }, []);

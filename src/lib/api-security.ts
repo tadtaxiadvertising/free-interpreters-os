@@ -8,13 +8,13 @@ import { Prisma } from '@prisma/client';
  * to prevent BOLA, Injection, and Information Disclosure.
  */
 
-type RouteHandler = (req: NextRequest, context: any) => Promise<NextResponse>;
+type RouteHandler = (req: NextRequest, context: unknown) => Promise<NextResponse>;
 
 export function withSecurity(
   handler: RouteHandler,
-  schemas?: { body?: z.ZodObject<any>; query?: z.ZodObject<any> }
+  schemas?: { body?: z.ZodTypeAny; query?: z.ZodTypeAny }
 ): RouteHandler {
-  return async (req: NextRequest, context: any) => {
+  return async (req: NextRequest, context: unknown) => {
     try {
       // 1. INPUT VALIDATION & SANITIZATION (Prevention of Injection & Mass Assignment)
       // We parse the query and body against Zod schemas. 

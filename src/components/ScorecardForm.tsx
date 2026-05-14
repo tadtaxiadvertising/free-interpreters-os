@@ -7,12 +7,12 @@ interface ScorecardFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
   preselectedInterpreterId?: number;
-  interpreters?: any[];
+  interpreters?: { id: number; name: string; externalId: string }[];
 }
 
 export function ScorecardForm({ onSuccess, onCancel, preselectedInterpreterId, interpreters: initialInterpreters = [] }: ScorecardFormProps) {
   const [loading, setLoading] = useState(false);
-  const [interpreters, setInterpreters] = useState<any[]>(initialInterpreters);
+  const [interpreters, setInterpreters] = useState<{ id: number; name: string; externalId: string }[]>(initialInterpreters);
   const [error, setError] = useState<string | null>(null);
   
   const [scores, setScores] = useState({
@@ -68,8 +68,9 @@ export function ScorecardForm({ onSuccess, onCancel, preselectedInterpreterId, i
       }
 
       onSuccess?.();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -113,7 +114,7 @@ export function ScorecardForm({ onSuccess, onCancel, preselectedInterpreterId, i
               type="number"
               max={field.max}
               min={0}
-              value={(scores as any)[field.key]}
+              value={scores[field.key as keyof typeof scores]}
               onChange={(e) => setScores({ ...scores, [field.key]: parseInt(e.target.value) || 0 })}
               className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-white text-center font-bold"
             />

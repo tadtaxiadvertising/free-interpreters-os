@@ -14,7 +14,7 @@ interface Notification {
   createdAt: Date;
 }
 
-export function NotificationBell({ initialNotifications }: { initialNotifications: any[] }) {
+export function NotificationBell({ initialNotifications }: { initialNotifications: Notification[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState(initialNotifications);
 

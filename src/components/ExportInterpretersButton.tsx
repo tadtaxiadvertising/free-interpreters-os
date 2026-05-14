@@ -10,7 +10,7 @@ interface Interpreter {
   emailCorporativo: string | null;
   status: string;
   campaign: string | null;
-  tariffPerMinute: any;
+  tariffPerMinute: number;
   createdAt: string | Date;
 }
 

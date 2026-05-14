@@ -7,6 +7,7 @@ import { createInterpreter, updateInterpreter } from '@/app/actions/interpreters
 interface InterpreterFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialData?: any;
   interpreterId?: number;
 }
@@ -23,7 +24,7 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
     const formData = new FormData(e.currentTarget);
     const isEditing = !!interpreterId;
     
-    const data: any = {
+    const data: Record<string, unknown> = {
       name: formData.get('name'),
       externalId: formData.get('externalId'),
       emailCorporativo: formData.get('emailCorporativo'),
@@ -43,9 +44,11 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
     try {
       let result;
       if (isEditing) {
-        result = await updateInterpreter(interpreterId, data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        result = await updateInterpreter(interpreterId, data as any);
       } else {
-        result = await createInterpreter(data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        result = await createInterpreter(data as any);
       }
 
       if (!result.success) {
@@ -53,8 +56,9 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
       }
 
       onSuccess?.();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { CSVImporter } from '@/components/CSVImporter';
-import { ArrowLeft, LayoutGrid, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, FileSpreadsheet } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ImportPage() {

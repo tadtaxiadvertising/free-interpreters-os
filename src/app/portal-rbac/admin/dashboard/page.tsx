@@ -23,8 +23,8 @@ export default function AdminDashboard() {
 
   const loadData = () => {
     getAdminStats().then(setStats).catch(() => {});
-    listUsersByRole().then(data => setUsers(data as any)).catch(() => {});
-    listPendingMessages().then(data => setMessages(data as any)).catch(() => {});
+    listUsersByRole().then(data => setUsers(data as User[])).catch(() => {});
+    listPendingMessages().then(data => setMessages(data as unknown as Message[])).catch(() => {});
   };
 
   const handleCreate = (formData: FormData) => {
@@ -40,8 +40,9 @@ export default function AdminDashboard() {
         }
         setShowForm(false);
         loadData();
-      } catch (err: any) {
-        toast.error(err.message || "Error al crear usuario");
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : "Error al crear usuario";
+        toast.error(errorMsg);
       }
     });
   };
@@ -52,8 +53,9 @@ export default function AdminDashboard() {
         await moderateMessage({ messageId, action });
         toast.success(`Mensaje ${action === "APPROVED" ? "aprobado" : "rechazado"}`);
         loadData();
-      } catch (err: any) {
-        toast.error(err.message || "Error al moderar");
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : "Error al moderar";
+        toast.error(errorMsg);
       }
     });
   };

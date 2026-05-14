@@ -38,9 +38,10 @@ export function CandidateActions({ candidate }: CandidateActionsProps) {
       
       setIsOpen(false);
       router.refresh();
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
       console.error(error);
-      alert(`Error deleting candidate: ${error.message}`);
+      alert(`Error deleting candidate: ${message}`);
     } finally {
       setIsDeleting(false);
     }
@@ -55,8 +56,9 @@ export function CandidateActions({ candidate }: CandidateActionsProps) {
       alert(`Candidate ${candidate.name} marked as hired!`);
       setIsOpen(false);
       router.refresh();
-    } catch (error: any) {
-      alert(`Error hiring candidate: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Error hiring candidate: ${message}`);
     } finally {
       setIsHiring(false);
     }
@@ -95,10 +97,11 @@ export function CandidateActions({ candidate }: CandidateActionsProps) {
             </button>
             {candidate.status !== 'Contratado' && (
               <button 
-                className="w-full px-4 py-2 text-left text-sm text-green-400 hover:bg-green-500/10 flex items-center gap-3 transition-colors"
+                disabled={isHiring}
+                className="w-full px-4 py-2 text-left text-sm text-green-400 hover:bg-green-500/10 flex items-center gap-3 transition-colors disabled:opacity-50"
                 onClick={handleHire}
               >
-                <UserPlus size={16} />
+                {isHiring ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
                 Hire Candidate
               </button>
             )}

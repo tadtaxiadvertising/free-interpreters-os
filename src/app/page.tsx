@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import prismaClient from '@/lib/prisma';
 
-const prisma = prismaClient as any;
+const prisma = prismaClient;
 
 export const dynamic = 'force-dynamic';
 

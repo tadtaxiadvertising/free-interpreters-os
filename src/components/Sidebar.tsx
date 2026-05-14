@@ -66,7 +66,6 @@ interface SidebarProps {
   role: UserRole;
   isCollapsed: boolean;
   onToggle: () => void;
-  notifications?: any[];
   ranking?: RankingData | null;
 }
 
@@ -107,7 +106,7 @@ function getActiveIndex(pathname: string, items: MenuItem[]): number {
   return bestIdx;
 }
 
-export function Sidebar({ role, isCollapsed, onToggle, notifications = [], ranking }: SidebarProps) {
+export function Sidebar({ role, isCollapsed, onToggle, ranking }: SidebarProps) {
   const pathname = usePathname();
   const menuItems = role === 'admin' ? adminMenu : interpreterMenu;
   const activeIndex = getActiveIndex(pathname, menuItems);

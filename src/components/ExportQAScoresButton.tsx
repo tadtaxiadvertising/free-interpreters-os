@@ -7,7 +7,7 @@ interface QAScore {
   id: number;
   auditDate: string;
   auditor: string | null;
-  totalScore: any;
+  totalScore: number;
   criticalError: boolean;
   comentarios: string | null;
   interpreter: {

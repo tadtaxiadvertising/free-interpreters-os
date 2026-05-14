@@ -11,7 +11,7 @@ export async function auth() {
   try {
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     user = currentUser;
-  } catch (e) {
+  } catch {
     // Ignore auth errors for the bridge
   }
   

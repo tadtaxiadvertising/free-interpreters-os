@@ -3,7 +3,6 @@
 import React, { useState, useTransition } from 'react';
 import { Plus, Loader2 } from 'lucide-react';
 import { generatePayrollPeriod } from '@/app/actions/payroll';
-import { cn } from '@/lib/utils';
 import { Modal } from './Modal';
 
 export function GeneratePayrollButton() {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { History, Search, Calendar, Clock } from 'lucide-react';
+import { History, Search, Clock } from 'lucide-react';
 
 interface Call {
   id: number;

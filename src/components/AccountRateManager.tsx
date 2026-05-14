@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useTransition } from 'react';
-import { Plus, Trash2, Save, Loader2, CreditCard } from 'lucide-react';
+import { Plus, Trash2, Loader2, CreditCard } from 'lucide-react';
 import { setInterpreterAccountRate, getAccounts, deleteInterpreterAccountRate } from '@/app/actions/account-rates';
-import { cn } from '@/lib/utils';
 
 interface Account {
   id: number;
@@ -31,7 +30,9 @@ export function AccountRateManager({ interpreterId, initialRates }: Props) {
   useEffect(() => {
     async function loadAccounts() {
       const data = await getAccounts();
-      setAccounts(data as any);
+      if (data.success && data.data) {
+        setAccounts(data.data as Account[]);
+      }
       setLoading(false);
     }
     loadAccounts();

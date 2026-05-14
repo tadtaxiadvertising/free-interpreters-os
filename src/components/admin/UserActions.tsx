@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MoreVertical, Shield, Link as LinkIcon, Trash2, Edit } from 'lucide-react';
-import { updateUserRole } from '@/app/actions/admin-users';
+import { MoreVertical, Shield, Link as LinkIcon, Trash2 } from 'lucide-react';
 import { UserProfile } from '@prisma/client';
+import type { UserRole } from '@/lib/types';
+import { updateUserRole } from '@/app/actions/admin-users';
 
 export function UserActions({ user }: { user: UserProfile }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,9 +13,9 @@ export function UserActions({ user }: { user: UserProfile }) {
   const handleRoleChange = async (newRole: string) => {
     setIsUpdating(true);
     try {
-      await updateUserRole(user.id, newRole as any);
+      await updateUserRole(user.id, newRole as UserRole);
       setIsOpen(false);
-    } catch (error) {
+    } catch {
       alert('Error updating role');
     } finally {
       setIsUpdating(false);

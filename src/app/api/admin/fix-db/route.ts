@@ -40,10 +40,11 @@ export async function GET() {
       message: "Database schema successfully patched with all missing columns!",
       databaseUrlPrefix: process.env.DATABASE_URL?.substring(0, 30) || 'Missing',
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({
       success: false,
-      error: error.message,
+      error: message,
     });
   }
 }

@@ -6,7 +6,7 @@ import { Modal } from './Modal';
 import { ScorecardForm } from './ScorecardForm';
 import { useRouter } from 'next/navigation';
 
-export function NewEvaluationButton({ interpreters = [] }: { interpreters?: any[] }) {
+export function NewEvaluationButton({ interpreters = [] }: { interpreters?: { id: number; name: string; externalId: string }[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
 

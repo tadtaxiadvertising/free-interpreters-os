@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const dayOfWeek = days[dateToProcess.getDay()];
 
     // Find all interpreters that are scheduled to be paid today
-    const interpreters = await (prisma.interpreter as any).findMany({
+    const interpreters = await prisma.interpreter.findMany({
       where: {
         status: 'Activo',
         OR: [
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
       try {
         // Atomic transaction
-        const result = await prisma.$transaction(async (tx: any) => {
+        const result = await prisma.$transaction(async (tx) => {
           const payroll = await tx.payrollRecord.create({
             data: {
               interpreterId: interpreter.id,
@@ -91,15 +91,15 @@ export async function POST(request: Request) {
         });
         
         results.push({ interpreterId: interpreter.id, payrollId: result.id, status: 'Success' });
-      } catch (err: any) {
-        results.push({ interpreterId: interpreter.id, error: err.message, status: 'Failed' });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        results.push({ interpreterId: interpreter.id, error: message, status: 'Failed' });
       }
     }
 
     return NextResponse.json({ success: true, results });
 
-  } catch (error: any) {
-    console.error('Error in /api/payroll/generate:', error);
+  } catch {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

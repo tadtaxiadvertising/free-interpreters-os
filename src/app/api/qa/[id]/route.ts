@@ -40,9 +40,10 @@ export async function GET(
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching scorecard:', error);
-    return NextResponse.json({ error: error.message || 'Error fetching scorecard' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error fetching scorecard';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -78,12 +79,14 @@ export async function PATCH(
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating scorecard:', error);
-    if (error.code === 'P2025') {
+    const isPrismaError = error && typeof error === 'object' && 'code' in error;
+    if (isPrismaError && error.code === 'P2025') {
       return NextResponse.json({ error: 'Scorecard not found' }, { status: 404 });
     }
-    return NextResponse.json({ error: error.message || 'Error updating scorecard' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error updating scorecard';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -107,11 +110,13 @@ export async function DELETE(
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting scorecard:', error);
-    if (error.code === 'P2025') {
+    const isPrismaError = error && typeof error === 'object' && 'code' in error;
+    if (isPrismaError && error.code === 'P2025') {
       return NextResponse.json({ error: 'Scorecard not found' }, { status: 404 });
     }
-    return NextResponse.json({ error: error.message || 'Error deleting scorecard' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error deleting scorecard';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

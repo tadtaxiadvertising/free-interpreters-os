@@ -25,7 +25,7 @@ export default function RegisterPage() {
       } else if (result?.success) {
         router.push(result.role === 'admin' ? '/admin' : '/dashboard');
       }
-    } catch (err: any) {
+    } catch {
       setError('Registration failed. Please try again.');
     } finally {
       setIsLoading(false);

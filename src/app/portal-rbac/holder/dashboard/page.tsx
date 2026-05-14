@@ -6,12 +6,12 @@ import { createVaultAccount } from "@/app/actions/vault.actions";
 export default async function HolderDashboard() {
   const session = await requireRole("HOLDER", "ADMIN");
 
-  const accounts = await (prisma as any).vaultAccount.findMany({
+  const accounts = await prisma.vaultAccount.findMany({
     where: { holderId: session.user.id },
     include: { interpreter: true },
   });
 
-  const interpreters = await (prisma as any).rbacUser.findMany({
+  const interpreters = await prisma.rbacUser.findMany({
     where: { role: "INTERPRETER" },
     select: { id: true, name: true, email: true },
   });
@@ -47,7 +47,7 @@ export default async function HolderDashboard() {
               <label className="block text-sm font-medium mb-1">Assign Interpreter</label>
               <select name="interpreterId" className="w-full border rounded p-2">
                 <option value="">-- Unassigned --</option>
-                {interpreters.map((int: any) => (
+                {interpreters.map((int) => (
                   <option key={int.id} value={int.id}>
                     {int.name} ({int.email})
                   </option>
@@ -79,7 +79,7 @@ export default async function HolderDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {accounts.map((acc: any) => (
+                  {accounts.map((acc) => (
                     <tr key={acc.id} className="border-b hover:bg-gray-50">
                       <td className="p-3">
                         <div className="font-medium">{acc.platformName}</div>

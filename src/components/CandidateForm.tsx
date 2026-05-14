@@ -43,8 +43,9 @@ export function CandidateForm({ onSuccess, onCancel }: CandidateFormProps) {
       }
 
       onSuccess?.();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
     } finally {
       setLoading(false);
     }

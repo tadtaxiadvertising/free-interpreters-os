@@ -1,20 +1,38 @@
 import React from 'react';
 import { 
   ShieldCheck, 
-  Search, 
   Filter, 
   MoreVertical,
-  Plus,
   Star,
   AlertTriangle,
   User,
-  Calendar
 } from 'lucide-react';
 import prisma from '@/lib/prisma';
 import { cn } from '@/lib/utils';
 
 import { NewEvaluationButton } from '@/components/NewEvaluationButton';
 import { ExportQAScoresButton } from '@/components/ExportQAScoresButton';
+
+interface QAScore {
+  id: number;
+  totalScore: number;
+  criticalError: boolean;
+  auditDate: string;
+  auditor: string | null;
+  interpreter: {
+    name: string;
+    campaign: string | null;
+  };
+}
+
+interface CallSession {
+  id: number;
+  durationSeconds: number | null;
+  interpreter: {
+    name: string;
+    campaign: string | null;
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -93,7 +111,7 @@ export default async function QAPage() {
           <div className="absolute top-0 right-0 p-16 bg-rose-500/10 blur-[50px] rounded-full pointer-events-none" />
           <p className="text-sm text-rose-200/70 font-medium tracking-wide uppercase">Critical Errors</p>
           <div className="flex items-center gap-3 mt-2 relative z-10">
-            <h3 className="text-4xl font-black text-white tracking-tight">{scores.filter((s: any) => s.criticalError).length}</h3>
+            <h3 className="text-4xl font-black text-white tracking-tight">{scores.filter((s: QAScore) => s.criticalError).length}</h3>
             <span className="text-xs font-bold text-rose-400 bg-rose-400/10 px-3 py-1 rounded-full border border-rose-500/20 shadow-[0_0_10px_rgba(244,63,94,0.2)]">This Period</span>
           </div>
           <AlertTriangle size={24} className="mt-4 text-rose-400 relative z-10" />
@@ -122,7 +140,7 @@ export default async function QAPage() {
           </div>
           
           <div className="space-y-4">
-            {pendingCalls.map((call: any) => (
+            {pendingCalls.map((call: CallSession) => (
               <div key={call.id} className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/50 transition-all duration-300 group backdrop-blur-sm">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
@@ -175,7 +193,7 @@ export default async function QAPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {scores.map((score: any) => (
+                  {scores.map((score: QAScore) => (
                     <tr key={score.id} className="group hover:bg-white/5 transition-all duration-300">
                       <td className="py-5 px-8">
                         <p className="font-bold text-white text-sm group-hover:text-indigo-400 transition-colors">{score.interpreter.name}</p>
@@ -188,8 +206,8 @@ export default async function QAPage() {
                         <div className="flex items-center gap-2">
                           <span className={cn(
                             "font-bold text-sm tracking-tight",
-                            parseFloat(score.totalScore || 0) >= 90 ? "text-emerald-400" :
-                            parseFloat(score.totalScore || 0) >= 80 ? "text-amber-400" : "text-rose-400"
+                            (score.totalScore || 0) >= 90 ? "text-emerald-400" :
+                            (score.totalScore || 0) >= 80 ? "text-amber-400" : "text-rose-400"
                           )}>
                             {score.totalScore?.toString()}%
                           </span>

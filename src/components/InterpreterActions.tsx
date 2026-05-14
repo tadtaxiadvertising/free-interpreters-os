@@ -6,7 +6,6 @@ import {
   Edit, 
   Trash2, 
   Key,
-  X,
   Loader2,
   AlertTriangle,
   Save
@@ -22,7 +21,7 @@ interface InterpreterActionsProps {
     id: number;
     name: string;
     emailCorporativo: string | null;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -45,9 +44,10 @@ export function InterpreterActions({ interpreter }: InterpreterActionsProps) {
       
       setShowDeleteConfirm(false);
       router.refresh();
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
       console.error(error);
-      alert(`Error deleting interpreter: ${error.message}`);
+      alert(`Error deleting interpreter: ${message}`);
     } finally {
       setIsDeleting(false);
     }
@@ -65,8 +65,9 @@ export function InterpreterActions({ interpreter }: InterpreterActionsProps) {
       setShowResetModal(false);
       setNewPassword('');
       alert('Password reset successfully');
-    } catch (error: any) {
-      setResetError(error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setResetError(message);
     } finally {
       setIsResetting(false);
     }

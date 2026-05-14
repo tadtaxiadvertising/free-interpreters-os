@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
-import { Play, Square, DollarSign, Clock, Loader2, Plus } from 'lucide-react';
+import { Play, Square, DollarSign, Clock, Loader2 } from 'lucide-react';
 import { startCall, endCall } from '@/app/actions/calls';
 import type { TimerLocalState } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -181,7 +181,7 @@ export function CallTimer({ activeCall, currentRate }: CallTimerProps) {
             </button>
             {/* QuickLogButton rendered INLINE — no more floating FAB */}
             <div className="relative z-[60]">
-              <QuickLogButton inline={true} />
+              <QuickLogButton />
             </div>
           </>
         ) : (

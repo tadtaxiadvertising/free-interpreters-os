@@ -1,6 +1,5 @@
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-type Decimal = Prisma.Decimal;
 
 const db = prisma;
 

@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/types";
 
-const db = prisma as any;
+const db = prisma;
 
 export async function createManualLog(data: {
   interpreterId: number;
@@ -12,7 +12,7 @@ export async function createManualLog(data: {
   startTime: string; // HH:mm
   endTime: string; // HH:mm
   totalMinutes: number;
-}): Promise<ActionResult<any>> {
+}): Promise<ActionResult<unknown>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
@@ -69,13 +69,14 @@ export async function createManualLog(data: {
     });
 
     return { success: true, data: newLog };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error creating manual log:", error);
-    return { success: false, error: error.message || "Error interno del servidor." };
+    const message = error instanceof Error ? error.message : "Error interno del servidor.";
+    return { success: false, error: message };
   }
 }
 
-export async function getInterpretersForSelect(): Promise<ActionResult<any[]>> {
+export async function getInterpretersForSelect(): Promise<ActionResult<{ id: number; name: string; externalId: string }[]>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
@@ -92,7 +93,7 @@ export async function getInterpretersForSelect(): Promise<ActionResult<any[]>> {
       },
     });
     return { success: true, data: interpreters };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error fetching interpreters:", error);
     return { success: false, error: "Error obteniendo intérpretes." };
   }

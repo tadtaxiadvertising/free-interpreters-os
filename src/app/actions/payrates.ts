@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 
-const db = prisma as any;
+const db = prisma;
 
 export async function updatePayrate(
   interpreterId: number,
@@ -63,15 +63,16 @@ export async function updatePayrate(
     revalidatePath('/admin/payrates');
     revalidatePath('/payroll');
     return { success: true, data: { oldRate, newRate } };
-  } catch (error: any) {
-    console.error('Error updating payrate:', error.message);
-    return { success: false, error: error.message, code: 'SERVICE_UNAVAILABLE' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error updating payrate:', message);
+    return { success: false, error: message, code: 'SERVICE_UNAVAILABLE' };
   }
 }
 
 export async function getPayrateHistory(
   interpreterId: number
-): Promise<ActionResult<any[]>> {
+): Promise<ActionResult<unknown[]>> {
   const supabase = await createClient();
   
   const { data: { user } } = await supabase.auth.getUser();
@@ -85,8 +86,9 @@ export async function getPayrateHistory(
     });
 
     return { success: true, data: history ?? [] };
-  } catch (error: any) {
-    return { success: false, error: error.message, code: 'SERVICE_UNAVAILABLE' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: message, code: 'SERVICE_UNAVAILABLE' };
   }
 }
 

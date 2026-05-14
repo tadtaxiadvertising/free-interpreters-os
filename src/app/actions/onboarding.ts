@@ -29,7 +29,7 @@ export async function acceptTerms(): Promise<ActionResult> {
 
     revalidatePath('/dashboard');
     return { success: true };
-  } catch (_err) {
+  } catch {
     return { success: false, error: 'Error inesperado al procesar la firma', code: 'INTERNAL_ERROR' };
   }
 }
@@ -81,14 +81,14 @@ export async function saveBankingDetails(data: {
           },
           select: { id: true }
         });
-      } catch (intError: any) {
-        console.warn('[ONBOARDING] Sync interpreter error:', intError.message);
+      } catch (intError) {
+        console.warn('[ONBOARDING] Sync interpreter error:', intError instanceof Error ? intError.message : 'Unknown error');
       }
     }
 
     revalidatePath('/dashboard');
     return { success: true };
-  } catch (_err) {
+  } catch {
     return { success: false, error: 'Ocurrió un error inesperado al guardar los datos', code: 'INTERNAL_ERROR' };
   }
 }
@@ -125,14 +125,14 @@ export async function completeOnboarding(): Promise<ActionResult> {
           },
           select: { id: true }
         });
-      } catch (intError: any) {
-        console.warn('[ONBOARDING] Sync interpreter error:', intError.message);
+      } catch (intError) {
+        console.warn('[ONBOARDING] Sync interpreter error:', intError instanceof Error ? intError.message : 'Unknown error');
       }
     }
 
     revalidatePath('/dashboard');
     return { success: true };
-  } catch (_err) {
+  } catch {
     return { success: false, error: 'Error inesperado al finalizar el onboarding', code: 'INTERNAL_ERROR' };
   }
 }
@@ -174,8 +174,8 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
         onboardingComplete: profile.onboardingComplete,
       },
     };
-  } catch (err: any) {
-    console.error('[ONBOARDING] getOnboardingStatus error:', err.message);
+  } catch (err) {
+    console.error('[ONBOARDING] getOnboardingStatus error:', err instanceof Error ? err.message : 'Unknown error');
     return { success: false, error: 'Error fetching onboarding status', code: 'INTERNAL_ERROR' };
   }
 }

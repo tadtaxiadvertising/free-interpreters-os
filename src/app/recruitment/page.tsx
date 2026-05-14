@@ -3,8 +3,6 @@ import {
   Users, 
   Search, 
   Filter, 
-  MoreVertical,
-  Plus,
   Mail,
   Phone,
   Globe,
@@ -20,15 +18,32 @@ import { AddCandidateButton } from '@/components/AddCandidateButton';
 import { ExportCandidatesButton } from '@/components/ExportCandidatesButton';
 import { CandidateActions } from '@/components/CandidateActions';
 
+interface Candidate {
+  id: number;
+  name: string;
+  email: string;
+  telefono: string | null;
+  pais: string | null;
+  status: string;
+  resultRoleplay: number | null;
+}
+
+interface Stat {
+  label: string;
+  count: number | string;
+  icon: React.ElementType;
+  color: string;
+}
+
 export const dynamic = 'force-dynamic';
 
-async function getCandidates() {
+async function getCandidates(): Promise<Candidate[]> {
   try {
     const candidates = await prisma.recruitmentCandidate.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50
     });
-    return JSON.parse(JSON.stringify(candidates));
+    return JSON.parse(JSON.stringify(candidates)) as Candidate[];
   } catch (error) {
     console.error('Error fetching candidates from DB:', error);
     return [];
@@ -36,7 +51,7 @@ async function getCandidates() {
 }
 
 export default async function RecruitmentPage() {
-  const candidates = await getCandidates();
+  const candidates: Candidate[] = await getCandidates();
 
   const statusColors: Record<string, string> = {
     'Aplicante': 'bg-blue-500/10 text-blue-400',
@@ -53,7 +68,7 @@ export default async function RecruitmentPage() {
           <p className="text-gray-400">Track and manage interpreter applications</p>
         </div>
         <div className="flex gap-4">
-          <ExportCandidatesButton data={candidates} />
+          <ExportCandidatesButton data={candidates as any} />
           <AddCandidateButton />
         </div>
       </header>
@@ -63,10 +78,10 @@ export default async function RecruitmentPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
           { label: 'Total Applicants', count: candidates.length, icon: Users, color: 'text-blue-400' },
-          { label: 'In Interview', count: candidates.filter((c: any) => c.status === 'Entrevista Agendada').length, icon: Calendar, color: 'text-purple-400' },
-          { label: 'Hired this Month', count: candidates.filter((c: any) => c.status === 'Contratado').length, icon: CheckCircle2, color: 'text-green-400' },
-          { label: 'Rejection Rate', count: candidates.length > 0 ? `${Math.round((candidates.filter((c: any) => c.status === 'Rechazado').length / candidates.length) * 100)}%` : '0%', icon: XCircle, color: 'text-red-400' },
-        ].map((stat, i) => (
+          { label: 'In Interview', count: candidates.filter((c: Candidate) => c.status === 'Entrevista Agendada').length, icon: Calendar, color: 'text-purple-400' },
+          { label: 'Hired this Month', count: candidates.filter((c: Candidate) => c.status === 'Contratado').length, icon: CheckCircle2, color: 'text-green-400' },
+          { label: 'Rejection Rate', count: candidates.length > 0 ? `${Math.round((candidates.filter((c: Candidate) => c.status === 'Rechazado').length / candidates.length) * 100)}%` : '0%', icon: XCircle, color: 'text-red-400' },
+        ].map((stat: Stat, i: number) => (
           <div key={i} className="glass p-6 rounded-3xl border border-white/5">
             <div className="flex justify-between items-start">
               <div className={`p-3 rounded-2xl bg-white/5 ${stat.color}`}>
@@ -111,7 +126,7 @@ export default async function RecruitmentPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {candidates.map((candidate: any) => (
+            {candidates.map((candidate: Candidate) => (
               <tr key={candidate.id} className="group hover:bg-white/5 transition-colors">
                 <td className="py-6 px-8">
                   <div className="flex items-center gap-4">

@@ -71,10 +71,11 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
     const errorCode = (error as Prisma.PrismaClientKnownRequestError).code;
     console.error('Error in createInterpreter action:', error);
     if (errorCode === 'P2002') {
-      const meta = (error as Prisma.PrismaClientKnownRequestError).meta as any;
+      const meta = (error as Prisma.PrismaClientKnownRequestError).meta as Record<string, unknown> | undefined;
+      const target = Array.isArray(meta?.target) ? meta?.target[0] : 'field';
       return { 
         success: false, 
-        error: `An interpreter with this ${meta?.target?.[0]} already exists.`,
+        error: `An interpreter with this ${target} already exists.`,
         code: 'CONFLICT'
       };
     }

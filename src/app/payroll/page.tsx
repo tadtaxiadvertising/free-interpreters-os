@@ -2,23 +2,21 @@ import React from 'react';
 import Link from 'next/link';
 import { 
   DollarSign, 
-  Search, 
-  Filter, 
-  MoreVertical,
-  Plus,
-  Calendar,
-  CheckCircle2,
-  AlertCircle,
+  AlertCircle, 
   TrendingUp,
-  Download,
   Clock
 } from 'lucide-react';
 import prisma from '@/lib/prisma';
-import { cn } from '@/lib/utils';
 
 import { GeneratePayrollButton } from '@/components/GeneratePayrollButton';
 import { ExportPayrollButton } from '@/components/ExportPayrollButton';
 import PayrollAdjustment from '@/components/admin/PayrollAdjustment';
+
+interface PayrollRecord {
+  id: number;
+  netTotal: number | string | null;
+  status: string;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +37,7 @@ async function getPayrollRecords() {
 export default async function PayrollPage() {
   const records = await getPayrollRecords();
 
-  const totalPayout = records.reduce((acc: number, rec: any) => acc + parseFloat(rec.netTotal || 0), 0);
+  const totalPayout = records.reduce((acc: number, rec: PayrollRecord) => acc + parseFloat(rec.netTotal?.toString() || '0'), 0);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -76,7 +74,7 @@ export default async function PayrollPage() {
           <p className="text-sm text-emerald-200/70 font-medium tracking-wide uppercase">Pending Payments</p>
           <div className="flex items-center gap-3 mt-2 relative z-10">
             <h3 className="text-4xl font-black text-white tracking-tight">
-              {records.filter((r: any) => r.status === 'PENDING' || r.status === 'Pendiente').length}
+              {records.filter((r: PayrollRecord) => r.status === 'PENDING' || r.status === 'Pendiente').length}
             </h3>
             <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]">Action Needed</span>
           </div>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, X, Clock, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function QuickLogButton({ inline = false }: { inline?: boolean }) {
+export function QuickLogButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [minutes, setMinutes] = useState('');
   const [seconds, setSeconds] = useState('');

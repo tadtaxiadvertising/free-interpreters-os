@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 import { ActionResult } from '@/lib/types';
 import { createClient } from '@/lib/supabase/server';
 
-const db = prisma as any;
+const db = prisma;
 
 /**
  * ACTION: Update a system configuration key
@@ -39,8 +39,9 @@ export async function updateSystemConfig(key: string, value: string): Promise<Ac
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/ranking');
     return { success: true };
-  } catch (error: any) {
-    console.error(`Error updating system config ${key}:`, error.message);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Error updating system config ${key}:`, message);
     return { success: false, error: 'Failed to update configuration' };
   }
 }

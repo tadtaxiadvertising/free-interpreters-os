@@ -2,21 +2,28 @@ import React from 'react';
 import Link from 'next/link';
 import { 
   Clock, 
-  Search, 
   Filter, 
   MoreVertical,
   Plus,
   Calendar,
-  User,
   Zap,
   PhoneCall
 } from 'lucide-react';
 import prisma from '@/lib/prisma';
 import { cn } from '@/lib/utils';
 
+interface ProductionLog {
+  id: number;
+  interpretedMinutes: number | null;
+  callsAttended: number | null;
+  adherence: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  date: Date;
+  interpreter: { name: string | null } | null;
+}
+
 export const dynamic = 'force-dynamic';
 
-async function getProductionLogs() {
+async function getProductionLogs(): Promise<ProductionLog[]> {
   try {
       const logs = await prisma.productionLog.findMany({
         orderBy: {
@@ -68,7 +75,7 @@ export default async function ProductionPage() {
           <p className="text-sm text-gray-500 font-medium">Billed Minutes</p>
           <div className="flex items-center gap-3 mt-2">
             <h3 className="text-3xl font-bold text-white">
-              {logs.reduce((acc, log) => acc + (log.interpretedMinutes || 0), 0).toLocaleString()}
+              {logs.reduce((acc: number, log: ProductionLog) => acc + (log.interpretedMinutes || 0), 0).toLocaleString()}
             </h3>
             <span className="text-xs font-bold text-green-400 bg-green-400/10 px-2 py-1 rounded-full">Total</span>
           </div>
@@ -78,7 +85,7 @@ export default async function ProductionPage() {
           <p className="text-sm text-gray-500 font-medium">Calls Attended</p>
           <div className="flex items-center gap-3 mt-2">
             <h3 className="text-3xl font-bold text-white">
-              {logs.reduce((acc, log) => acc + (log.callsAttended || 0), 0).toLocaleString()}
+              {logs.reduce((acc: number, log: ProductionLog) => acc + (log.callsAttended || 0), 0).toLocaleString()}
             </h3>
             <span className="text-xs font-bold text-purple-400 bg-purple-400/10 px-2 py-1 rounded-full">Total</span>
           </div>

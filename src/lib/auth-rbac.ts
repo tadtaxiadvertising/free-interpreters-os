@@ -24,7 +24,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const { email, password } = LoginSchema.parse(credentials);
 
-        const user = await (prisma as any).rbacUser.findUnique({
+        const user = await prisma.rbacUser.findUnique({
           where: { email },
         });
 
@@ -44,13 +44,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as any).role;
+        token.role = (user as { role?: string }).role;
         token.id = user.id;
       }
       
       // En cada refresh de sesión, aseguramos de sacar el rol de la base de datos
       if (token.id) {
-        const dbUser = await (prisma as any).rbacUser.findUnique({
+        const dbUser = await prisma.rbacUser.findUnique({
           where: { id: token.id as string },
           select: { role: true },
         });
@@ -63,7 +63,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (token?.id) {
         session.user.id = token.id as string;
-        (session.user as any).role = token.role as string;
+        (session.user as { role?: string }).role = token.role as string;
       }
       return session;
     },
@@ -85,9 +85,9 @@ export type RbacSession = {
  */
 export async function requireRole(...roles: string[]) {
   const session = await auth();
-  const role = (session?.user as any)?.role;
-  if (!session?.user || !roles.includes(role)) {
+  const role = (session?.user as { role?: string })?.role;
+  if (!session?.user || !role || !roles.includes(role)) {
     throw new Error(`Unauthorized: requires ${roles.join(" | ")}`);
   }
-  return { ...session, user: { ...session.user, role, id: (session.user as any).id } } as unknown as RbacSession;
+  return { ...session, user: { ...session.user, role, id: session.user.id } } as unknown as RbacSession;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, Edit3, Settings2 } from 'lucide-react';
+import { Plus, Settings2 } from 'lucide-react';
 import { Modal } from './Modal';
 import { InterpreterForm } from './InterpreterForm';
 import { useRouter } from 'next/navigation';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 interface AddInterpreterButtonProps {
   label?: string;
   mode?: 'create' | 'edit';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialData?: any;
   variant?: 'primary' | 'ghost';
 }
@@ -53,7 +54,7 @@ export function AddInterpreterButton({
         <div className="max-h-[80vh] overflow-y-auto px-1">
           <InterpreterForm 
             initialData={initialData}
-            interpreterId={initialData?.id}
+            interpreterId={initialData?.id as number | undefined}
             onSuccess={handleSuccess} 
             onCancel={() => setIsOpen(false)} 
           />

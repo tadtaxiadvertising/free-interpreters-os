@@ -34,7 +34,7 @@ export const PATCH = withSecurity(async (request: NextRequest) => {
   }
 
   // 3. Update the log
-  const updatedLog = await (prisma.productionLog as any).update({
+  const updatedLog = await prisma.productionLog.update({
     where: { id: logId },
     data: { verifiedMinutes: Number(verifiedMinutes) }
   });

@@ -1,6 +1,6 @@
 import prisma from './prisma';
 
-const db = prisma as any;
+const db = prisma;
 
 import { calculateFullPayroll } from '@/services/PayrollService';
 

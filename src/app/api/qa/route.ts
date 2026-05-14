@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const interpreterId = searchParams.get('interpreterId');
     const auditor = searchParams.get('auditor');
 
-    const whereClause: any = {};
+    const whereClause: Record<string, unknown> = {};
     if (interpreterId) {
       whereClause.interpreterId = parseInt(interpreterId, 10);
     }
@@ -41,9 +41,10 @@ export async function GET(request: Request) {
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching QA scores:', error);
-    return NextResponse.json({ error: error.message || 'Error fetching QA scores' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error fetching QA scores';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -81,8 +82,9 @@ export async function POST(request: Request) {
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating QA score:', error);
-    return NextResponse.json({ error: error.message || 'Error creating QA score' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error creating QA score';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

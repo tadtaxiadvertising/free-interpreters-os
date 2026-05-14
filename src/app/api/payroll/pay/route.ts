@@ -37,7 +37,7 @@ export async function PATCH(request: Request) {
     }
 
     // Update state to PAID
-    const updatedPayroll = await (prisma.payrollRecord as any).update({
+    const updatedPayroll = await prisma.payrollRecord.update({
       where: { id: payrollRecordId },
       data: {
         status: 'PAID',
@@ -48,8 +48,7 @@ export async function PATCH(request: Request) {
     });
 
     return NextResponse.json({ success: true, data: updatedPayroll });
-  } catch (error: any) {
-    console.error('Error in /api/payroll/pay:', error);
+  } catch {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

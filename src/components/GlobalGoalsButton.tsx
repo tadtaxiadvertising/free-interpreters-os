@@ -62,7 +62,7 @@ export function GlobalGoalsButton({ initialGoal }: Props) {
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              This will be used as the default goal for all interpreters who don't have a specific goal set.
+              This will be used as the default goal for all interpreters who don&apos;t have a specific goal set.
             </p>
           </div>
 

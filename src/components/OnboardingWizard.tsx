@@ -110,7 +110,7 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
       } else {
         setError(result.error || 'Error al aceptar términos');
       }
-    } catch (err: any) {
+    } catch {
       setError('Error de conexión al servidor');
     } finally {
       setIsLoading(false);
@@ -127,7 +127,7 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
       } else {
         setError(result.error || 'Error al guardar datos bancarios');
       }
-    } catch (err: any) {
+    } catch {
       setError('Error de conexión al servidor');
     } finally {
       setIsLoading(false);
@@ -144,7 +144,7 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
       } else {
         setError(result.error || 'Error al finalizar onboarding');
       }
-    } catch (err: any) {
+    } catch {
       setError('Error de conexión al servidor');
     } finally {
       setIsLoading(false);

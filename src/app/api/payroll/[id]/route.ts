@@ -36,9 +36,10 @@ export async function GET(
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching payroll record:', error);
-    return NextResponse.json({ error: error.message || 'Error fetching payroll record' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error fetching payroll record';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -73,12 +74,14 @@ export async function PATCH(
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating payroll record:', error);
-    if (error.code === 'P2025') {
+    const isPrismaError = error && typeof error === 'object' && 'code' in error;
+    if (isPrismaError && error.code === 'P2025') {
       return NextResponse.json({ error: 'Payroll record not found' }, { status: 404 });
     }
-    return NextResponse.json({ error: error.message || 'Error updating payroll record' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error updating payroll record';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -101,11 +104,13 @@ export async function DELETE(
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting payroll record:', error);
-    if (error.code === 'P2025') {
+    const isPrismaError = error && typeof error === 'object' && 'code' in error;
+    if (isPrismaError && error.code === 'P2025') {
       return NextResponse.json({ error: 'Payroll record not found' }, { status: 404 });
     }
-    return NextResponse.json({ error: error.message || 'Error deleting payroll record' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error deleting payroll record';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

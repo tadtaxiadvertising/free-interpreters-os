@@ -28,7 +28,7 @@ export default function LoginPage() {
       } else if (result?.success) {
         router.push(result.role === 'admin' ? '/admin' : '/dashboard');
       }
-    } catch (err: any) {
+    } catch {
       setError('Invalid email or password');
     } finally {
       setIsLoading(false);

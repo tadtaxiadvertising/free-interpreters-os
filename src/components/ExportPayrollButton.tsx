@@ -8,11 +8,11 @@ interface PayrollRecord {
   periodStart: string;
   periodEnd: string;
   totalMinutes: number;
-  grossTotal: any;
-  qualityBonus: any;
-  penalidades: any;
-  transferDeduction: any;
-  netTotal: any;
+  grossTotal: number;
+  qualityBonus: number;
+  penalidades: number;
+  transferDeduction: number;
+  netTotal: number;
   status: string;
   interpreter: {
     name: string;

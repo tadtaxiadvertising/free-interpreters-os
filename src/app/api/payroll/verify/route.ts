@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { recalculateWithVerifiedMinutes } from '@/services/PayrollService';
 
-const db = prisma as any;
+const db = prisma;
 
 /**
  * POST /api/payroll/verify
@@ -149,10 +149,11 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ error: 'Unhandled action' }, { status: 400 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[POST /api/payroll/verify] Error:', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: message },
       { status: 500 }
     );
   }

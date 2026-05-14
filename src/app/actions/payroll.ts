@@ -101,7 +101,7 @@ export async function reconcileMinutes(
     revalidatePath('/payroll');
     revalidatePath('/dashboard');
     return { success: true, data: { message: 'Minutes successfully reconciled and payroll updated' } };
-  } catch (_error: unknown) {
+  } catch {
     return { success: false, error: 'Internal Server Error' };
   }
 }

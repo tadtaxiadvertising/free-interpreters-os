@@ -41,9 +41,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting interpreter:', error);
-    return NextResponse.json({ error: error.message || 'Error deleting interpreter' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error deleting interpreter';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -83,8 +84,9 @@ export async function PATCH(
     });
 
     return NextResponse.json(updated);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating interpreter:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error updating interpreter';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

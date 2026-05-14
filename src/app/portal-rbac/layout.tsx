@@ -1,13 +1,7 @@
 import { auth } from "@/lib/auth-rbac";
-import { redirect } from "next/navigation";
 import { SessionProvider } from "next-auth/react";
 import { Toaster } from "react-hot-toast";
 
-const ROLE_ROUTES: Record<string, string> = {
-  ADMIN: "/portal-rbac/admin",
-  HOLDER: "/portal-rbac/holder",
-  INTERPRETER: "/portal-rbac/interpreter",
-};
 
 export default async function PortalLayout({
   children,

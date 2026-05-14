@@ -33,8 +33,8 @@ export default function HolderMessages() {
   const loadData = () => {
     setLoading(true);
     Promise.all([
-      listHolderMessages().then(data => setMessages(data as any)),
-      listAvailableInterpreters().then(setInterpreters as any),
+      listHolderMessages().then(data => setMessages(data as unknown as Message[])),
+      listAvailableInterpreters().then(data => setInterpreters(data as unknown as Interpreter[])),
     ])
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -49,8 +49,9 @@ export default function HolderMessages() {
         // Reset form
         const form = document.getElementById("message-form") as HTMLFormElement;
         form?.reset();
-      } catch (err: any) {
-        toast.error(err.message || "Error al enviar");
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : "Error al enviar";
+        toast.error(errorMsg);
       }
     });
   };

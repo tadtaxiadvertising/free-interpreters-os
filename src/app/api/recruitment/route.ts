@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const status = searchParams.get('status');
     const search = searchParams.get('search');
 
-    const whereClause: any = {};
+    const whereClause: Record<string, unknown> = {};
     if (status) {
       whereClause.status = status;
     }
@@ -40,9 +40,10 @@ export async function GET(request: Request) {
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching candidates:', error);
-    return NextResponse.json({ error: error.message || 'Error fetching candidates' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error fetching candidates';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -69,14 +70,16 @@ export async function POST(request: Request) {
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating candidate:', error);
-    if (error.code === 'P2002') {
+    const isPrismaError = error && typeof error === 'object' && 'code' in error;
+    if (isPrismaError && error.code === 'P2002') {
       return NextResponse.json(
         { error: 'Candidate with this email already exists.' },
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: error.message || 'Error creating candidate' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error creating candidate';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

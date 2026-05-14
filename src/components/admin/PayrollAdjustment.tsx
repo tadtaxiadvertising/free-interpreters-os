@@ -108,8 +108,9 @@ export default function PayrollAdjustment() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setRecords(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch payroll records');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch payroll records';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -133,7 +134,7 @@ export default function PayrollAdjustment() {
       // Convert tiers object to array
       const tierArray: IncentiveTier[] = [];
       if (data.tiers) {
-        for (const [key, value] of Object.entries(data.tiers) as [string, any][]) {
+        for (const [key, value] of Object.entries(data.tiers) as [string, { hours?: string; bonus?: string }][]) {
           const num = parseInt(key.replace('tier', ''), 10);
           tierArray.push({
             tierNumber: num,
@@ -154,8 +155,9 @@ export default function PayrollAdjustment() {
       }
 
       setTiers(tierArray);
-    } catch (err: any) {
-      setTiersError(err.message || 'Failed to fetch incentive tiers');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch incentive tiers';
+      setTiersError(message);
     } finally {
       setTiersLoading(false);
     }
@@ -189,8 +191,9 @@ export default function PayrollAdjustment() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Verification failed');
       await fetchRecords();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      alert(message);
     } finally {
       setActionLoading(null);
     }
@@ -216,8 +219,9 @@ export default function PayrollAdjustment() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to mark as paid');
       await fetchRecords();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      alert(message);
     } finally {
       setActionLoading(null);
     }
@@ -240,8 +244,9 @@ export default function PayrollAdjustment() {
       if (!res.ok) throw new Error(data.error || 'Failed to save tiers');
       setTiersSuccess(data.message || 'Saved successfully');
       setTimeout(() => setTiersSuccess(null), 4000);
-    } catch (err: any) {
-      setTiersError(err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setTiersError(message);
     } finally {
       setTiersSaving(false);
     }

@@ -19,8 +19,8 @@ export async function createAccount(name: string, description?: string): Promise
     revalidatePath('/admin/payrates');
     revalidatePath('/settings');
     return { success: true, data: account };
-  } catch (error: any) {
-    if (error.code === 'P2002') {
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return { success: false, error: 'La cuenta ya existe', code: 'CONFLICT' };
     }
     return { success: false, error: 'Error al crear la cuenta', code: 'INTERNAL_ERROR' };
@@ -40,7 +40,7 @@ export async function updateAccount(id: number, name: string, description?: stri
     revalidatePath('/admin/payrates');
     revalidatePath('/settings');
     return { success: true, data: account };
-  } catch (_error) {
+  } catch {
     return { success: false, error: 'Error al actualizar la cuenta', code: 'INTERNAL_ERROR' };
   }
 }
@@ -57,7 +57,7 @@ export async function deleteAccount(id: number): Promise<ActionResult<void>> {
     revalidatePath('/admin/payrates');
     revalidatePath('/settings');
     return { success: true };
-  } catch (_error) {
+  } catch {
     return { success: false, error: 'Error al eliminar la cuenta (puede tener registros asociados)', code: 'INTERNAL_ERROR' };
   }
 }
@@ -72,8 +72,8 @@ export async function getAccounts(): Promise<ActionResult<Account[]>> {
       orderBy: { name: 'asc' }
     });
     return { success: true, data: accounts };
-  } catch (error: any) {
-    console.error('Error fetching accounts:', error.message);
+  } catch (error) {
+    console.error('Error fetching accounts:', error instanceof Error ? error.message : 'Unknown error');
     return { success: false, error: 'Error fetching accounts', code: 'INTERNAL_ERROR' };
   }
 }

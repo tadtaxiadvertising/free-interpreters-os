@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 import type { ActionResult, RealtimeStatus } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 
-const db = prisma as any;
+const db = prisma;
 
 export async function updateInterpreterStatus(
   newStatus: RealtimeStatus
@@ -35,9 +35,10 @@ export async function updateInterpreterStatus(
 
     revalidatePath('/dashboard');
     return { success: true, data: { status: newStatus } };
-  } catch (error: any) {
-    console.error('Unexpected error updating status:', error.message);
-    return { success: false, error: error.message, code: 'SERVICE_UNAVAILABLE' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Unexpected error updating status:', message);
+    return { success: false, error: message, code: 'SERVICE_UNAVAILABLE' };
   }
 }
 

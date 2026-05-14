@@ -19,7 +19,7 @@ export const GET = withSecurity(async (request: NextRequest) => {
   const status = searchParams.get('status');
   const search = searchParams.get('search');
 
-  const whereClause: any = {};
+  const whereClause: Record<string, unknown> = {};
   if (status) {
     whereClause.status = status;
   }
@@ -59,7 +59,7 @@ export const POST = withSecurity(async (request: NextRequest) => {
 
   console.log(`[API_INTERPRETERS_POST] Step 1: Creating interpreter record for ${interpreterData.emailCorporativo}`);
   const newInterpreter = await prisma.interpreter.create({
-    data: interpreterData as any,
+    data: interpreterData as never,
   });
   console.log(`[API_INTERPRETERS_POST] Interpreter created with ID: ${newInterpreter.id}`);
 

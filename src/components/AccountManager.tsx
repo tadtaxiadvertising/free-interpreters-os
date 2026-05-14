@@ -3,7 +3,6 @@
 import React, { useState, useTransition } from 'react';
 import { Plus, Pencil, Trash2, Check, X, Loader2, Layers } from 'lucide-react';
 import { createAccount, updateAccount, deleteAccount } from '@/app/actions/account-rates';
-import { cn } from '@/lib/utils';
 
 interface Account {
   id: number;
@@ -31,7 +30,7 @@ export function AccountManager({ initialAccounts }: Props) {
     startTransition(async () => {
       const result = await createAccount(newName, newDesc);
       if (result.success) {
-        setAccounts([...accounts, result.data as any]);
+        setAccounts([...accounts, result.data as Account]);
         setNewName('');
         setNewDesc('');
         setShowAdd(false);
@@ -46,7 +45,7 @@ export function AccountManager({ initialAccounts }: Props) {
     startTransition(async () => {
       const result = await updateAccount(id, editName, editDesc);
       if (result.success) {
-        setAccounts(accounts.map(a => a.id === id ? result.data as any : a));
+        setAccounts(accounts.map(a => a.id === id ? result.data as Account : a));
         setEditingId(null);
       }
     });

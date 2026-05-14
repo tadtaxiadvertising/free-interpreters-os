@@ -6,7 +6,7 @@ import { decryptPassword } from "@/lib/vault-crypto";
 export default async function InterpreterDashboard() {
   const session = await requireRole("INTERPRETER", "ADMIN");
 
-  const accounts = await (prisma as any).vaultAccount.findMany({
+  const accounts = await prisma.vaultAccount.findMany({
     where: { interpreterId: session.user.id },
     include: { holder: { select: { name: true, email: true } } },
   });
@@ -24,11 +24,11 @@ export default async function InterpreterDashboard() {
           <p className="text-gray-500 text-center py-8">No accounts have been assigned to you yet.</p>
         ) : (
           <div className="grid gap-6">
-            {accounts.map((acc: any) => {
+            {accounts.map((acc) => {
               let decryptedCredentials = "Error decrypting";
               try {
                 decryptedCredentials = decryptPassword(acc.credentials);
-              } catch (e) {
+              } catch {
                 console.error("Failed to decrypt credentials for account", acc.id);
               }
 

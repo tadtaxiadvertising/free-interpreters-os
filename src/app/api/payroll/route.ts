@@ -18,7 +18,7 @@ export const GET = withSecurity(async (request: NextRequest) => {
   const status = searchParams.get('status');
   const interpreterId = searchParams.get('interpreterId');
 
-  const whereClause: any = {};
+  const whereClause: Record<string, unknown> = {};
   if (status) {
     whereClause.status = status;
   }

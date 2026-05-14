@@ -30,10 +30,11 @@ export async function GET() {
         ? "Column payment_frequency EXISTS in this runtime's database."
         : "Column payment_frequency IS MISSING from this runtime's database!",
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({
       success: false,
-      error: error.message,
+      error: message,
     });
   }
 }

@@ -4,15 +4,28 @@ import { useEffect, useState } from "react";
 import { getInterpreterCommitment } from "@/app/actions/calendar";
 import { Activity, Award, Target, TrendingUp } from "lucide-react";
 
+interface DashboardData {
+  healthScore: number;
+  totalMinutesWeek: number;
+  targetMinutesToDate: number;
+  surplus: number;
+  deficit: number;
+  recoverySuggestions?: {
+    saturdayMinutes: number;
+    sundayMinutes: number;
+    totalNeeded: number;
+  } | null;
+}
+
 export default function InterpreterDashboard({ interpreterId }: { interpreterId: number }) {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
         const res = await getInterpreterCommitment(interpreterId, new Date().toISOString());
-        setData(res);
+        setData(res as unknown as DashboardData);
       } catch (err) {
         console.error(err);
       } finally {

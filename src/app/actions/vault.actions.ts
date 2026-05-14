@@ -37,7 +37,7 @@ export async function createVaultAccount(formData: FormData) {
   try {
     const encryptedCredentials = encryptPassword(credentials);
 
-    await (prisma as any).vaultAccount.create({
+    await prisma.vaultAccount.create({
       data: {
         platformName,
         url,

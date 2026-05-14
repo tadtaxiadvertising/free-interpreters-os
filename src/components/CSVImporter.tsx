@@ -43,7 +43,7 @@ export function CSVImporter({ type, title, description }: CSVImporterProps) {
       } else {
         setStatus('error');
       }
-    } catch (error) {
+    } catch {
       setStatus('error');
     }
   };

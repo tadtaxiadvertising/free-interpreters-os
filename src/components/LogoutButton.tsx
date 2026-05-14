@@ -3,10 +3,7 @@
 import React from 'react';
 import { LogOut } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
-import { useRouter } from 'next/navigation';
-
 export function LogoutButton() {
-  const router = useRouter();
 
   const handleSignOut = async () => {
     await logout();

@@ -59,7 +59,7 @@ interface BankFormRDProps {
  * - OnboardingWizard (Step 2)
  * - Interpreter profile editor (admin)
  */
-export function BankFormRD({ initialData, onSubmit, onChange, isLoading = false, standalone = false }: BankFormRDProps) {
+export function BankFormRD({ initialData, onSubmit, onChange, standalone = false }: BankFormRDProps) {
   const [bankName, setBankName] = useState(initialData?.bankName || '');
   const [bankAccount, setBankAccount] = useState(initialData?.bankAccount || '');
   const [bankAccountType, setBankAccountType] = useState(initialData?.bankAccountType || '');

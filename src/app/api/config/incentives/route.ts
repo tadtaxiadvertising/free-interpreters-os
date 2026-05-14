@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-const db = prisma as any;
+const db = prisma;
 
 /**
  * GET /api/config/incentives
@@ -31,10 +31,10 @@ export async function GET() {
 
       if (match[2] === 'hours') {
         tiers[tierKey].hours = config.value;
-        tiers[tierKey].hoursDescription = config.description;
+        tiers[tierKey].hoursDescription = config.description ?? undefined;
       } else {
         tiers[tierKey].bonus = config.value;
-        tiers[tierKey].bonusDescription = config.description;
+        tiers[tierKey].bonusDescription = config.description ?? undefined;
       }
     }
 
@@ -43,10 +43,11 @@ export async function GET() {
       tiers,
       raw: configs,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[GET /api/config/incentives] Error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to fetch incentive config';
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch incentive config' },
+      { error: message },
       { status: 500 }
     );
   }
@@ -141,10 +142,11 @@ export async function POST(request: Request) {
       message: `${tiers.length} tier(s) saved successfully`,
       results,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[POST /api/config/incentives] Error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to save incentive config';
     return NextResponse.json(
-      { error: error.message || 'Failed to save incentive config' },
+      { error: message },
       { status: 500 }
     );
   }

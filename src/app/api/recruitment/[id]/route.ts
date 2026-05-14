@@ -36,9 +36,10 @@ export async function GET(
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching candidate:', error);
-    return NextResponse.json({ error: error.message || 'Error fetching candidate' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error fetching candidate';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -74,12 +75,14 @@ export async function PATCH(
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating candidate:', error);
-    if (error.code === 'P2025') {
+    const isPrismaError = error && typeof error === 'object' && 'code' in error;
+    if (isPrismaError && error.code === 'P2025') {
       return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });
     }
-    return NextResponse.json({ error: error.message || 'Error updating candidate' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error updating candidate';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -103,11 +106,13 @@ export async function DELETE(
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting candidate:', error);
-    if (error.code === 'P2025') {
+    const isPrismaError = error && typeof error === 'object' && 'code' in error;
+    if (isPrismaError && error.code === 'P2025') {
       return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });
     }
-    return NextResponse.json({ error: error.message || 'Error deleting candidate' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error deleting candidate';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

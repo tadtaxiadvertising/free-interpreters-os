@@ -25,7 +25,7 @@ export default function AdminMessages() {
   const loadMessages = () => {
     setLoading(true);
     listPendingMessages()
-      .then(data => setMessages(data as any))
+      .then(data => setMessages(data as unknown as Message[]))
       .catch(() => toast.error("Error al cargar mensajes"))
       .finally(() => setLoading(false));
   };
@@ -36,8 +36,9 @@ export default function AdminMessages() {
         await moderateMessage({ messageId, action });
         toast.success(action === "APPROVED" ? "Mensaje aprobado" : "Mensaje rechazado");
         loadMessages();
-      } catch (err: any) {
-        toast.error(err.message || "Error de moderación");
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : "Error de moderación";
+        toast.error(errorMsg);
       }
     });
   };

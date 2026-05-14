@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { ActionResult } from '@/lib/types';
 import { createClient } from '@/lib/supabase/server';
 
-const db = prisma as any;
+const db = prisma;
 
 /** Shared admin guard for recruitment actions */
 async function requireAdmin(): Promise<{ userId: string } | ActionResult> {
@@ -32,17 +32,18 @@ export async function deleteCandidate(id: number): Promise<ActionResult> {
   if ('success' in auth) return auth as ActionResult;
 
   try {
-    await db.candidate.delete({
+    await db.recruitmentCandidate.delete({
       where: { id }
     });
 
     revalidatePath('/admin/recruitment');
     return { success: true };
-  } catch (error: any) {
-    console.error('Error in deleteCandidate action:', error.message);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error in deleteCandidate action:', message);
     return { 
       success: false, 
-      error: error.message || 'Failed to delete candidate',
+      error: message,
       code: 'INTERNAL_ERROR'
     };
   }
@@ -57,7 +58,7 @@ export async function hireCandidate(id: number): Promise<ActionResult> {
   if ('success' in auth) return auth as ActionResult;
 
   try {
-    const candidate = await db.candidate.findUnique({
+    const candidate = await db.recruitmentCandidate.findUnique({
       where: { id }
     });
 
@@ -67,18 +68,19 @@ export async function hireCandidate(id: number): Promise<ActionResult> {
 
     // Actual implementation would create an interpreter record, user profile, etc.
     // For now, just update status
-    await db.candidate.update({
+    await db.recruitmentCandidate.update({
       where: { id },
       data: { status: 'Contratado' }
     });
 
     revalidatePath('/admin/recruitment');
     return { success: true };
-  } catch (error: any) {
-    console.error('Error in hireCandidate action:', error.message);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error in hireCandidate action:', message);
     return { 
       success: false, 
-      error: error.message || 'Failed to hire candidate',
+      error: message,
       code: 'INTERNAL_ERROR'
     };
   }

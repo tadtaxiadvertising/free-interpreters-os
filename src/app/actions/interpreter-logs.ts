@@ -46,7 +46,7 @@ export async function createInterpreterLog(formData: FormData) {
       return { error: 'A log already exists for this date. Please contact an admin to modify it.' };
     }
 
-    const log = await prisma.productionLog.create({
+    await prisma.productionLog.create({
       data: {
         interpreterId: profile.interpreter_id,
         date,
@@ -65,8 +65,9 @@ export async function createInterpreterLog(formData: FormData) {
     revalidatePath('/production');
     
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating production log:', error);
-    return { error: 'Failed to create log: ' + error.message };
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { error: 'Failed to create log: ' + message };
   }
 }

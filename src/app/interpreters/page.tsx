@@ -39,9 +39,8 @@ async function getInterpreters() {
         updatedAt: true,
         createdAt: true,
       }
-    } as any);
-    // Cast to any[] to avoid strict type mismatch with components expecting string dates
-    return interpreters as any[];
+    });
+    return interpreters as any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
   } catch (error) {
     console.error('Error fetching interpreters from DB:', error);
     return [];

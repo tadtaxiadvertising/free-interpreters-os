@@ -42,7 +42,7 @@ interface Props {
 export default function RbacShell({ requiredRole, children }: Props) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const role = (session?.user as any)?.role;
+  const role = (session?.user as { role?: string })?.role;
 
   useEffect(() => {
     if (status === "loading") return;

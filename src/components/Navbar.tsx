@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { User, LogOut, Settings, ShieldCheck } from 'lucide-react';
+import { LogOut, Settings, ShieldCheck } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { NotificationBell } from './NotificationBell';
-import { cn } from '@/lib/utils';
 
 interface NavbarProps {
   email?: string;
-  notifications?: any[];
+  notifications?: unknown[];
 }
 
 export function Navbar({ email, notifications = [] }: NavbarProps) {
@@ -21,7 +20,7 @@ export function Navbar({ email, notifications = [] }: NavbarProps) {
         <div className="flex flex-1"></div>
         <div className="flex items-center gap-x-4 lg:gap-x-6">
           
-          <NotificationBell initialNotifications={notifications} />
+          <NotificationBell initialNotifications={notifications as any} />
 
           {/* Separator */}
           <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-slate-800" aria-hidden="true" />

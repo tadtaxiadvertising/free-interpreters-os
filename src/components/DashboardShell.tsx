@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
-import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/types';
 
 interface RankingData {
@@ -17,7 +16,7 @@ interface DashboardShellProps {
   children: React.ReactNode;
   role: UserRole;
   userName: string;
-  notifications?: any[];
+  notifications?: unknown[];
   ranking?: RankingData | null;
 }
 
@@ -76,7 +75,6 @@ export function DashboardShell({ children, role, userName, notifications = [], r
         role={role} 
         isCollapsed={isCollapsed} 
         onToggle={handleToggle} 
-        notifications={notifications}
         ranking={ranking}
       />
       

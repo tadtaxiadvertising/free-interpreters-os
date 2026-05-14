@@ -23,8 +23,9 @@ export async function GET() {
         'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching pending audits:', error);
-    return NextResponse.json({ error: error.message || 'Error fetching pending audits' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error fetching pending audits';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
