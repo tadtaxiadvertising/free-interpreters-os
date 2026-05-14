@@ -5,8 +5,16 @@ import { revalidatePath } from 'next/cache';
 import { validateAction } from '@/lib/auth/actions';
 import { ActionResult } from '@/lib/types';
 import { refreshPayrollRecord } from '@/services/PayrollService';
+import { z } from 'zod';
 
 const db = prisma;
+
+const ProductionLogSchema = z.object({
+  date: z.coerce.date(),
+  interpretedMinutes: z.coerce.number().positive('Minutes must be positive'),
+  callsAttended: z.coerce.number().int().nonnegative().default(0),
+  observations: z.string().trim().optional(),
+});
 
 export async function createInterpreterLog(formData: FormData): Promise<ActionResult> {
   const auth = await validateAction('interpreter');
@@ -17,35 +25,29 @@ export async function createInterpreterLog(formData: FormData): Promise<ActionRe
     return { success: false, error: 'User not linked to an interpreter profile', code: 'BAD_REQUEST' };
   }
 
-  const dateStr = formData.get('date') as string;
-  const minutesStr = formData.get('minutes') as string;
-  const callsStr = formData.get('calls') as string;
-  const observations = formData.get('observations') as string;
-
-  const date = new Date(dateStr);
-  const interpretedMinutes = parseInt(minutesStr, 10);
-  const callsAttended = parseInt(callsStr, 10) || 0;
-
-  if (isNaN(interpretedMinutes) || interpretedMinutes <= 0) {
-    return { success: false, error: 'Invalid minutes', code: 'VALIDATION_ERROR' };
-  }
-
-  // Prevent logging for future dates
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
-  if (date > today) {
-    return { success: false, error: 'Cannot log production for future dates', code: 'VALIDATION_ERROR' };
-  }
-
   try {
-    // Check if log already exists for this date
+    const rawData = {
+      date: formData.get('date'),
+      interpretedMinutes: formData.get('interpretedMinutes') || formData.get('minutes'),
+      callsAttended: formData.get('callsAttended') || formData.get('calls'),
+      observations: formData.get('observations'),
+    };
+
+    const validated = ProductionLogSchema.parse(rawData);
+
+    // Prevent logging for future dates
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (validated.date > today) {
+      return { success: false, error: 'Cannot log production for future dates', code: 'VALIDATION_ERROR' };
+    }
+    // Atomic check and create using transaction or lean check
     const existingLog = await db.productionLog.findFirst({
       where: {
         interpreterId: profile.interpreterId,
-        date: {
-          equals: date
-        }
-      }
+        date: validated.date
+      },
+      select: { id: true }
     });
 
     if (existingLog) {
@@ -59,23 +61,27 @@ export async function createInterpreterLog(formData: FormData): Promise<ActionRe
     await db.productionLog.create({
       data: {
         interpreterId: profile.interpreterId,
-        date,
-        interpretedMinutes,
-        callsAttended,
+        date: validated.date,
+        interpretedMinutes: validated.interpretedMinutes,
+        callsAttended: validated.callsAttended,
         status: 'Completed',
-        observaciones: observations,
-        adherence: 100 // Default for manual log if not specified
-      }
+        observaciones: validated.observations,
+        adherence: 100
+      },
+      select: { id: true }
     });
 
     // Refresh payroll record for this period
-    await refreshPayrollRecord(profile.interpreterId, date);
+    await refreshPayrollRecord(profile.interpreterId, validated.date);
 
     revalidatePath('/dashboard');
     revalidatePath('/production');
     
     return { success: true };
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error: 'Datos de registro inválidos', code: 'VALIDATION_ERROR' };
+    }
     console.error('Error creating production log:', error);
     return { success: false, error: 'Failed to create log', code: 'INTERNAL_ERROR' };
   }

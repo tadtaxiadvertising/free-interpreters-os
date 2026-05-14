@@ -14,11 +14,12 @@ export async function createAccount(name: string, description?: string): Promise
 
   try {
     const account = await db.account.create({
-      data: { name, description }
+      data: { name, description },
+      select: { id: true, name: true, description: true }
     });
     revalidatePath('/admin/payrates');
     revalidatePath('/settings');
-    return { success: true, data: account };
+    return { success: true, data: account as Account };
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return { success: false, error: 'La cuenta ya existe', code: 'CONFLICT' };
@@ -34,11 +35,12 @@ export async function updateAccount(id: number, name: string, description?: stri
   try {
     const account = await db.account.update({
       where: { id },
-      data: { name, description }
+      data: { name, description },
+      select: { id: true, name: true, description: true }
     });
     revalidatePath('/admin/payrates');
     revalidatePath('/settings');
-    return { success: true, data: account };
+    return { success: true, data: account as Account };
   } catch {
     return { success: false, error: 'Error al actualizar la cuenta', code: 'INTERNAL_ERROR' };
   }
@@ -50,7 +52,8 @@ export async function deleteAccount(id: number): Promise<ActionResult<void>> {
 
   try {
     await db.account.delete({
-      where: { id }
+      where: { id },
+      select: { id: true }
     });
     revalidatePath('/admin/payrates');
     revalidatePath('/settings');
@@ -66,9 +69,10 @@ export async function getAccounts(): Promise<ActionResult<Account[]>> {
 
   try {
     const accounts = await db.account.findMany({
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, description: true }
     });
-    return { success: true, data: accounts };
+    return { success: true, data: accounts as Account[] };
   } catch (error) {
     console.error('Error fetching accounts:', error instanceof Error ? error.message : 'Unknown error');
     return { success: false, error: 'Error fetching accounts', code: 'INTERNAL_ERROR' };
@@ -90,7 +94,8 @@ export async function setInterpreterAccountRate(
       const oldRate = await tx.interpreterAccountRate.findUnique({
         where: {
           interpreterId_accountId: { interpreterId, accountId }
-        }
+        },
+        select: { tariffPerHour: true }
       });
 
       // 2. Upsert the rate
@@ -100,6 +105,14 @@ export async function setInterpreterAccountRate(
         },
         update: { tariffPerHour },
         create: { interpreterId, accountId, tariffPerHour },
+        select: { 
+          id: true,
+          interpreterId: true, 
+          accountId: true, 
+          tariffPerHour: true,
+          createdAt: true,
+          updatedAt: true 
+        }
       });
 
       // 3. Create Audit Log
@@ -109,14 +122,15 @@ export async function setInterpreterAccountRate(
           oldRate: oldRate?.tariffPerHour,
           newRate: tariffPerHour,
           changedBy: auth.user.id
-        }
+        },
+        select: { id: true }
       });
 
       return rate;
     });
 
     revalidatePath('/admin/payrates');
-    return { success: true, data: result };
+    return { success: true, data: result as InterpreterAccountRate };
   } catch (error) {
     console.error('Error setting account rate:', error);
     return { success: false, error: 'Error setting account rate', code: 'INTERNAL_ERROR' };
@@ -135,6 +149,7 @@ export async function deleteInterpreterAccountRate(
       where: {
         interpreterId_accountId: { interpreterId, accountId },
       },
+      select: { interpreterId: true }
     });
 
     revalidatePath('/admin/payrates');

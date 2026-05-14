@@ -16,7 +16,8 @@ export async function deleteCandidate(id: number): Promise<ActionResult> {
 
   try {
     await db.recruitmentCandidate.delete({
-      where: { id }
+      where: { id },
+      select: { id: true }
     });
 
     revalidatePath('/admin/recruitment');
@@ -41,7 +42,8 @@ export async function hireCandidate(id: number): Promise<ActionResult> {
 
   try {
     const candidate = await db.recruitmentCandidate.findUnique({
-      where: { id }
+      where: { id },
+      select: { id: true }
     });
 
     if (!candidate) {
@@ -52,7 +54,8 @@ export async function hireCandidate(id: number): Promise<ActionResult> {
     // For now, just update status
     await db.recruitmentCandidate.update({
       where: { id },
-      data: { status: 'Contratado' }
+      data: { status: 'Contratado' },
+      select: { id: true }
     });
 
     revalidatePath('/admin/recruitment');

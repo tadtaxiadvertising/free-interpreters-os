@@ -22,7 +22,8 @@ export async function updateSystemConfig(key: string, value: string): Promise<Ac
     await db.systemConfig.upsert({
       where: { key },
       update: { value },
-      create: { key, value }
+      create: { key, value },
+      select: { key: true }
     });
 
     revalidatePath('/admin');
@@ -30,7 +31,7 @@ export async function updateSystemConfig(key: string, value: string): Promise<Ac
     return { success: true };
   } catch (error) {
     console.error(`Error updating system config ${key}:`, error);
-    return { success: false, error: 'Failed to update configuration' };
+    return { success: false, error: 'Failed to update configuration', code: 'INTERNAL_ERROR' };
   }
 }
 
@@ -42,7 +43,8 @@ export const getSystemConfigCached = unstable_cache(
   async (key: string, defaultValue: string = '') => {
     try {
       const config = await db.systemConfig.findUnique({
-        where: { key }
+        where: { key },
+        select: { value: true }
       });
       return config ? config.value : defaultValue;
     } catch (error) {

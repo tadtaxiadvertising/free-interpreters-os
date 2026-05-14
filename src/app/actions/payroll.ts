@@ -5,17 +5,33 @@ import { createPayrollRecord } from '@/lib/payroll';
 import { refreshPayrollRecord } from '@/services/PayrollService';
 import { revalidatePath } from 'next/cache';
 import type { ActionResult } from '@/lib/types';
+import { validateAction } from '@/lib/auth/actions';
+import { z } from 'zod';
 
 const db = prisma;
+
+const ReconcileSchema = z.object({
+  logId: z.coerce.number(),
+  verifiedMinutes: z.coerce.number().nonnegative(),
+});
+
+const PeriodSchema = z.object({
+  startDate: z.coerce.date().optional(),
+  endDate: z.coerce.date().optional(),
+});
 
 export async function generatePayrollPeriod(
   startDate?: Date,
   endDate?: Date
 ): Promise<ActionResult<{ message: string }>> {
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
+    const validated = PeriodSchema.parse({ startDate, endDate });
     const now = new Date();
-    const periodStart = startDate || new Date(now.getFullYear(), now.getMonth(), 1);
-    const periodEnd = endDate || new Date(now.getFullYear(), now.getMonth(), 15);
+    const periodStart = validated.startDate || new Date(now.getFullYear(), now.getMonth(), 1);
+    const periodEnd = validated.endDate || new Date(now.getFullYear(), now.getMonth(), 15);
 
     // Obtener todos los intérpretes activos via Prisma
     const interpreters = await db.interpreter.findMany({
@@ -37,7 +53,8 @@ export async function generatePayrollPeriod(
             interpreterId: interpreter.id,
             periodStart: periodStart,
             periodEnd: periodEnd
-          }
+          },
+          select: { id: true }
         });
         
         if (!existing) {
@@ -66,13 +83,19 @@ export async function reconcileMinutes(
   logId: number,
   verifiedMinutes: number
 ): Promise<ActionResult<{ message: string }>> {
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
+    const validated = ReconcileSchema.parse({ logId, verifiedMinutes });
+
     const log = await db.productionLog.findUnique({
-      where: { id: logId }
+      where: { id: validated.logId },
+      select: { id: true, interpreterId: true, date: true }
     });
 
     if (!log) {
-      return { success: false, error: 'Production log not found' };
+      return { success: false, error: 'Production log not found', code: 'NOT_FOUND' };
     }
 
     const linkedPaidPayroll = await db.payrollRecord.findFirst({
@@ -81,16 +104,18 @@ export async function reconcileMinutes(
         status: 'PAID',
         periodStart: { lte: log.date },
         periodEnd: { gte: log.date }
-      }
+      },
+      select: { id: true }
     });
 
     if (linkedPaidPayroll) {
-      return { success: false, error: 'Cannot modify verifiedMinutes: Log is linked to a PAID payroll record' };
+      return { success: false, error: 'Cannot modify: Log is linked to a PAID payroll record', code: 'UNAUTHORIZED' };
     }
 
     await db.productionLog.update({
-      where: { id: logId },
-      data: { verifiedMinutes }
+      where: { id: validated.logId },
+      data: { verifiedMinutes: validated.verifiedMinutes },
+      select: { id: true }
     });
 
     // Automatically refresh the payroll record if it exists and is pending
@@ -101,7 +126,10 @@ export async function reconcileMinutes(
     revalidatePath('/payroll');
     revalidatePath('/dashboard');
     return { success: true, data: { message: 'Minutes successfully reconciled and payroll updated' } };
-  } catch {
-    return { success: false, error: 'Internal Server Error' };
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return { success: false, error: 'Invalid input data', code: 'VALIDATION_ERROR' };
+    }
+    return { success: false, error: 'Internal Server Error', code: 'INTERNAL_ERROR' };
   }
 }

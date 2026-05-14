@@ -4,8 +4,16 @@ import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { validateAction } from '@/lib/auth/actions';
+import { z } from 'zod';
 
 const db = prisma;
+
+const BankingDetailsSchema = z.object({
+  bankName: z.string().min(1, 'Bank name is required').trim(),
+  bankAccount: z.string().min(1, 'Account number is required').trim(),
+  bankAccountType: z.string().trim().optional().nullable(),
+  bankCedula: z.string().min(1, 'ID/Cedula is required').trim(),
+});
 
 /**
  * Accept legal terms — records the signatureDate on the user's profile.
@@ -21,7 +29,8 @@ export async function acceptTerms(): Promise<ActionResult> {
       data: {
         termsAcceptedAt: now,
         signatureDate: now,
-      }
+      },
+      select: { id: true }
     });
 
     revalidatePath('/dashboard');
@@ -44,21 +53,19 @@ export async function saveBankingDetails(data: {
   const auth = await validateAction();
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
-  if (!data.bankName?.trim() || !data.bankAccount?.trim() || !data.bankCedula?.trim()) {
-    return { success: false, error: 'Todos los campos bancarios son obligatorios', code: 'VALIDATION_ERROR' };
-  }
-
   try {
+    const validated = BankingDetailsSchema.parse(data);
+
     // ── Execute in Transaction ──────────────────────────
     await db.$transaction(async (tx) => {
       // 1. Update User Profile
       const profile = await tx.userProfile.update({
         where: { id: auth.user.id },
         data: {
-          bankName: data.bankName.trim(),
-          bankAccount: data.bankAccount.trim(),
-          bankAccountType: data.bankAccountType?.trim() || null,
-          bankCedula: data.bankCedula.trim(),
+          bankName: validated.bankName,
+          bankAccount: validated.bankAccount,
+          bankAccountType: validated.bankAccountType,
+          bankCedula: validated.bankCedula,
         },
         select: { interpreterId: true }
       });
@@ -68,11 +75,12 @@ export async function saveBankingDetails(data: {
         await tx.interpreter.update({
           where: { id: profile.interpreterId },
           data: {
-            banco: data.bankName.trim(),
-            cuentaPago: data.bankAccount.trim(),
-            tipoCuenta: data.bankAccountType?.trim() || null,
-            cedulaRnc: data.bankCedula.trim(),
+            banco: validated.bankName,
+            cuentaPago: validated.bankAccount,
+            tipoCuenta: validated.bankAccountType,
+            cedulaRnc: validated.bankCedula,
           },
+          select: { id: true }
         });
       }
     });
@@ -80,6 +88,9 @@ export async function saveBankingDetails(data: {
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error: 'Datos bancarios inválidos', code: 'VALIDATION_ERROR' };
+    }
     console.error('[ONBOARDING] saveBankingDetails error:', error);
     return { success: false, error: 'Ocurrió un error inesperado al guardar los datos', code: 'INTERNAL_ERROR' };
   }
@@ -108,7 +119,8 @@ export async function completeOnboarding(): Promise<ActionResult> {
             documentosCompleto: true,
             metodoPago: 'Transferencia Bancaria',
             status: 'Activo'
-          }
+          },
+          select: { id: true }
         });
       }
     });

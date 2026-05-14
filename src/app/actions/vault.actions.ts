@@ -47,12 +47,13 @@ export async function createVaultAccount(formData: FormData) {
         holderId: session.user.id,
         interpreterId: interpreterId || null,
       },
+      select: { id: true }
     });
 
     revalidatePath("/portal-rbac/holder/dashboard");
     return { success: true };
   } catch (error) {
     console.error("Error creating vault account:", error);
-    return { error: "Failed to create vault account." };
+    return { error: "Failed to create vault account.", code: 'INTERNAL_ERROR' };
   }
 }
