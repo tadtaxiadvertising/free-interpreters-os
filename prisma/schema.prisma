@@ -4,12 +4,10 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  // DATABASE_URL → PgBouncer (puerto 6543, Transaction Mode)
-  // DIRECT_URL  → Conexión directa (puerto 5432, para migraciones)
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-  schemas   = ["auth", "public"]
+  provider = "postgresql"
+  // Prisma 7: url/directUrl are configured in prisma.config.ts (not here)
+  // Runtime connection is handled by the pg adapter in src/lib/prisma.ts
+  schemas  = ["auth", "public"]
 }
 
 model Interpreter {
