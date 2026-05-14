@@ -3,10 +3,21 @@ import prisma from '@/lib/prisma';
 
 export async function GET() {
   try {
-    // Validamos conexión a Supabase antes de dar el "Verde"
+    // Validamos conexión real a la base de datos
     await prisma.$queryRaw`SELECT 1`;
-    return NextResponse.json({ status: 'healthy', timestamp: new Date().toISOString() }, { status: 200 });
+
+    return NextResponse.json({
+      status: 'green',
+      service: 'free-interpreters-os',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    }, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ status: 'unhealthy', error: 'DB Connection Failed' }, { status: 503 });
+    console.error('Health check failed:', error);
+    return NextResponse.json({
+      status: 'yellow',
+      service: 'free-interpreters-os',
+      error: 'Database connection unstable',
+    }, { status: 503 });
   }
 }
