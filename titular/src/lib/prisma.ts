@@ -15,13 +15,20 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClient {
-  if (!process.env.DATABASE_URL) {
-    console.warn('⚠️ PRISMA: DATABASE_URL is missing. Database features will be disabled.');
-    return new PrismaClient({ log: ['error'] });
+  const dbUrl = process.env.DATABASE_URL;
+
+  if (!dbUrl) {
+    console.warn('⚠️ PRISMA: DATABASE_URL is missing. Providing dummy adapter for Prisma 7 validation.');
+    const pool = new pg.Pool();
+    const adapter = new PrismaPg(pool);
+    return new PrismaClient({ 
+      adapter, 
+      log: ['error'] 
+    });
   }
 
   const pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: dbUrl,
     max: 1, 
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,

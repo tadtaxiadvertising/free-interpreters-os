@@ -15,13 +15,22 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClient {
-  if (!process.env.DATABASE_URL) {
-    console.warn('⚠️ PRISMA: DATABASE_URL is missing. Database features will be disabled.');
-    return new PrismaClient({ log: ['error'] });
+  const dbUrl = process.env.DATABASE_URL;
+
+  if (!dbUrl) {
+    console.warn('⚠️ PRISMA: DATABASE_URL is missing. Providing dummy adapter for Prisma 7 validation.');
+    // Usamos un pool vacío para satisfacer al constructor de Prisma 7 durante el build.
+    // Las consultas fallarán en runtime si no se provee una URL real, lo cual es correcto.
+    const pool = new pg.Pool();
+    const adapter = new PrismaPg(pool);
+    return new PrismaClient({ 
+      adapter, 
+      log: ['error'] 
+    });
   }
 
   const pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: dbUrl,
     max: 1, // Límite estricto para portales (comparten pool con el core)
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,

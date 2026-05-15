@@ -18,9 +18,13 @@ function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
   
   if (!connectionString) {
-    console.warn('⚠️ PRISMA: DATABASE_URL is missing. Database features will be disabled.');
-    // Incluso sin URL, necesitamos el adapter configurado para cumplir con Prisma 7 validation
-    // Pero lo inicializamos con un pool vacío o nulo si es necesario
+    console.warn('⚠️ PRISMA: DATABASE_URL is missing. Providing dummy adapter for Prisma 7 validation.');
+    const pool = new pg.Pool();
+    const adapter = new PrismaPg(pool);
+    return new PrismaClient({ 
+      adapter, 
+      log: ['error'] 
+    });
   }
 
   const pool = new pg.Pool({
