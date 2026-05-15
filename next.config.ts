@@ -33,9 +33,18 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // CORS headers para assets estáticos (fuentes, imágenes)
+        source: '/_next/static/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET,OPTIONS' },
+        ],
+      },
+      {
         // Security headers para todas las páginas
         source: '/:path*',
         headers: [
+
 
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
