@@ -4,7 +4,10 @@ import { getCurrentProfile } from '@/app/actions/auth';
 import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+
   const { userId } = await auth();
   if (!userId) redirect('/login');
 
