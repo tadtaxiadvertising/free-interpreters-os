@@ -15,8 +15,8 @@ RUN npm ci
 # Copiar código fuente
 COPY . .
 
-# Generar cliente Prisma y compilar TS
-RUN chmod +x ./node_modules/.bin/prisma
+# Dar permisos de ejecución a todos los binarios y compilar
+RUN chmod -R +x ./node_modules/.bin
 RUN npm run prisma:generate
 RUN npm run build
 
