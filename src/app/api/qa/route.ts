@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     
-    // Validate input
+    // Rule D: Validación rigurosa con Zod
     const validationResult = QAScoreSchema.safeParse(body);
     if (!validationResult.success) {
       return NextResponse.json(
@@ -61,16 +61,30 @@ export async function POST(request: Request) {
       );
     }
 
-    // Calculate total score if not provided
-    const data = validationResult.data;
-    if (!data.totalScore) {
-      const sum = (data.protocolScore || 0) + 
-                  (data.interpretationScore || 0) + 
-                  (data.languageScore || 0) + 
-                  (data.serviceScore || 0) + 
-                  (data.technicalScore || 0);
-      data.totalScore = sum;
+    const data = { ...validationResult.data };
+
+    // FÓRMULA DE CALIDAD (QA Scorecard)
+    // Total Score = (Protocol * 0.20) + (Interpretación * 0.40) + (Idioma * 0.20) + (Servicio * 0.10) + (Técnico * 0.10)
+    const protocol = data.protocolScore || 0;
+    const interpretation = data.interpretationScore || 0;
+    const language = data.languageScore || 0;
+    const service = data.serviceScore || 0;
+    const technical = data.technicalScore || 0;
+
+    let totalScore = (protocol * 0.20) + 
+                     (interpretation * 0.40) + 
+                     (language * 0.20) + 
+                     (service * 0.10) + 
+                     (technical * 0.10);
+
+    // REGLA CRÍTICA DE AUTO-FAIL
+    // Si criticalError === true, el totalScore se fuerza a 0.00 y accionRequerida a "Advertencia"
+    if (data.criticalError === true) {
+      totalScore = 0.00;
+      data.accionRequerida = 'Advertencia';
     }
+
+    data.totalScore = Math.round(totalScore * 100) / 100;
 
     const newScore = await prisma.qAScore.create({
       data: data,
@@ -83,8 +97,9 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error('Error creating QA score:', error);
-    const message = error instanceof Error ? error.message : 'Error creating QA score';
+    console.error('🔴 QA API ERROR:', error);
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
