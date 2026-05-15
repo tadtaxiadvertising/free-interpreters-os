@@ -16,7 +16,8 @@ RUN npm ci
 COPY . .
 
 # Generar cliente Prisma y compilar TS
-RUN npx prisma generate
+RUN chmod +x ./node_modules/.bin/prisma
+RUN npm run prisma:generate
 RUN npm run build
 
 # --- STAGE 2: Runner ---
