@@ -19,49 +19,67 @@ const ManualLogSchema = z.object({
 /**
  * ACTION: Create Manual Production Log
  */
-export async function createManualLog(data: unknown): Promise<ActionResult<{ id: number }>> {
+export async function createManualLog(data: any): Promise<ActionResult<{ id: number }>> {
   const auth = await validateAction('admin');
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-
     const validated = ManualLogSchema.parse(data);
     const { interpreterId, date, startTime, endTime, totalMinutes } = validated;
 
-    // Validate Interpreter exists
+    // 1. Get Interpreter details for the API call
     const interpreter = await db.interpreter.findUnique({
       where: { id: interpreterId },
-      select: { id: true }
+      select: { id: true, externalId: true }
     });
 
     if (!interpreter) {
       return { success: false, error: "Intérprete no encontrado.", code: 'NOT_FOUND' };
     }
 
-    const logDate = new Date(`${date}T00:00:00Z`);
     const startDateTime = new Date(`${date}T${startTime}:00`);
     const endDateTime = new Date(`${date}T${endTime}:00`);
     const now = new Date();
 
-    if (startDateTime > now || endDateTime > now || logDate > now) {
+    if (startDateTime > now || endDateTime > now) {
       return { success: false, error: "No se puede registrar tiempos en el futuro.", code: 'VALIDATION_ERROR' };
     }
 
-    if (endDateTime <= startDateTime) {
-      return { success: false, error: "La hora de fin debe ser mayor a la hora de inicio.", code: 'VALIDATION_ERROR' };
+    // 2. Call the External API (Securely from Server)
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const apiKey = process.env.API_SECRET_KEY; // Secure server-side key
+
+    const apiResponse = await fetch(`${apiUrl}/api/v1/calls/manual`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        interpreterId: interpreter.externalId,
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
+        notes: "Manual entry via Server Action"
+      })
+    });
+
+    if (!apiResponse.ok) {
+      const apiError = await apiResponse.json().catch(() => ({}));
+      console.error("🔴 API ERROR:", apiError);
+      return { success: false, error: "La API externa rechazó el registro.", code: 'INTERNAL_ERROR' };
     }
 
-    // Create Log with minimal return
+    // 3. Create local ProductionLog for the Dashboard
     const newLog = await db.productionLog.create({
       data: {
         interpreterId: interpreter.id,
-        date: logDate,
+        date: new Date(date),
         loginTime: startDateTime,
         logoutTime: endDateTime,
         interpretedMinutes: totalMinutes,
         verifiedMinutes: totalMinutes,
         status: "Completed",
-        observaciones: "Entry Type: MANUAL",
+        observaciones: "Manual Sync with API",
       },
       select: { id: true }
     });

@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useMemo, use } from "react";
-import { getInterpretersForSelect } from "@/app/actions/manual-logs";
+import { getInterpretersForSelect, createManualLog } from "@/app/actions/manual-logs";
 import { Clock, Calendar, CheckCircle2, AlertCircle, Search, Loader2, User } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -89,33 +89,19 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
   }, [watchDate, watchStartTime, watchEndTime]);
 
   const onSubmit = async (data: ManualLogForm) => {
+    if (!selectedInterpreter) return;
     setMessage(null);
     try {
-      const startIso = new Date(`${data.date}T${data.startTime}:00`).toISOString();
-      const endIso = new Date(`${data.date}T${data.endTime}:00`).toISOString();
-
-      const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-      const apiUrl = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
-      const secret = process.env.NEXT_PUBLIC_API_SECRET_KEY || 'manual-entry-secret';
-
-      const response = await fetch(`${apiUrl}/api/v1/calls/manual`, {
-
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${secret}`
-        },
-        body: JSON.stringify({
-          interpreterId: data.interpreterExternalId,
-          startTime: startIso,
-          endTime: endIso,
-          notes: "Registro Manual UI"
-        })
+      const res = await createManualLog({
+        interpreterId: selectedInterpreter.id,
+        date: data.date,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        totalMinutes: livePreviewMinutes
       });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || "Ocurrió un error al registrar en el API");
+      if (!res.success) {
+        throw new Error(res.error || "Ocurrió un error al registrar en el API");
       }
 
       setMessage({ type: "success", text: "Registro manual creado exitosamente." });
