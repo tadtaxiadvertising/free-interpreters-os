@@ -1,0 +1,5 @@
+ID,Nombre Completo,Estado,Fecha Ingreso,Idioma A,Idioma B,Email Corporativo,Teléfono,País,Método Pago,Cuenta Pago,Documentos Completos,Notas
+101,Juan Perez,Activo,2024-01-15,Español,Inglés,juan.perez@freeinterpreters.com,+57 300 123 4567,Colombia,PayPal,juanp@email.com,SI,Top Performer
+102,Maria Gomez,Training,2024-02-01,Español,Inglés,maria.gomez@freeinterpreters.com,+52 55 1234 5678,México,Bank Transfer,MX123456789,NO,Falta Antecedentes
+103,Ahmed Ali,Inactivo,2023-11-20,Árabe,Inglés,ahmed.ali@freeinterpreters.com,+20 100 123 4567,Egipto,Payoneer,ahmed@email.com,SI,Renuncia Voluntaria
+104,Luisa Lane,Probation,2024-01-10,Español,Inglés,luisa.lane@freeinterpreters.com,+54 9 11 1234 5678,Argentina,USDT,0x123abc...,SI,PIP por Calidad

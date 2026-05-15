@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+:root {
+  --background: #020617; /* Deeper midnight blue */
+  --foreground: #f8fafc;
+  --primary: #3b82f6;
+  --primary-glow: rgba(59, 130, 246, 0.5);
+  --card-bg: rgba(15, 23, 42, 0.6);
+  --border: rgba(255, 255, 255, 0.08);
+
+  /* ── CONTRAST TOKENS ──────────────────────────────────────────── */
+  /* Improved legibility on dark backgrounds (WCAG AA compliant)    */
+  --text-primary: #f1f5f9;       /* slate-100 — main text */
+  --text-secondary: #cbd5e1;     /* slate-300 — secondary text (was slate-400) */
+  --text-tertiary: #94a3b8;      /* slate-400 — labels, hints */
+  --text-muted: #64748b;         /* slate-500 — least important */
+  --text-on-dark-accent: #e2e8f0; /* slate-200 — over dark gradients */
+}
+
+body {
+  background-color: var(--background);
+  background-image: 
+    radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.05) 0%, transparent 50%);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.5);
+}
+
+.glass {
+  background: var(--card-bg);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+.glow {
+  box-shadow: 0 0 25px var(--primary-glow);
+  transition: all 0.3s ease;
+}
+
+.glow:hover {
+  box-shadow: 0 0 35px var(--primary-glow);
+  transform: translateY(-2px);
+}
+
+/* Dashboard Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ── TIMER CONTRAST — High legibility on dark backgrounds ── */
+/* Ensures the "$0.08/min" rate text pops against dark cards */
+.timer-rate {
+  color: var(--text-on-dark-accent);
+  font-weight: 500;
+}
+
+.timer-rate strong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* Table Utilities */
+.table-container {
+  scrollbar-gutter: stable;
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+/* Form Styles */
+input, select, textarea {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: white;
+  -webkit-box-shadow: 0 0 0px 1000px #0f172a inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Custom Select Arrow */
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='rgba(255,255,255,0.4)' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-position: right 1rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25rem;
+  padding-right: 2.5rem;
+}
+
+option {
+  background-color: #0f172a; /* matches bg-slate-900 */
+  color: white;
+}
+
+.form-group:focus-within label {
+  color: var(--primary);
+}
+
+/* ── Scrollbar for OnboardingWizard legal text ── */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+}

@@ -1,0 +1,4 @@
+ID Pago,Periodo Inicio,Periodo Fin,ID Intérprete,Nombre,Tarifa por Minuto ($),Minutos Totales,Total Bruto ($),Bono Calidad ($),Penalidades ($),Deducción Transferencia ($),Total Neto a Pagar ($),Estado Pago,Fecha Pago
+PAY-24-10,2024-02-01,2024-02-15,101,Juan Perez,0.12,4500,540.00,50.00,0.00,5.00,585.00,Pagado,2024-02-20
+PAY-24-10,2024-02-01,2024-02-15,102,Maria Gomez,0.10,2000,200.00,0.00,20.00,3.00,177.00,Pendiente,
+PAY-24-10,2024-02-01,2024-02-15,104,Luisa Lane,0.11,3100,341.00,0.00,0.00,5.00,336.00,Procesando,

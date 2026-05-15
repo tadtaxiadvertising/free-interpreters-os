@@ -1,0 +1,104 @@
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import authRoutes from './modules/auth/auth.routes.js';
+import userRoutes from './modules/users/users.routes.js';
+import callRoutes from './routes/calls.js';
+import productionRoutes from './routes/production.js';
+import { globalErrorHandler } from './middlewares/errorHandler.js';
+import { asyncHandler } from './lib/asyncHandler.js';
+import { prisma } from './lib/prisma.js';
+
+/**
+ * EXPRESS APPLICATION SETUP
+ * ============================================================
+ * Middleware pipeline (order matters):
+ *   1. CORS → restrict origins
+ *   2. JSON parser → reject payloads > 512KB
+ *   3. Routes → business logic
+ *   4. 404 catch-all → unknown endpoints
+ *   5. globalErrorHandler → unified error formatting
+ * ============================================================
+ */
+
+const app = express();
+
+// ── Core Middlewares ──────────────────────────────────────
+// CORS: Only allow known frontends. NEVER use cors() with no config in production.
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin: ALLOWED_ORIGINS.length > 0
+      ? (origin, callback) => {
+          // Allow requests with no origin (server-to-server, health checks)
+          if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error(`CORS: Origin ${origin} not allowed`));
+          }
+        }
+      : true, // Fallback to open in development if CORS_ORIGINS is not set
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+// Parse JSON with a strict size limit to prevent memory bombs
+app.use(express.json({ limit: '512kb' }));
+
+// Disable x-powered-by header (security hygiene)
+app.disable('x-powered-by');
+
+
+// ── Routes ────────────────────────────────────────────────
+app.use('/api/auth', authRoutes);
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/calls', callRoutes);
+app.use('/api/v1/production', productionRoutes);
+
+
+// ── Health Check ──────────────────────────────────────────
+// Easypanel uses this to determine if the container is healthy.
+// We verify the DB connection to prevent "ghost" healthy states.
+app.get('/health', asyncHandler(async (_req: Request, res: Response) => {
+  try {
+    // Simple query to verify DB heartbeat
+    await prisma.$queryRaw`SELECT 1`;
+    
+    res.json({
+      status: 'ok',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+      memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'error',
+      database: 'disconnected',
+      error: err instanceof Error ? err.message : 'Unknown database error',
+    });
+  }
+}));
+
+
+// ── 404 Catch-All (MUST be after all routes) ──────────────
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    error: {
+      type: 'NOT_FOUND',
+      message: `Route ${_req.method} ${_req.originalUrl} not found`,
+    },
+  });
+});
+
+
+// ── Centralized Error Handler (MUST be last) ──────────────
+app.use(globalErrorHandler);
+
+export default app;

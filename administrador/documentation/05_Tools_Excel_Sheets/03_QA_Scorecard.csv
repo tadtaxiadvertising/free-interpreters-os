@@ -1,0 +1,4 @@
+ID Auditoría,Fecha,ID Intérprete,Nombre,Auditor,Duración Llamada (min),Tipo Llamada,1. Protocolo (20%),2. Interpretación (40%),3. Lenguaje (20%),4. Servicio (10%),5. Técnico (10%),TOTAL SCORE %,Error Crítico?,Comentarios,Acción Requerida
+QA-001,2024-03-02,101,Juan Perez,Laura QA,15,Médica,20,38,18,10,10,96%,NO,Excelente manejo,Ninguna
+QA-002,2024-03-02,104,Luisa Lane,Laura QA,8,Legal,15,25,15,8,10,73%,NO,Omitió detalles,Coaching
+QA-003,2024-03-03,102,Maria Gomez,Carlos QA,22,Médica,0,0,0,0,0,0%,SI,Ruido excesivo / Perro ladrando,Advertencia Escrita

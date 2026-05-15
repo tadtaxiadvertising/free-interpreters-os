@@ -1,0 +1,10 @@
+ALTER TABLE "public"."payroll_records" ADD COLUMN IF NOT EXISTS "verified_minutes" integer;
+ALTER TABLE "public"."payroll_records" ADD COLUMN IF NOT EXISTS "gross_total" decimal(10,2);
+ALTER TABLE "public"."payroll_records" ADD COLUMN IF NOT EXISTS "net_total" decimal(10,2);
+ALTER TABLE "public"."payroll_records" ADD COLUMN IF NOT EXISTS "quality_bonus" decimal(10,2) DEFAULT 0;
+ALTER TABLE "public"."payroll_records" ADD COLUMN IF NOT EXISTS "incentives_total" decimal(10,2) DEFAULT 0;
+ALTER TABLE "public"."payroll_records" ADD COLUMN IF NOT EXISTS "penalidades" decimal(10,2) DEFAULT 0;
+ALTER TABLE "public"."payroll_records" ADD COLUMN IF NOT EXISTS "transfer_deduction" decimal(10,2) DEFAULT 0;
+ALTER TABLE "public"."payroll_records" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'Pendiente';
+ALTER TABLE "public"."payroll_records" ADD COLUMN IF NOT EXISTS "payment_date" timestamp with time zone;
+ALTER TABLE "public"."payroll_records" ADD COLUMN IF NOT EXISTS "paid_at" timestamp with time zone;
