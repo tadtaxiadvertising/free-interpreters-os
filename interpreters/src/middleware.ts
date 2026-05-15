@@ -1,29 +1,25 @@
+import { auth } from "@/lib/auth-rbac-edge";
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
 
-export default async function middleware(req: NextRequest) {
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+export default auth((req) => {
+  const isLoggedIn = !!req.auth;
+  const role = (req.auth?.user as { role?: string })?.role;
+  const { pathname } = req.nextUrl;
 
-  // Si no hay token, redirigir a login (opcional, dependiendo de tu flujo)
-  if (!token) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/api/auth/signin";
-    return NextResponse.redirect(url);
+  // Redirigir a login si no está logueado
+  if (!isLoggedIn) {
+    return NextResponse.redirect(new URL("/portal-rbac/login", req.url));
   }
 
-  const role = token?.role;
-
   // El servicio 'interpreters' solo permite el rol 'INTERPRETER'
-  if (req.nextUrl.pathname === "/" || req.nextUrl.pathname.startsWith("/")) {
-    if (role !== "INTERPRETER" && !req.nextUrl.pathname.startsWith("/unauthorized")) {
-      return NextResponse.redirect(new URL("/unauthorized", req.url));
-    }
+  if (role !== "INTERPRETER" && pathname !== "/unauthorized") {
+    return NextResponse.redirect(new URL("/unauthorized", req.url));
   }
 
   return NextResponse.next();
-}
+});
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|unauthorized).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|unauthorized|portal-rbac/login).*)'],
 };
+
