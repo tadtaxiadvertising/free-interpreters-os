@@ -15,13 +15,16 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClient {
-  if (!process.env.DATABASE_URL) {
+  const connectionString = process.env.DATABASE_URL;
+  
+  if (!connectionString) {
     console.warn('⚠️ PRISMA: DATABASE_URL is missing. Database features will be disabled.');
-    return new PrismaClient({ log: ['error'] });
+    // Incluso sin URL, necesitamos el adapter configurado para cumplir con Prisma 7 validation
+    // Pero lo inicializamos con un pool vacío o nulo si es necesario
   }
 
   const pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: connectionString || undefined,
     max: 1, 
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
@@ -29,6 +32,8 @@ function createPrismaClient(): PrismaClient {
   });
 
   pool.on('error', (err) => {
+    // Silenciar errores de conexión durante el build
+    if (process.env.NODE_ENV !== 'production' || !connectionString) return;
     console.error('🔴 PG POOL ERROR (interpreters):', err.message);
   });
 
@@ -41,7 +46,7 @@ function createPrismaClient(): PrismaClient {
   });
 }
 
-const prisma = globalForPrisma._prisma ?? createPrismaClient();
+export const prisma = globalForPrisma._prisma ?? createPrismaClient();
 globalForPrisma._prisma = prisma;
 
 export default prisma;
