@@ -47,7 +47,7 @@ export async function createManualLog(data: any): Promise<ActionResult<{ id: num
 
     // 2. Call the External API (Securely from Server)
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-    const apiKey = process.env.API_SECRET_KEY; // Secure server-side key
+    const apiKey = process.env.API_SECRET_KEY || process.env.NEXT_PUBLIC_API_SECRET_KEY; // Secure server-side key
 
     const apiResponse = await fetch(`${apiUrl}/api/v1/calls/manual`, {
       method: "POST",
