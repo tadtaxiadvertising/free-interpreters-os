@@ -94,10 +94,12 @@ export default function ManualLogPage(props: { params: Promise<any> }) {
       const startIso = new Date(`${data.date}T${data.startTime}:00`).toISOString();
       const endIso = new Date(`${data.date}T${data.endTime}:00`).toISOString();
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+      const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+      const apiUrl = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
       const secret = process.env.NEXT_PUBLIC_API_SECRET_KEY || 'manual-entry-secret';
 
       const response = await fetch(`${apiUrl}/api/v1/calls/manual`, {
+
         method: "POST",
         headers: {
           "Content-Type": "application/json",

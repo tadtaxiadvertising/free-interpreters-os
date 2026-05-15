@@ -23,16 +23,22 @@ const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://freeinterpreters
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const origin = req.headers.get('origin');
+  
+  // ── CORS LOGIC ─────────────────────────────────────────────
+  const isTrustedOrigin = !origin || 
+    origin === FRONTEND_ORIGIN || 
+    origin.endsWith('.easypanel.host') || 
+    origin.includes('localhost');
+
+  const corsOrigin = isTrustedOrigin && origin ? origin : FRONTEND_ORIGIN;
 
   // ── 1. CORS PREFLIGHT ──────────────────────────────────────
-  // Browsers envían OPTIONS antes de POST/PUT/DELETE cross-origin.
-  // Debemos responder con 204 (No Content) + headers CORS.
-  // Sin esto, el frontend recibe un error de red antes de enviar el request real.
   if (req.method === 'OPTIONS') {
     return new NextResponse(null, {
       status: 204,
       headers: {
-        'Access-Control-Allow-Origin': FRONTEND_ORIGIN,
+        'Access-Control-Allow-Origin': corsOrigin,
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With',
         'Access-Control-Allow-Credentials': 'true',
@@ -41,35 +47,32 @@ export function middleware(req: NextRequest) {
     });
   }
 
-  // ── 2. AUTH GUARD ──────────────────────────────────────────
-  // Soporte Dual: Auth.js (NextAuth) y Supabase Auth (Cookie Stateless)
-  // Esto previene redirecciones incorrectas si el usuario aún usa Supabase en algunas partes.
+  // ... (Rest of auth logic)
   const nextAuthToken = req.cookies.get('next-auth.session-token')?.value || 
                        req.cookies.get('__Secure-next-auth.session-token')?.value;
                        
   const supabaseToken = req.cookies.getAll().find(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token'))?.value;
-
   const sessionToken = nextAuthToken || supabaseToken;
 
-  // Definimos estrictamente las rutas protegidas
   const isProtectedRoute = /^\/(admin|payroll|qa|production|recruitment|interpreters|settings)/.test(pathname);
 
-  // Redirección rápida si intenta entrar a una zona protegida sin sesión
   if (isProtectedRoute && !sessionToken) {
     return NextResponse.redirect(new URL('/', req.url));
   }
 
-  // ── 3. PROPAGATE CORS ON ALL API RESPONSES ─────────────────
-  // Next.js config headers cubren la mayoría, pero el middleware
-  // asegura que también se apliquen a respuestas dinámicas.
   const response = NextResponse.next();
+  
+  // ── 3. PROPAGATE CORS ON ALL API RESPONSES ─────────────────
   if (pathname.startsWith('/api/')) {
-    response.headers.set('Access-Control-Allow-Origin', FRONTEND_ORIGIN);
+    response.headers.set('Access-Control-Allow-Origin', corsOrigin);
     response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
   }
 
   return response;
 }
+
 
 // MATCHER MAESTRO: Ignora _next, archivos estáticos e imágenes.
 // INCLUYE /api para que el preflight CORS sea procesado.
