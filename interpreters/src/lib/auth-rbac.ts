@@ -27,6 +27,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const parsed = LoginSchema.parse(credentials);
           email = parsed.email.toLowerCase().trim();
           password = parsed.password;
+
+          console.log(`[AUTH] Authorize attempt for: ${email}`);
         } catch (err) {
           console.log(`[AUTH] Validation error for input credentials`);
           return null;
@@ -34,31 +36,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         let user;
         try {
-          user = await prisma.rbacUser.findUnique({
-            where: { email },
+          // Use findFirst with mode: 'insensitive' to handle potential DB case mismatches
+          user = await prisma.rbacUser.findFirst({
+            where: { 
+              email: {
+                equals: email,
+                mode: 'insensitive'
+              }
+            },
           });
+
+          if (!user) {
+            console.warn(`[AUTH] User not found in database: ${email}`);
+            return null;
+          }
+          
+          console.log(`[AUTH] User found: ${user.email} (ID: ${user.id})`);
         } catch (dbError) {
           console.error(`[AUTH] Database connection error during lookup for ${email}:`, dbError);
           throw new Error("Database connection error");
         }
 
-        if (!user) {
-          console.warn(`[AUTH] User not found: ${email}`);
-          return null;
-        }
-
         let isPasswordValid = false;
         try {
           isPasswordValid = await bcrypt.compare(password, user.password);
+          if (!isPasswordValid) {
+            console.warn(`[AUTH] Password mismatch for user: ${email}`);
+            return null;
+          }
         } catch (compareError) {
           console.error(`[AUTH] bcrypt comparison error for ${email}:`, compareError);
           throw new Error("Password comparison error");
         }
 
-        if (!isPasswordValid) {
-          console.warn(`[AUTH] Invalid password attempt for: ${email}`);
-          return null;
-        }
+        console.log(`[AUTH] Authentication successful for: ${email}`);
 
         return {
           id: user.id,

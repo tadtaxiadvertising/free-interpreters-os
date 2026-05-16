@@ -18,6 +18,12 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const origin = req.headers.get('origin');
 
+  // ── 0. HEALTH CHECK BYPASS ────────────────────────────────
+  // Ultra-lightweight exit for heartbeats to prevent CrashLoops
+  if (pathname === '/api/health') {
+    return NextResponse.next();
+  }
+
   // ── 1. CORS LOGIC ──────────────────────────────────────────
   const isTrustedOrigin = !origin || 
     origin === FRONTEND_ORIGIN || 

@@ -45,8 +45,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         let email, password;
         try {
           const parsed = LoginSchema.parse(credentials);
-          email = parsed.email.toLowerCase().trim(); // Normalize email to prevent case-sensitivity issues
+          email = parsed.email.toLowerCase().trim();
           password = parsed.password;
+          
+          console.log(`[AUTH] Authorize attempt for: ${email}`);
         } catch (err) {
           console.error(`[AUTH] Validation error for input credentials:`, err instanceof z.ZodError ? err.flatten().fieldErrors : err);
           return null;
@@ -55,8 +57,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         let user;
         try {
           // LEAN QUERY: Only select fields needed for auth
-          user = await prisma.rbacUser.findUnique({
-            where: { email },
+          // Use findFirst with mode: 'insensitive' to handle potential DB case mismatches
+          user = await prisma.rbacUser.findFirst({
+            where: { 
+              email: {
+                equals: email,
+                mode: 'insensitive'
+              }
+            },
             select: {
               id: true,
               email: true,
@@ -65,8 +73,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               password: true,
             },
           });
+
+          if (!user) {
+            console.warn(`[AUTH] User not found in database: ${email}`);
+          } else {
+            console.log(`[AUTH] User found: ${user.email} (ID: ${user.id})`);
+          }
         } catch (dbError) {
-          // Explicitly catch DB connection issues to prevent masking as "Invalid credentials"
           console.error(`[AUTH] Database connection error during lookup for ${email}:`, dbError);
           throw new Error("Database connection error");
         }
@@ -75,6 +88,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           if (user) {
             isPasswordValid = await bcrypt.compare(password, user.password);
+            if (!isPasswordValid) {
+              console.warn(`[AUTH] Password mismatch for user: ${email}`);
+            }
           }
         } catch (compareError) {
           console.error(`[AUTH] bcrypt comparison error for ${email}:`, compareError);
@@ -82,9 +98,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         if (!user || !isPasswordValid) {
-          console.log(`[AUTH] Invalid credentials attempt for: ${email}`);
           return null;
         }
+
+        console.log(`[AUTH] Authentication successful for: ${email}`);
 
         // Return user object (password excluded from token)
         return {

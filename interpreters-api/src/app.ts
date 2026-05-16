@@ -63,28 +63,15 @@ app.use('/api/v1/production', productionRoutes);
 
 // ── Health Check ──────────────────────────────────────────
 // Easypanel uses this to determine if the container is healthy.
-// We verify the DB connection to prevent "ghost" healthy states.
-app.get('/health', asyncHandler(async (_req: Request, res: Response) => {
-  console.log(`[HEALTH] Heartbeat check received at ${new Date().toISOString()}`);
-  try {
-    // Simple query to verify DB heartbeat
-    await prisma.$queryRaw`SELECT 1`;
-    
-    res.json({
-      status: 'ok',
-      database: 'connected',
-      timestamp: new Date().toISOString(),
-      uptime: Math.floor(process.uptime()),
-      memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-    });
-  } catch (err) {
-    res.status(503).json({
-      status: 'error',
-      database: 'disconnected',
-      error: err instanceof Error ? err.message : 'Unknown database error',
-    });
-  }
-}));
+// Ultra-lightweight version to prevent SIGTERM during startup/heavy load.
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    service: 'interpreters-api',
+    uptime: Math.floor(process.uptime()),
+  });
+});
 
 
 // ── 404 Catch-All (MUST be after all routes) ──────────────
