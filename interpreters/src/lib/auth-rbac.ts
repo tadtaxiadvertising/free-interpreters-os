@@ -22,31 +22,50 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     CredentialsProvider({
       credentials: { email: {}, password: {} },
       async authorize(credentials) {
-        const { email, password } = LoginSchema.parse(credentials);
-
+        let email, password;
         try {
-          const user = await prisma.rbacUser.findUnique({
+          const parsed = LoginSchema.parse(credentials);
+          email = parsed.email.toLowerCase().trim();
+          password = parsed.password;
+        } catch (err) {
+          console.log(`[AUTH] Validation error for input credentials`);
+          return null;
+        }
+
+        let user;
+        try {
+          user = await prisma.rbacUser.findUnique({
             where: { email },
           });
-
-          if (!user || !(await bcrypt.compare(password, user.password))) {
-            console.warn(`[AUTH] Invalid credentials attempt for: ${email}`);
-            throw new Error("Invalid credentials");
-          }
-
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-          };
-        } catch (error) {
-          console.error("[AUTH] Database or comparison error:", error);
-          if (error instanceof Error && error.message === "Invalid credentials") {
-            throw error;
-          }
-          throw new Error("Internal server error during authentication");
+        } catch (dbError) {
+          console.error(`[AUTH] Database connection error during lookup for ${email}:`, dbError);
+          throw new Error("Database connection error");
         }
+
+        if (!user) {
+          console.warn(`[AUTH] User not found: ${email}`);
+          return null;
+        }
+
+        let isPasswordValid = false;
+        try {
+          isPasswordValid = await bcrypt.compare(password, user.password);
+        } catch (compareError) {
+          console.error(`[AUTH] bcrypt comparison error for ${email}:`, compareError);
+          throw new Error("Password comparison error");
+        }
+
+        if (!isPasswordValid) {
+          console.warn(`[AUTH] Invalid password attempt for: ${email}`);
+          return null;
+        }
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        };
       },
     }),
   ],

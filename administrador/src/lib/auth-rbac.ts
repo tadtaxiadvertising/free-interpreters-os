@@ -22,14 +22,42 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     CredentialsProvider({
       credentials: { email: {}, password: {} },
       async authorize(credentials) {
-        const { email, password } = LoginSchema.parse(credentials);
+        let email, password;
+        try {
+          const parsed = LoginSchema.parse(credentials);
+          email = parsed.email.toLowerCase().trim();
+          password = parsed.password;
+        } catch (err) {
+          console.log(`[AUTH] Validation error for input credentials`);
+          return null;
+        }
 
-        const user = await prisma.rbacUser.findUnique({
-          where: { email },
-        });
+        let user;
+        try {
+          user = await prisma.rbacUser.findUnique({
+            where: { email },
+          });
+        } catch (dbError) {
+          console.error(`[AUTH] Database connection error during lookup for ${email}:`, dbError);
+          throw new Error("Database connection error");
+        }
 
-        if (!user || !(await bcrypt.compare(password, user.password))) {
-          throw new Error("Invalid credentials");
+        if (!user) {
+          console.warn(`[AUTH] User not found: ${email}`);
+          return null;
+        }
+
+        let isPasswordValid = false;
+        try {
+          isPasswordValid = await bcrypt.compare(password, user.password);
+        } catch (compareError) {
+          console.error(`[AUTH] bcrypt comparison error for ${email}:`, compareError);
+          throw new Error("Password comparison error");
+        }
+
+        if (!isPasswordValid) {
+          console.warn(`[AUTH] Invalid password attempt for: ${email}`);
+          return null;
         }
 
         return {
