@@ -302,7 +302,7 @@ export async function forgotPassword(formData: FormData): Promise<ActionResult> 
     const expiresAt = new Date(Date.now() + 3600000); // 1 hour expiration
 
     // 3. Store token (upsert to overwrite previous requests)
-    await prisma.rbacPasswordReset.upsert({
+    await (prisma as any).rbacPasswordReset.upsert({
       where: { token }, // This is unique
       update: {
         token,
@@ -346,7 +346,7 @@ export async function resetPassword(formData: FormData): Promise<ActionResult> {
     const prisma = getPrisma();
 
     // 1. Find and validate token
-    const resetRequest = await prisma.rbacPasswordReset.findUnique({
+    const resetRequest = await (prisma as any).rbacPasswordReset.findUnique({
       where: { token: parsed.data.token },
     });
 
@@ -363,7 +363,7 @@ export async function resetPassword(formData: FormData): Promise<ActionResult> {
         where: { email: resetRequest.email },
         data: { password: hashedPassword },
       }),
-      prisma.rbacPasswordReset.delete({
+      (prisma as any).rbacPasswordReset.delete({
         where: { id: resetRequest.id },
       }),
     ]);

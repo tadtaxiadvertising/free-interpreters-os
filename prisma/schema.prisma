@@ -8,6 +8,8 @@ datasource db {
   schemas  = ["auth", "public"]
 }
 
+
+
 model Interpreter {
   id                 Int                      @id @default(autoincrement())
   externalId         String                   @unique @map("external_id")
@@ -777,17 +779,18 @@ model RbacUser {
   @@schema("public")
 }
 
-model RbacPasswordReset {
+model PasswordResetToken {
   id        String   @id @default(cuid())
   email     String
   token     String   @unique
-  expiresAt DateTime
+  expires   DateTime
   createdAt DateTime @default(now())
 
   @@index([email])
-  @@map("rbac_password_resets")
+  @@map("password_reset_tokens")
   @@schema("public")
 }
+
 
 
 model VaultAccount {
