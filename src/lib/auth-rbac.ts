@@ -42,21 +42,46 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     CredentialsProvider({
       credentials: { email: {}, password: {} },
       async authorize(credentials) {
-        const { email, password } = LoginSchema.parse(credentials);
+        let email, password;
+        try {
+          const parsed = LoginSchema.parse(credentials);
+          email = parsed.email.toLowerCase().trim(); // Normalize email to prevent case-sensitivity issues
+          password = parsed.password;
+        } catch (err) {
+          console.log(`[AUTH] Validation error for input credentials`);
+          return null;
+        }
 
-        // LEAN QUERY: Only select fields needed for auth
-        const user = await prisma.rbacUser.findUnique({
-          where: { email },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            role: true,
-            password: true,
-          },
-        });
+        let user;
+        try {
+          // LEAN QUERY: Only select fields needed for auth
+          user = await prisma.rbacUser.findUnique({
+            where: { email },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              role: true,
+              password: true,
+            },
+          });
+        } catch (dbError) {
+          // Explicitly catch DB connection issues to prevent masking as "Invalid credentials"
+          console.error(`[AUTH] Database connection error during lookup for ${email}:`, dbError);
+          throw new Error("Database connection error");
+        }
 
-        if (!user || !(await bcrypt.compare(password, user.password))) {
+        let isPasswordValid = false;
+        try {
+          if (user) {
+            isPasswordValid = await bcrypt.compare(password, user.password);
+          }
+        } catch (compareError) {
+          console.error(`[AUTH] bcrypt comparison error for ${email}:`, compareError);
+          throw new Error("Password comparison error");
+        }
+
+        if (!user || !isPasswordValid) {
           console.log(`[AUTH] Invalid credentials attempt for: ${email}`);
           return null;
         }
