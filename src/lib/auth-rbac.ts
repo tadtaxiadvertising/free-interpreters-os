@@ -87,23 +87,13 @@ const authConfig: NextAuthConfig = {
         console.log(`[AUTH] Login attempt for: ${email}`);
 
         // ── 2. Database Lookup ────────────────────────────
-        let user: {
-          id: string;
-          email: string;
-          name: string;
-          role: string;
-          password: string;
-        } | null = null;
-
         try {
           const prisma = getPrisma();
-          user = await prisma.rbacUser.findFirst({
-            where: {
-              email: {
-                equals: email,
-                mode: "insensitive",
-              },
-            },
+          
+          // Use findUnique for O(1) lookup on the @unique email field.
+          // We normalize the email before lookup to match the seed behavior.
+          const user = await prisma.rbacUser.findUnique({
+            where: { email },
             select: {
               id: true,
               email: true,
@@ -114,43 +104,39 @@ const authConfig: NextAuthConfig = {
           });
 
           if (!user) {
-            console.warn(`[AUTH] User NOT FOUND in rbac_users: ${email}`);
+            console.warn(`[AUTH] ❌ Authentication failed: User not found [${email}]`);
+            // We return null to signify invalid credentials to Auth.js
             return null;
           }
 
-          console.log(`[AUTH] User found: ${user.email} (ID: ${user.id}, Role: ${user.role})`);
-        } catch (dbError) {
-          console.error(
-            `[AUTH] Database error during lookup for ${email}:`,
-            dbError instanceof Error ? dbError.message : dbError
-          );
-          return null;
-        }
+          console.log(`[AUTH] 🔍 User found: ${user.email} (Role: ${user.role})`);
 
-        // ── 3. Password Verification ─────────────────────
-        try {
+          // ── 3. Password Verification ─────────────────────
           const isValid = await bcrypt.compare(password, user.password);
+          
           if (!isValid) {
-            console.warn(`[AUTH] Password mismatch for: ${email}`);
+            console.warn(`[AUTH] ❌ Authentication failed: Password mismatch [${email}]`);
             return null;
           }
-        } catch (compareError) {
+
+          console.log(`[AUTH] ✅ Authentication successful: ${email}`);
+
+          // ── 4. Return user (password excluded from JWT) ──
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          };
+        } catch (error) {
           console.error(
-            `[AUTH] bcrypt error for ${email}:`,
-            compareError instanceof Error ? compareError.message : compareError
+            `[AUTH] 🚨 Critical error during authorize for ${email}:`,
+            error instanceof Error ? error.message : "Unknown error"
           );
+          // In v5, throwing an error inside authorize triggers a redirect to the error page
           return null;
         }
 
-        console.log(`[AUTH] ✅ Authentication successful: ${email} (${user.role})`);
-
-        // ── 4. Return user (password excluded from JWT) ──
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        };
       },
     }),
   ],
