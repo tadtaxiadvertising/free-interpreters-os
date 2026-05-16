@@ -4,6 +4,7 @@ import { getPrisma } from "@/lib/prisma";
 import { signIn } from "@/lib/auth-rbac";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import crypto from "crypto";
 import type { RbacRole } from "@prisma/client";
 
 /**
@@ -54,6 +55,15 @@ const ProvisionSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
   name: z.string().min(2, "Name required").max(100),
   role: z.enum(["ADMIN", "HOLDER", "INTERPRETER"]),
+});
+
+const ForgotPasswordSchema = z.object({
+  email: z.string().email("A valid email is required"),
+});
+
+const ResetPasswordSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 // ── Types ───────────────────────────────────────────────────
@@ -256,3 +266,113 @@ export async function provisionUser(data: {
     return { success: false, error: "User provisioning failed" };
   }
 }
+
+// ── 4. FORGOT PASSWORD ACTION ──────────────────────────────
+/**
+ * Generates a password reset token and saves it to the database.
+ * In production, this would also send an email via Resend/SMTP.
+ */
+export async function forgotPassword(formData: FormData): Promise<ActionResult> {
+  const email = formData.get("email") as string;
+  const parsed = ForgotPasswordSchema.safeParse({ email });
+
+  if (!parsed.success) {
+    return { success: false, error: "A valid email is required" };
+  }
+
+  const normalizedEmail = parsed.data.email.toLowerCase().trim();
+
+  try {
+    const prisma = getPrisma();
+
+    // 1. Verify user exists
+    const user = await prisma.rbacUser.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+
+    if (!user) {
+      // Security: Don't reveal if user exists, just return success
+      console.warn(`[RBAC-AUTH] Forgot password requested for non-existent email: ${normalizedEmail}`);
+      return { success: true };
+    }
+
+    // 2. Generate secure token
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hour expiration
+
+    // 3. Store token (upsert to overwrite previous requests)
+    await prisma.rbacPasswordReset.upsert({
+      where: { token }, // This is unique
+      update: {
+        token,
+        expiresAt,
+      },
+      create: {
+        email: normalizedEmail,
+        token,
+        expiresAt,
+      },
+    });
+
+    // 4. Send Email (PLACEHOLDER)
+    // TODO: Integrate with Resend or SMTP provider
+    console.log(`[RBAC-AUTH] ✉️ Password reset link generated for ${normalizedEmail}:`);
+    console.log(`[RBAC-AUTH] URL: /portal-rbac/reset-password?token=${token}`);
+
+    return { success: true };
+  } catch (err) {
+    console.error("[RBAC-AUTH] Forgot password error:", err instanceof Error ? err.message : err);
+    return { success: false, error: "An error occurred. Please try again later." };
+  }
+}
+
+// ── 5. RESET PASSWORD ACTION ────────────────────────────────
+/**
+ * Validates a reset token and updates the user's password.
+ */
+export async function resetPassword(formData: FormData): Promise<ActionResult> {
+  const token = formData.get("token") as string;
+  const password = formData.get("password") as string;
+
+  const parsed = ResetPasswordSchema.safeParse({ token, password });
+
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    return { success: false, error: fieldErrors.password?.[0] || "Invalid input" };
+  }
+
+  try {
+    const prisma = getPrisma();
+
+    // 1. Find and validate token
+    const resetRequest = await prisma.rbacPasswordReset.findUnique({
+      where: { token: parsed.data.token },
+    });
+
+    if (!resetRequest || resetRequest.expiresAt < new Date()) {
+      return { success: false, error: "The reset link is invalid or has expired." };
+    }
+
+    // 2. Hash new password
+    const hashedPassword = await bcrypt.hash(parsed.data.password, BCRYPT_SALT_ROUNDS);
+
+    // 3. Update user and delete token (transactional)
+    await prisma.$transaction([
+      prisma.rbacUser.update({
+        where: { email: resetRequest.email },
+        data: { password: hashedPassword },
+      }),
+      prisma.rbacPasswordReset.delete({
+        where: { id: resetRequest.id },
+      }),
+    ]);
+
+    console.log(`[RBAC-AUTH] ✅ Password reset successful for: ${resetRequest.email}`);
+    return { success: true };
+  } catch (err) {
+    console.error("[RBAC-AUTH] Reset password error:", err instanceof Error ? err.message : err);
+    return { success: false, error: "Failed to reset password. Please try again." };
+  }
+}
+

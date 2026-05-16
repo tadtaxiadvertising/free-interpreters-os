@@ -777,6 +777,19 @@ model RbacUser {
   @@schema("public")
 }
 
+model RbacPasswordReset {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@map("rbac_password_resets")
+  @@schema("public")
+}
+
+
 model VaultAccount {
   id            String            @id @default(cuid())
   platformName  String
