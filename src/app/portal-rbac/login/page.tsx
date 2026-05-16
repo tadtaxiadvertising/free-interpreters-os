@@ -21,7 +21,7 @@ export default function PortalLoginPage() {
         setError(result.error);
       } else if (result?.success) {
         setSuccess("Autenticación exitosa. Redireccionando...");
-        window.location.href = "/portal-rbac/dashboard";
+        window.location.href = "/portal-rbac";
       }
     });
   };
