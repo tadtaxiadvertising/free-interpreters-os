@@ -25,6 +25,7 @@ import type { NextAuthConfig } from "next-auth";
  * ============================================================
  */
 export const authConfig = {
+  secret: process.env.AUTH_SECRET || "fallback-secret-for-build-123",
   providers: [], // Providers are added in auth-rbac.ts (server-only)
   trustHost: true,
   session: {

@@ -50,10 +50,17 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+ARG DATABASE_URL
+ARG NEXTAUTH_SECRET
+ARG AUTH_SECRET
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=80
 ENV AUTH_TRUST_HOST=true
+ENV DATABASE_URL=$DATABASE_URL
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
+ENV AUTH_SECRET=$AUTH_SECRET
 ENV HOSTNAME="0.0.0.0"
 
 # MEMORY OPTIMIZATION: Para VPS de <150MB RAM

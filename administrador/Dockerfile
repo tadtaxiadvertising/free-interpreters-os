@@ -57,11 +57,17 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/node_modules ./n
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Runtime config
+ARG DATABASE_URL
+ARG NEXTAUTH_SECRET
+ARG AUTH_SECRET
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=80
 ENV AUTH_TRUST_HOST=true
-# CRÍTICO: visible desde el proxy de Easypanel
+ENV DATABASE_URL=$DATABASE_URL
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
+ENV AUTH_SECRET=$AUTH_SECRET
 ENV HOSTNAME="0.0.0.0"
 
 # MEMORY OPTIMIZATION: Para VPS de <150MB RAM

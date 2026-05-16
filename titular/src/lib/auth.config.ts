@@ -5,7 +5,9 @@ import type { NextAuthConfig } from "next-auth";
  * Contains configuration that can run on the Edge Runtime (no Prisma/Node modules).
  */
 export const authConfig = {
+  secret: process.env.AUTH_SECRET || "fallback-secret-for-build-123",
   providers: [], // Providers will be added in the main auth-rbac.ts
+  trustHost: true,
   session: { 
     strategy: "jwt", 
     maxAge: 8 * 60 * 60 // 8h session

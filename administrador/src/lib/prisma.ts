@@ -54,30 +54,3 @@ const prisma = globalForPrisma._prisma ?? createPrismaClient();
 globalForPrisma._prisma = prisma;
 
 export default prisma;
-
-// ── Shutdown Graceful ────────────────────────────────────────
-if (typeof process !== 'undefined') {
-  let isShuttingDown = false;
-
-  const shutdown = async () => {
-    if (isShuttingDown) return;
-    isShuttingDown = true;
-
-    console.log('🔄 PRISMA: Graceful shutdown initiated (administrador)...');
-    try {
-      await prisma.$disconnect();
-      if (globalForPrisma._pool) {
-        await globalForPrisma._pool.end();
-        globalForPrisma._pool = undefined;
-      }
-      console.log('✅ PRISMA: Pool closed cleanly (administrador).');
-    } catch (err) {
-      console.error('⚠️ PRISMA: Error during shutdown:', err instanceof Error ? err.message : err);
-    }
-  };
-
-  process.removeAllListeners('SIGTERM');
-  process.removeAllListeners('SIGINT');
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
-}
