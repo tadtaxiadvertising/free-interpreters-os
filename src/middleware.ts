@@ -1,17 +1,23 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { updateSession } from '@/lib/supabase/middleware';
 
 /**
- * MIDDLEWARE — INTERPRETERS-API
+ * MIDDLEWARE — FREE INTERPRETERS OS
  * ============================================================
  * RESPONSABILIDADES:
- *   1. CORS Preflight (OPTIONS) → respuesta inmediata 204
- *   2. Auth Guard → redirige rutas protegidas si no hay sesión
+ *   1. Supabase Session Refresh → mantiene tokens válidos
+ *   2. CORS Preflight (OPTIONS) → respuesta inmediata 204
+ *   3. CORS Headers → en todas las respuestas /api/*
  *
  * ARQUITECTURA:
  *   El middleware corre en Edge Runtime. No puede importar Prisma,
- *   pg, ni ningún módulo de Node.js puro. Solo verifica cookies.
- * 
+ *   pg, ni ningún módulo de Node.js puro.
+ *
+ *   La función updateSession() de Supabase SSR es la pieza CRÍTICA
+ *   que refresca los tokens de autenticación en cada request.
+ *   Sin ella, las cookies expiran y auth() falla en server components.
+ *
  * CORS:
  *   Los headers se aplican TANTO aquí (preflight) como en
  *   next.config.ts (responses). Esto garantiza cobertura completa
@@ -21,19 +27,19 @@ import type { NextRequest } from 'next/server';
 
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://freeinterpreters.com";
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const origin = req.headers.get('origin');
-  
-  // ── CORS LOGIC ─────────────────────────────────────────────
-  const isTrustedOrigin = !origin || 
-    origin === FRONTEND_ORIGIN || 
-    origin.endsWith('.easypanel.host') || 
+
+  // ── CORS ORIGIN VALIDATION ────────────────────────────────
+  const isTrustedOrigin = !origin ||
+    origin === FRONTEND_ORIGIN ||
+    origin.endsWith('.easypanel.host') ||
     origin.includes('localhost');
 
   const corsOrigin = isTrustedOrigin && origin ? origin : FRONTEND_ORIGIN;
 
-  // ── 1. CORS PREFLIGHT ──────────────────────────────────────
+  // ── 1. CORS PREFLIGHT ─────────────────────────────────────
   if (req.method === 'OPTIONS') {
     return new NextResponse(null, {
       status: 204,
@@ -47,22 +53,13 @@ export function middleware(req: NextRequest) {
     });
   }
 
-  // ... (Rest of auth logic)
-  const nextAuthToken = req.cookies.get('next-auth.session-token')?.value || 
-                       req.cookies.get('__Secure-next-auth.session-token')?.value;
-                       
-  const supabaseToken = req.cookies.getAll().find(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token'))?.value;
-  const sessionToken = nextAuthToken || supabaseToken;
+  // ── 2. SUPABASE SESSION REFRESH (CRITICAL) ────────────────
+  // This refreshes the auth tokens on every request.
+  // Without this, server components calling supabase.auth.getUser()
+  // will get stale/expired tokens and redirect to /login.
+  const response = await updateSession(req);
 
-  const isProtectedRoute = /^\/(admin|payroll|qa|production|recruitment|interpreters|settings)/.test(pathname);
-
-  if (isProtectedRoute && !sessionToken) {
-    return NextResponse.redirect(new URL('/', req.url));
-  }
-
-  const response = NextResponse.next();
-  
-  // ── 3. PROPAGATE CORS ON ALL API RESPONSES ─────────────────
+  // ── 3. PROPAGATE CORS ON ALL API RESPONSES ────────────────
   if (pathname.startsWith('/api/')) {
     response.headers.set('Access-Control-Allow-Origin', corsOrigin);
     response.headers.set('Access-Control-Allow-Credentials', 'true');
@@ -72,7 +69,6 @@ export function middleware(req: NextRequest) {
 
   return response;
 }
-
 
 // MATCHER MAESTRO: Ignora _next, archivos estáticos e imágenes.
 // INCLUYE /api para que el preflight CORS sea procesado.
