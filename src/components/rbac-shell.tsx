@@ -8,16 +8,16 @@ type NavItem = { label: string; href: string; icon: React.ReactNode };
 
 const ROLE_NAV: Record<string, NavItem[]> = {
   ADMIN: [
-    { label: "Dashboard", href: "/portal-rbac/admin", icon: <BarChart /> },
+    { label: "Dashboard", href: "/portal-rbac/admin/dashboard", icon: <BarChart /> },
     { label: "Usuarios", href: "/portal-rbac/admin/users", icon: <Users /> },
     { label: "Moderación", href: "/portal-rbac/admin/messages", icon: <MessageSquare /> },
   ],
   HOLDER: [
-    { label: "Mis Cuentas", href: "/portal-rbac/holder", icon: <Briefcase /> },
+    { label: "Mis Cuentas", href: "/portal-rbac/holder/dashboard", icon: <Briefcase /> },
     { label: "Mensajes", href: "/portal-rbac/holder/messages", icon: <MessageSquare /> },
   ],
   INTERPRETER: [
-    { label: "Cuentas Asignadas", href: "/portal-rbac/interpreter", icon: <Key /> },
+    { label: "Cuentas Asignadas", href: "/portal-rbac/interpreter/dashboard", icon: <Key /> },
     { label: "Mensajes", href: "/portal-rbac/interpreter/messages", icon: <MessageSquare /> },
   ],
 };
