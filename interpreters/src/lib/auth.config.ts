@@ -4,8 +4,13 @@ import type { NextAuthConfig } from "next-auth";
  * RBAC Auth Configuration — Edge-compatible subset
  * Contains configuration that can run on the Edge Runtime (no Prisma/Node modules).
  */
+// Force AUTH_SECRET to avoid MissingSecret error in production
+if (!process.env.AUTH_SECRET) {
+  process.env.AUTH_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-for-build-123";
+}
+
 export const authConfig = {
-  secret: process.env.AUTH_SECRET || "fallback-secret-for-build-123",
+  secret: process.env.AUTH_SECRET,
   providers: [], // Providers will be added in the main auth-rbac.ts
   trustHost: true,
   session: { 

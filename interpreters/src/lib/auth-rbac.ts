@@ -24,20 +24,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const { email, password } = LoginSchema.parse(credentials);
 
-        const user = await prisma.rbacUser.findUnique({
-          where: { email },
-        });
+        try {
+          const user = await prisma.rbacUser.findUnique({
+            where: { email },
+          });
 
-        if (!user || !(await bcrypt.compare(password, user.password))) {
-          throw new Error("Invalid credentials");
+          if (!user || !(await bcrypt.compare(password, user.password))) {
+            console.warn(`[AUTH] Invalid credentials attempt for: ${email}`);
+            throw new Error("Invalid credentials");
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          };
+        } catch (error) {
+          console.error("[AUTH] Database or comparison error:", error);
+          if (error instanceof Error && error.message === "Invalid credentials") {
+            throw error;
+          }
+          throw new Error("Internal server error during authentication");
         }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        };
       },
     }),
   ],

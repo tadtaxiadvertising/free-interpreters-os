@@ -32,7 +32,7 @@ function createPrismaClient(): PrismaClient {
     max: 1, 
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
-    allowExitOnIdle: true,
+    // Removed allowExitOnIdle: true to prevent pool closure during health checks
   });
 
   pool.on('error', (err) => {
@@ -44,10 +44,28 @@ function createPrismaClient(): PrismaClient {
   globalForPrisma._pool = pool;
   const adapter = new PrismaPg(pool);
 
-  return new PrismaClient({
+  const client = new PrismaClient({
     log: ['error', 'warn'],
     adapter,
   });
+
+  // Protect against pool.end() calls by neutralizing it in production if possible
+  // or at least logging who called it.
+  if (process.env.NODE_ENV === 'production') {
+    const originalEnd = pool.end.bind(pool);
+    pool.end = async () => {
+      console.warn('⚠️ PRISMA: pool.end() was called! (interpreters)');
+      console.trace('Pool closure stack trace:');
+      // If we are NOT in a shutdown phase, this is likely a bug
+      if (!(globalThis as any)._isShuttingDown) {
+        console.error('❌ PRISMA: pool.end() called unexpectedly (interpreters)');
+        return; // Prevent ending the pool if not shutting down
+      }
+      return originalEnd();
+    };
+  }
+
+  return client;
 }
 
 export const prisma = globalForPrisma._prisma ?? createPrismaClient();
