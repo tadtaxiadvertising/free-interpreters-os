@@ -20,6 +20,7 @@ import type { NextAuthConfig } from "next-auth";
  */
 export const authConfig = {
   providers: [], // Providers are added in auth-rbac.ts (server-only)
+  trustHost: true,
   session: {
     strategy: "jwt",
     maxAge: 8 * 60 * 60, // 8 hours — one interpreter shift

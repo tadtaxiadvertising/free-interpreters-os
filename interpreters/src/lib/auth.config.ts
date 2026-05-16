@@ -6,6 +6,7 @@ import type { NextAuthConfig } from "next-auth";
  */
 export const authConfig = {
   providers: [], // Providers will be added in the main auth-rbac.ts
+  trustHost: true,
   session: { 
     strategy: "jwt", 
     maxAge: 8 * 60 * 60 // 8h session
