@@ -59,6 +59,7 @@ export async function updateSession(request: NextRequest) {
     '/reset-password', 
     '/auth',            // Supabase auth callback
     '/portal-rbac',     // RBAC portal uses its own Auth.js auth
+    '/unauthorized',    // Error/Access Denied page
   ];
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
 

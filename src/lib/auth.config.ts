@@ -65,5 +65,6 @@ export const authConfig = {
   },
   pages: {
     signIn: "/portal-rbac/login",
+    error: "/portal-rbac/login", // Redirect errors back to login
   },
 } satisfies NextAuthConfig;

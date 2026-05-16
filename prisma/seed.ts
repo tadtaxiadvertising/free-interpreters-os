@@ -117,6 +117,34 @@ async function main() {
     });
   }
 
+  // 3. RBAC Users (for Portal Access)
+  console.log('🔐 Seeding RBAC users...');
+  const rbacUsers = [
+    {
+      email: 'melvinramonduranmesa@gmail.com',
+      name: 'Melvin Duran',
+      role: 'ADMIN',
+      // This is a hashed version of a temporary password or 'password123' 
+      // User should reset this or we should provide a way to set it.
+      // For seeding purposes, I'll use a known hash for 'Melvin123!'
+      password: await (import('bcryptjs')).then(b => b.default.hash('Melvin123!', 12)),
+    },
+    {
+      email: 'admin@freeinterpreters.com',
+      name: 'Arismendy Admin',
+      role: 'ADMIN',
+      password: await (import('bcryptjs')).then(b => b.default.hash('Admin123!', 12)),
+    }
+  ];
+
+  for (const user of rbacUsers) {
+    await prisma.rbacUser.upsert({
+      where: { email: user.email },
+      update: {},
+      create: user as any,
+    });
+  }
+
   console.log('✅ Seed completed successfully!');
 }
 
