@@ -57,7 +57,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
 
         if (!user || !(await bcrypt.compare(password, user.password))) {
-          throw new Error("Invalid credentials");
+          console.log(`[AUTH] Invalid credentials attempt for: ${email}`);
+          return null;
         }
 
         // Return user object (password excluded from token)
