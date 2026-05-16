@@ -3,13 +3,13 @@
 > **Service**: `interpreters-api` (Backend — co-located with Frontend)
 > **Base URL**: `https://api.freeinterpreters.com` (production) / `http://localhost:3001` (local)
 > **Auth**: All endpoints require a valid Supabase `Authorization: Bearer <token>` header unless marked as public.
-> **Runtime**: Next.js 16.2.4 — All dynamic route params are `Promise<{ id: string }>`.
+> **Runtime**: Next.js 15.2.6 — All dynamic route params are `Promise<{ id: string }>`.
 
 All endpoints reside and execute **exclusively** within the Next.js application. The Frontend
 communicates with these endpoints via `NEXT_PUBLIC_API_URL` or directly via Server Actions.
 Endpoints are designed for fast `< 10s` execution within Supabase free-tier limits.
 
-## Dynamic Routes in Next.js 16.2.4
+## Dynamic Routes in Next.js 15.2.6
 
 > **Critical**: All dynamic API routes must handle parameters asynchronously.
 

@@ -23,7 +23,6 @@ const LOGIN_SELECT = {
   password: true,
   name: true,
   role: true,
-  interpreterId: true,
 } as const;
 
 // What we return to the client (no password hash!)
@@ -32,7 +31,6 @@ const USER_SAFE_SELECT = {
   email: true,
   name: true,
   role: true,
-  interpreterId: true,
   createdAt: true,
 } as const;
 
@@ -41,7 +39,7 @@ export class AuthService {
   static async login(data: LoginInput) {
     const { email, password } = data;
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.rbacUser.findUnique({
       where: { email: email.toLowerCase().trim() },
       select: LOGIN_SELECT,
     });
@@ -61,10 +59,9 @@ export class AuthService {
         id: user.id,
         email: user.email,
         role: user.role,
-        interpreterId: user.interpreterId,
       },
       ENV.JWT_SECRET,
-      { expiresIn: ENV.JWT_EXPIRES_IN }
+      { expiresIn: ENV.JWT_EXPIRES_IN as any }
     );
 
     return {
@@ -74,16 +71,15 @@ export class AuthService {
         email: user.email,
         role: user.role,
         name: user.name,
-        interpreterId: user.interpreterId,
       },
     };
   }
 
   static async register(data: RegisterInput) {
-    const { email, password, name, role, interpreterId } = data;
+    const { email, password, name, role } = data;
 
     // Check for existing user before hashing (save CPU on duplicate)
-    const existing = await prisma.user.findUnique({
+    const existing = await prisma.rbacUser.findUnique({
       where: { email: email.toLowerCase().trim() },
       select: { id: true },
     });
@@ -94,13 +90,12 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    return prisma.user.create({
+    return prisma.rbacUser.create({
       data: {
         email: email.toLowerCase().trim(),
         password: hashedPassword,
         name: name.trim(),
-        role,
-        interpreterId,
+        role: role as any,
       },
       select: USER_SAFE_SELECT,
     });

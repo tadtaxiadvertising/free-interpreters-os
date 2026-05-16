@@ -1,49 +1,43 @@
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Heed deprecation notices and follow the established project patterns.
 
 ## Pinned Version (Verified by Easypanel success log)
 
 - **Next.js**: `15.2.6` (Strictly Required)
-- **React**: `19.0.0`
+- **React**: `19.0.0` (React 19)
 - **Prisma**: `7.8.0` (with `@prisma/adapter-pg`)
+- **Tailwind CSS**: `v4`
 
-## Critical Breaking Changes (vs. Next.js 15)
+## Critical Breaking Changes (Next.js 15+)
 
 ### 1. Async Dynamic Route Parameters
 
-In Next.js 16+, `params` in dynamic route handlers (`[id]`, `[slug]`, etc.) are now a **Promise**. You must `await` them before accessing properties.
+In Next.js 15+, `params` in dynamic route handlers (`[id]`, `[slug]`, etc.) and layouts are now a **Promise**. You must `await` them before accessing properties.
 
 ```typescript
-// ❌ WRONG — will throw a runtime error
-export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const id = params.id; // TypeError: Cannot read property 'id' of a Promise
-}
-
-// ✅ CORRECT — Next.js 16.2.4 convention
+// ✅ CORRECT — Next.js 15.2.6 convention
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params;
   const id = resolvedParams.id;
 }
 ```
 
-### 3.2 Middleware → Proxy Transition
+### 2. Middleware & Auth Integration
 
-As documented in the Next.js 16 specifications and verified by our deployment logs, the `middleware.ts` convention is deprecated.
+- **Current State**: `src/middleware.ts` handles **both** Supabase Auth session refreshing and Auth.js (NextAuth) session protection for `/portal-rbac`.
+- **Logic**: 
+  1. `updateSession(req)` from Supabase is called first to refresh cookies.
+  2. RBAC protection checks the `next-auth.session-token` (or `__Secure-` variant).
+- **Do NOT** move RBAC logic out of middleware unless instructed; it is the current gatekeeper.
 
-- **Current State**: `src/middleware.ts` handles **only** Supabase Auth session refreshing.
-- **Future State**: All interceptor logic should move to the **Proxy** layer.
-- **Rewrites**: All API forwarding and URL masking must reside in `next.config.ts` `rewrites()`. This ensures the standalone build routes traffic correctly through the Node.js server.
-- **Edge Logic**: Move to the `proxy` directory if required by your version, or keep `src/middleware.ts` **ONLY** for Supabase session management as per our current stable build.
-- **Do NOT** add business logic or API proxying to `src/middleware.ts`. This will trigger deployment warnings and potential 502s on Easypanel.
+### 3. Configuration (Next.js 15+)
 
-### 3. Configuration Changes
-
-`outputFileTracingIncludes` is now a **top-level** config property in `next.config.ts`, no longer nested under `experimental`.
+`outputFileTracingIncludes` is a top-level config property in `next.config.ts`.
 
 ```typescript
-// ✅ next.config.ts (Next.js 16+)
+// ✅ next.config.ts
 const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["@prisma/client", "prisma", "@prisma/adapter-pg", "pg"],
@@ -53,19 +47,32 @@ const nextConfig: NextConfig = {
 };
 ```
 
-## Prisma 7 + pg Adapter
+## Prisma 7 + pg Adapter (Singleton Pattern)
 
-This project uses `@prisma/adapter-pg` with a raw `pg.Pool`. Do NOT initialize `PrismaClient` with a `datasourceUrl` — the adapter handles connection management.
+This project uses `@prisma/adapter-pg` with a raw `pg.Pool` (max 5 connections). 
+- **Singleton**: Import `prisma` from `@/lib/prisma`.
+- **Pool Management**: Avoid calling `prisma.$disconnect()` or `pool.end()` in standard request flows, as it will break subsequent requests with "Cannot use a pool after calling end".
 
-```typescript
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-```
+## Common Troubleshooting (Memory for Agents)
+
+### 1. Auth: UntrustedHost or MissingSecret
+- Ensure `AUTH_TRUST_HOST=true` is set (automated in `src/lib/auth-rbac.ts`).
+- Ensure `AUTH_SECRET` is defined in Easypanel/Env.
+- If using a proxy, verify `NEXTAUTH_URL` matches the public domain.
+
+### 2. Auth: Invalid Credentials (Email Normalization)
+- `authorize()` in `src/lib/auth-rbac.ts` normalizes emails with `.toLowerCase().trim()`. 
+- When creating users manually via SQL or Seed, ALWAYS store emails in lowercase.
+
+### 3. API Security: Body Consumption
+- Use `req.clone()` if you need to read the request body in a wrapper (like `withSecurity`) before passing it to the handler.
+
+### 4. Prisma: Build Failures on CI/CD
+- If Prisma fails to validate `DATABASE_URL` during `next build`, ensure the environment variable is available or provided as a dummy during build time.
 
 ## Build Output
 
-- Output mode: `standalone` (produces `server.js` + `.next/static`)
-- Runtime command: `node server.js`
-- Docker: multistage build with `node:22-alpine`
+- Output mode: `standalone`
+- Runtime: `node server.js`
+- Docker: Multi-stage with `node:22-alpine`
 <!-- END:nextjs-agent-rules -->

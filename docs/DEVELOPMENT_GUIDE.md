@@ -55,7 +55,7 @@ export async function myAction(data: unknown) {
 
 ## 4. UI Standards
 
-- **Framework**: Next.js 16 (App Router)
+- **Framework**: Next.js 15.2.6 (App Router)
 - **Styling**: Tailwind CSS v4
 - **Components**: Reusable UI components are located in `src/components/`.
 

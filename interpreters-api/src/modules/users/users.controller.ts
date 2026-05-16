@@ -33,7 +33,6 @@ const USER_SELECT = {
   role: true,
   createdAt: true,
   updatedAt: true,
-  interpreterId: true,
 } as const;
 
 
@@ -47,17 +46,17 @@ export async function listUsers(req: Request, res: Response): Promise<void> {
   const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
   const skip = (page - 1) * limit;
 
-  const where = role ? { role: role as 'ADMIN' | 'INTERPRETER' | 'ACCOUNT_HOLDER' } : {};
+  const where = role ? { role: role as 'ADMIN' | 'INTERPRETER' | 'HOLDER' } : {};
 
   const [users, total] = await Promise.all([
-    prisma.user.findMany({
+    prisma.rbacUser.findMany({
       where,
       select: USER_SELECT,
       skip,
       take: limit,
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.user.count({ where }),
+    prisma.rbacUser.count({ where }),
   ]);
 
   res.json({
@@ -80,7 +79,7 @@ export async function listUsers(req: Request, res: Response): Promise<void> {
 export async function getUserById(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
 
-  const user = await prisma.user.findUnique({
+  const user = await prisma.rbacUser.findUnique({
     where: { id },
     select: USER_SELECT,
   });
@@ -104,12 +103,12 @@ export async function createUser(req: Request, res: Response): Promise<void> {
   // Hash password — bcrypt with cost factor 10 (balanced for VPS CPU)
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const user = await prisma.user.create({
+  const user = await prisma.rbacUser.create({
     data: {
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       name: name.trim(),
-      role,
+      role: role as any,
     },
     select: USER_SELECT,
   });
@@ -128,7 +127,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   const updateData = req.body as UpdateUserInput;
 
   // Verify user exists before update (explicit 404 vs Prisma's P2025)
-  const existing = await prisma.user.findUnique({
+  const existing = await prisma.rbacUser.findUnique({
     where: { id },
     select: { id: true },
   });
@@ -137,7 +136,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     throw AppError.notFound(`User with ID ${id} not found`);
   }
 
-  const user = await prisma.user.update({
+  const user = await prisma.rbacUser.update({
     where: { id },
     data: updateData,
     select: USER_SELECT,
@@ -156,7 +155,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
 export async function deleteUser(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
 
-  await prisma.user.delete({
+  await prisma.rbacUser.delete({
     where: { id },
   });
 

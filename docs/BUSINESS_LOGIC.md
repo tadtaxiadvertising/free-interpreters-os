@@ -48,3 +48,11 @@ The candidate flows strictly through the following states:
 3. **Evaluación (Roleplay)**: Candidate takes the language/interpretation test.
 4. **Rechazado** OR **Contratado**: Based on `resultRoleplay` and background checks.
 5. *(System Action)*: If `Contratado`, an automated trigger creates a record in the `interpreters` table and provisions their external ID.
+
+## 4. RBAC & Vault Logic (Control de Acceso)
+
+The platform enforces strict role separation using NextAuth/Auth.js with a unified `RbacUser` schema.
+
+1. **Admin (ADMIN)**: Has unrestricted access. Can view all interpreters, payroll, and moderate Vault accounts.
+2. **Account Holder (HOLDER)**: Owns Vault accounts containing external platform credentials. Holders can securely assign their Vault accounts to specific Interpreters without revealing the underlying passwords (via encrypted transmission and secure proxying, currently in progress).
+3. **Interpreter (INTERPRETER)**: Can only view their own performance metrics, shift schedules, and the specific Vault accounts assigned to them. They use the portal strictly for their daily operational needs.

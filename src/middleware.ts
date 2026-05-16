@@ -56,7 +56,14 @@ export async function middleware(req: NextRequest) {
   if (isRbacProtectedRoute && !nextAuthToken) {
     const url = req.nextUrl.clone();
     url.pathname = '/portal-rbac/login';
-    return NextResponse.redirect(url);
+    
+    // CRITICAL: Preserve cookies from updateSession (Supabase) 
+    // even when redirecting for RBAC.
+    const redirectResponse = NextResponse.redirect(url);
+    response.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value);
+    });
+    return redirectResponse;
   }
 
   // ── 4. API CORS PROPAGATION ────────────────────────────────

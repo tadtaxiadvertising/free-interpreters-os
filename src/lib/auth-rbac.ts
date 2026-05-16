@@ -48,7 +48,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email = parsed.email.toLowerCase().trim(); // Normalize email to prevent case-sensitivity issues
           password = parsed.password;
         } catch (err) {
-          console.log(`[AUTH] Validation error for input credentials`);
+          console.error(`[AUTH] Validation error for input credentials:`, err instanceof z.ZodError ? err.flatten().fieldErrors : err);
           return null;
         }
 
