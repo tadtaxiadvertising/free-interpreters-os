@@ -1,10 +1,4 @@
 import type { NextAuthConfig } from "next-auth";
- 
- // Force trust host for production proxy environments
- if (typeof process !== "undefined") {
-   process.env.AUTH_TRUST_HOST = "true";
- }
-
 
 /**
  * RBAC Auth Configuration — Edge-compatible subset
@@ -13,24 +7,24 @@ import type { NextAuthConfig } from "next-auth";
  * NO Prisma, NO Node.js-only modules, NO database calls.
  *
  * Used by:
- *   - src/middleware.ts (Edge Runtime)
- *   - src/lib/auth-rbac.ts (extends this with providers + DB callbacks)
+ *   - src/lib/auth-rbac-edge.ts (Edge-compatible NextAuth for middleware)
  *
- * SESSION STRATEGY:
- *   JWT-based (no database sessions) to minimize Supabase connection usage.
- *   8-hour expiration aligns with interpreter shift durations.
- *
- * PAGES:
- *   Custom login page at /portal-rbac/login for role-based portal access.
+ * The FULL configuration (with Credentials provider + DB callbacks)
+ * lives in src/lib/auth-rbac.ts and re-exports this config's shape.
  * ============================================================
  */
+
+if (typeof process !== "undefined") {
+  process.env.AUTH_TRUST_HOST = "true";
+}
+
 export const authConfig = {
-  secret: process.env.AUTH_SECRET || "fallback-secret-for-build-123",
-  providers: [], // Providers are added in auth-rbac.ts (server-only)
+  secret: process.env.AUTH_SECRET || "fallback-secret-for-build-only",
+  providers: [],
   trustHost: true,
   session: {
     strategy: "jwt",
-    maxAge: 8 * 60 * 60, // 8 hours — one interpreter shift
+    maxAge: 8 * 60 * 60,
   },
   callbacks: {
     jwt({ token, user }) {
@@ -52,19 +46,15 @@ export const authConfig = {
       const isOnPortal = nextUrl.pathname.startsWith("/portal-rbac");
       const isLoginPage = nextUrl.pathname === "/portal-rbac/login";
 
-      // Allow access to login page always
       if (isLoginPage) return true;
-
-      // Protect all /portal-rbac/* routes
       if (isOnPortal && !isLoggedIn) {
         return Response.redirect(new URL("/portal-rbac/login", nextUrl));
       }
-
       return true;
     },
   },
   pages: {
     signIn: "/portal-rbac/login",
-    error: "/portal-rbac/login", // Redirect errors back to login
+    error: "/portal-rbac/login",
   },
 } satisfies NextAuthConfig;

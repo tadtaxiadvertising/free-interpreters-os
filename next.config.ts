@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
   experimental: { reactCompiler: true },
 
   // Prisma debe ser external para evitar bundling en el serverless edge
-  serverExternalPackages: ['@prisma/client', 'pg'],
+  serverExternalPackages: ['@prisma/client', '@prisma/adapter-pg', 'pg', 'bcryptjs'],
 
   /**
    * CORS + SECURITY HEADERS

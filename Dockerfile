@@ -1,6 +1,6 @@
 # ============================================================
-# FREE INTERPRETERS — FRONTEND MULTI-SERVICE DOCKERFILE
-# Target: Easypanel (Docker/VPS) — STANDALONE + REACT COMPILER
+# FREE INTERPRETERS OS — MULTI-STAGE DOCKERFILE
+# Target: Easypanel (Docker/VPS ~457MB RAM) — STANDALONE BUILD
 # ============================================================
 
 # --- STAGE 1: Dependencies ---
@@ -19,30 +19,26 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma Client for the frontend (NextAuth / Server Actions)
+# Generate Prisma Client (requires schema, NOT DATABASE_URL)
 RUN npx prisma generate
 
-# Build-time args (injected by Easypanel)
+# Build-time args: ONLY public vars needed for static bundling.
+# SENSITIVE vars (DATABASE_URL, AUTH_SECRET) are injected at RUNTIME
+# by Easypanel — they must NOT appear as build ARGs.
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_APP_ROLE
-ARG DATABASE_URL
-ARG DIRECT_URL
-
 
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_ROLE=$NEXT_PUBLIC_APP_ROLE
-ENV DATABASE_URL=$DATABASE_URL
-ENV DIRECT_URL=$DIRECT_URL
-
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Increase Node.js heap to prevent OOM during build on constrained VPS
+# Increase heap during build (build machine has more RAM than runtime)
 ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 RUN npm run build
@@ -55,36 +51,26 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy standalone build (only server.js + minimal node_modules)
+# Copy standalone build (server.js + minimal node_modules)
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Runtime config: Aggressive memory management for VPS
+# Runtime config: Aggressive memory for ~457MB VPS
 ENV PORT=80
 ENV HOSTNAME="0.0.0.0"
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Runtime Config (Must be set in Easypanel)
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_APP_ROLE
-ARG DATABASE_URL
-ARG DIRECT_URL
+# Limit heap to 384MB → triggers GC before the 457MB hard kill
+ENV NODE_OPTIONS="--max-old-space-size=384"
 
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_APP_ROLE=$NEXT_PUBLIC_APP_ROLE
-ENV DATABASE_URL=$DATABASE_URL
-ENV DIRECT_URL=$DIRECT_URL
-# Limit heap to 512MB → triggers GC earlier than host limit, prevents hard OOM kill
-ENV NODE_OPTIONS="--max-old-space-size=512"
-
+# ── HEALTHCHECK ──────────────────────────────────────────────
+# Points to /api/health which does a raw SELECT 1 against the DB.
+# start-period=60s gives the container time to warm up before
+# Easypanel starts counting failures.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://127.0.0.1:80/ || exit 1
+  CMD curl -f http://127.0.0.1:80/api/health || exit 1
 
 USER nextjs
 EXPOSE 80
