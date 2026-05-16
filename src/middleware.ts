@@ -89,13 +89,13 @@ export async function middleware(req: NextRequest) {
   // /portal-rbac/* routes are managed EXCLUSIVELY by Auth.js.
   // Supabase must NEVER interfere with these routes.
   if (pathname.startsWith(RBAC_PREFIX)) {
-    // Allow unauthenticated access to the login page
-    if (pathname === RBAC_LOGIN_PATH) {
-      return NextResponse.next();
-    }
+    // Allow unauthenticated access to the login, forgot-password and reset-password pages
+    const isPublicRbacRoute = 
+      pathname === RBAC_LOGIN_PATH || 
+      pathname === '/portal-rbac/forgot-password' || 
+      pathname.startsWith('/portal-rbac/reset-password');
 
-    // Allow Auth.js API routes to process without interference
-    if (pathname.startsWith('/api/auth')) {
+    if (isPublicRbacRoute) {
       return NextResponse.next();
     }
 
