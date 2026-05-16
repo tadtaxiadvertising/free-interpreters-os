@@ -14,11 +14,18 @@ import type { NextRequest } from 'next/server';
  *   - Supabase session refresh is conditionally loaded
  *   - RBAC guard uses cookie inspection (no DB call in middleware)
  *
+ * FAULT TOLERANCE:
+ *   If env vars are missing at build-time or during static generation,
+ *   the middleware logs a warning and passes the request through.
+ *   This prevents 502 errors from the container orchestrator before
+ *   runtime env vars are injected by Easypanel.
+ *
  * FLOW:
  *   req → health check bypass
+ *       → static assets bypass
  *       → CORS preflight
- *       → Supabase session refresh (if vars present)
- *       → RBAC portal guard (cookie-based)
+ *       → RBAC portal guard (Auth.js cookie-based)
+ *       → Supabase session refresh (if vars present, non-RBAC routes)
  *       → API CORS headers
  *       → response
  * ============================================================
@@ -31,6 +38,21 @@ const HAS_SUPABASE_ENV = !!(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
+
+if (!HAS_SUPABASE_ENV) {
+  console.warn(
+    '[MIDDLEWARE] Supabase env vars missing at module load. ' +
+    'Supabase session refresh will be skipped. ' +
+    'This is expected during `next build` static generation.'
+  );
+}
+
+/** Routes exclusively managed by Auth.js (NextAuth v5) */
+const RBAC_PREFIX = '/portal-rbac';
+const RBAC_LOGIN_PATH = '/portal-rbac/login';
+
+/** Routes exclusively managed by Supabase Auth */
+const SUPABASE_SECURE_PREFIXES = ['/dashboard', '/admin', '/payroll', '/qa'] as const;
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -63,12 +85,46 @@ export async function middleware(req: NextRequest) {
     });
   }
 
-  // ── 2. SUPABASE SESSION REFRESH ───────────────────────────
+  // ── 2. RBAC PORTAL GUARD (Auth.js / NextAuth v5) ──────────
+  // /portal-rbac/* routes are managed EXCLUSIVELY by Auth.js.
+  // Supabase must NEVER interfere with these routes.
+  if (pathname.startsWith(RBAC_PREFIX)) {
+    // Allow unauthenticated access to the login page
+    if (pathname === RBAC_LOGIN_PATH) {
+      return NextResponse.next();
+    }
+
+    // Allow Auth.js API routes to process without interference
+    if (pathname.startsWith('/api/auth')) {
+      return NextResponse.next();
+    }
+
+    // Check for Auth.js session cookies (v5 + legacy variants)
+    const hasRbacSession =
+      req.cookies.has('authjs.session-token') ||
+      req.cookies.has('__Secure-authjs.session-token') ||
+      req.cookies.has('next-auth.session-token') ||
+      req.cookies.has('__Secure-next-auth.session-token');
+
+    if (!hasRbacSession) {
+      const loginUrl = req.nextUrl.clone();
+      loginUrl.pathname = RBAC_LOGIN_PATH;
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // RBAC routes pass through without Supabase session refresh
+    return NextResponse.next();
+  }
+
+  // ── 3. SUPABASE SESSION REFRESH ───────────────────────────
   // Conditionally imported to prevent crashes when env vars are
   // missing during `next build` static generation phase.
+  // Only applies to non-RBAC, non-auth-API routes.
   let response: NextResponse;
 
-  if (HAS_SUPABASE_ENV && !pathname.startsWith('/portal-rbac') && !pathname.startsWith('/api/auth')) {
+  const isAuthApiRoute = pathname.startsWith('/api/auth');
+
+  if (HAS_SUPABASE_ENV && !isAuthApiRoute) {
     try {
       const { updateSession } = await import('@/lib/supabase/middleware');
       response = await updateSession(req);
@@ -83,38 +139,30 @@ export async function middleware(req: NextRequest) {
     response = NextResponse.next({ request: req });
   }
 
-  // ── 3. RBAC PORTAL GUARD ──────────────────────────────────
-  // The /portal-rbac/* routes use Auth.js (NextAuth v5).
-  // We inspect the JWT session cookie directly — NO database call.
-  // Auth.js sets either `authjs.session-token` (v5) or the legacy
-  // `next-auth.session-token` / `__Secure-next-auth.session-token`.
-  const isRbacProtectedRoute =
-    pathname.startsWith('/portal-rbac') &&
-    !pathname.startsWith('/portal-rbac/login');
+  // ── 4. SUPABASE AUTH PROTECTION ───────────────────────────
+  // Dashboard/Admin/Payroll/QA routes require a Supabase session.
+  const isSupabaseSecureRoute = SUPABASE_SECURE_PREFIXES.some(
+    (prefix) => pathname.startsWith(prefix)
+  );
 
-  if (isRbacProtectedRoute) {
-    const hasRbacSession =
-      req.cookies.has('authjs.session-token') ||
-      req.cookies.has('__Secure-authjs.session-token') ||
-      req.cookies.has('next-auth.session-token') ||
-      req.cookies.has('__Secure-next-auth.session-token');
+  if (isSupabaseSecureRoute) {
+    // Check for Supabase auth cookies (multiple possible naming patterns)
+    const hasSupabaseSession =
+      req.cookies.has('sb-access-token') ||
+      // Supabase SSR uses project-ref based cookie names
+      Array.from(req.cookies.getAll()).some(
+        (cookie) =>
+          cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')
+      );
 
-    if (!hasRbacSession) {
+    if (!hasSupabaseSession) {
       const loginUrl = req.nextUrl.clone();
-      loginUrl.pathname = '/portal-rbac/login';
-
-      const redirectResponse = NextResponse.redirect(loginUrl);
-
-      // Preserve Supabase cookies even when redirecting for RBAC
-      response.cookies.getAll().forEach((cookie) => {
-        redirectResponse.cookies.set(cookie.name, cookie.value);
-      });
-
-      return redirectResponse;
+      loginUrl.pathname = '/login';
+      return NextResponse.redirect(loginUrl);
     }
   }
 
-  // ── 4. API CORS HEADERS ───────────────────────────────────
+  // ── 5. API CORS HEADERS ───────────────────────────────────
   if (pathname.startsWith('/api/')) {
     response.headers.set('Access-Control-Allow-Origin', corsOrigin);
     response.headers.set('Access-Control-Allow-Credentials', 'true');

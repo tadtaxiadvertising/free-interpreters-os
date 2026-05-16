@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { getRawPool } from '@/lib/prisma';
 
 /**
  * HEALTH CHECK — /api/health
@@ -9,20 +8,19 @@ import { getRawPool } from '@/lib/prisma';
  * DESIGN:
  *   1. `force-dynamic` prevents Next.js from caching this as a
  *      static page during the build phase.
- *   2. Uses the raw pg.Pool (NOT Prisma) to execute `SELECT 1`.
- *      This is a sub-10ms round-trip that validates the DB
- *      connection without loading any ORM overhead.
- *   3. On failure, returns 200 with `db: "disconnected"` instead
- *      of 500 — this prevents Easypanel from kill-restarting the
- *      container just because Supabase had a momentary hiccup.
- *      The container stays UP; only the DB is flagged as unhealthy.
- *   4. The health endpoint is bypassed by the middleware (no auth,
+ *   2. Returns 200 with `{ status: "healthy" }` unconditionally.
+ *      This is a PURE liveness probe — no DB, no I/O, no auth.
+ *   3. The health endpoint is bypassed by the middleware (no auth,
  *      no Supabase session refresh, no CORS overhead).
+ *   4. Database connectivity should be checked via a separate
+ *      readiness probe, NOT the liveness healthcheck. Coupling
+ *      DB state to container liveness causes cascading restarts
+ *      during transient DB hiccups (the #1 cause of SIGTERM loops).
  *
  * EASYPANEL CONFIG:
  *   Health Check Path: /api/health
- *   Health Check Port: 80
- *   Interval: 30s | Timeout: 10s | Start Period: 60s | Retries: 3
+ *   Health Check Port: 3000
+ *   Interval: 30s | Timeout: 5s | Start Period: 15s | Retries: 3
  * ============================================================
  */
 
@@ -30,36 +28,16 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(): Promise<NextResponse> {
-  const start = Date.now();
-  let dbStatus: 'connected' | 'disconnected' = 'disconnected';
-
-  try {
-    const pool = getRawPool();
-    await pool.query('SELECT 1');
-    dbStatus = 'connected';
-  } catch (err) {
-    console.warn(
-      '[HEALTH] Database ping failed:',
-      err instanceof Error ? err.message : String(err)
-    );
-  }
-
-  const latencyMs = Date.now() - start;
-
   return NextResponse.json(
     {
-      status: 'ok',
-      db: dbStatus,
-      latencyMs,
+      status: 'healthy',
       timestamp: new Date().toISOString(),
       service: 'free-interpreters-os',
-      memoryMB: Math.round(process.memoryUsage.rss() / 1_048_576),
     },
     {
       status: 200,
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'X-Health-Latency': String(latencyMs),
       },
     }
   );

@@ -56,8 +56,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Runtime config: Aggressive memory for ~457MB VPS
-ENV PORT=80
+# ── RUNTIME CONFIG ───────────────────────────────────────────
+# CRITICAL: Port 3000 is the industrial standard for Next.js standalone.
+# Easypanel must expose/proxy to this port. Any mismatch causes
+# healthcheck failures → SIGTERM → restart loops.
+ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -65,14 +68,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Limit heap to 384MB → triggers GC before the 457MB hard kill
 ENV NODE_OPTIONS="--max-old-space-size=384"
 
-# ── HEALTHCHECK ──────────────────────────────────────────────
-# Points to /api/health which does a raw SELECT 1 against the DB.
-# start-period=60s gives the container time to warm up before
-# Easypanel starts counting failures.
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://127.0.0.1:80/api/health || exit 1
-
 USER nextjs
-EXPOSE 80
+EXPOSE 3000
+
+# ── HEALTHCHECK ──────────────────────────────────────────────
+# Points to /api/health (a zero-auth, ultra-fast endpoint).
+# start-period=15s is sufficient for standalone server cold start.
+# Easypanel health check path MUST also point to /api/health:3000.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
 
 CMD ["node", "server.js"]

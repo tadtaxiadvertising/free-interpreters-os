@@ -1,5 +1,23 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+
+/**
+ * DATABASE SEED — FREE INTERPRETERS OS
+ * ============================================================
+ * Idempotent seed script for all core tables.
+ * Safe to run multiple times — uses upsert to prevent duplicates.
+ *
+ * RUN: npx prisma db seed
+ *      (configured via package.json → prisma.seed → "tsx prisma/seed.ts")
+ *
+ * SECURITY NOTE:
+ *   Default passwords are for initial deployment ONLY.
+ *   Change them immediately after first login.
+ * ============================================================
+ */
+
+const SALT_ROUNDS = 12;
 
 const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
 console.log('Connecting to:', connectionString ? 'URL present' : 'MISSING URL');
@@ -10,10 +28,9 @@ if (!connectionString) {
 
 const prisma = new PrismaClient();
 
-async function main() {
-  console.log('🌱 Seeding database...');
+async function seedInterpreters(): Promise<void> {
+  console.log('👥 Seeding interpreters...');
 
-  // 1. Interpreters
   const interpreters = [
     {
       externalId: 'INT-001',
@@ -25,7 +42,7 @@ async function main() {
       tariffPerMinute: 0.15,
       pais: 'Dominican Republic',
       metodoPago: 'PayPal',
-      emailCorporativo: 'arismendy@freeinterpreters.com'
+      emailCorporativo: 'arismendy@freeinterpreters.com',
     },
     {
       externalId: 'INT-002',
@@ -36,7 +53,7 @@ async function main() {
       languageB: 'Inglés',
       tariffPerMinute: 0.18,
       pais: 'Mexico',
-      metodoPago: 'Bank Transfer'
+      metodoPago: 'Bank Transfer',
     },
     {
       externalId: 'INT-003',
@@ -47,7 +64,7 @@ async function main() {
       languageB: 'Inglés',
       tariffPerMinute: 0.12,
       pais: 'Colombia',
-      metodoPago: 'Payoneer'
+      metodoPago: 'Payoneer',
     },
     {
       externalId: 'INT-004',
@@ -58,8 +75,8 @@ async function main() {
       languageB: 'Inglés',
       tariffPerMinute: 0.15,
       pais: 'USA',
-      metodoPago: 'USDT'
-    }
+      metodoPago: 'USDT',
+    },
   ];
 
   for (const int of interpreters) {
@@ -70,7 +87,12 @@ async function main() {
     });
   }
 
-  // 2. Recruitment Candidates
+  console.log(`  ✅ ${interpreters.length} interpreters seeded.`);
+}
+
+async function seedRecruitmentCandidates(): Promise<void> {
+  console.log('📋 Seeding recruitment candidates...');
+
   const candidates = [
     {
       name: 'Marcos Peña',
@@ -106,7 +128,7 @@ async function main() {
       englishLevel: 'B2',
       resultRoleplay: 45,
       fechaPostulacion: new Date('2026-04-15'),
-    }
+    },
   ];
 
   for (const cand of candidates) {
@@ -117,42 +139,78 @@ async function main() {
     });
   }
 
-  // 3. RBAC Users (for Portal Access)
+  console.log(`  ✅ ${candidates.length} candidates seeded.`);
+}
+
+async function seedRbacUsers(): Promise<void> {
   console.log('🔐 Seeding RBAC users...');
-  const rbacUsers = [
+
+  const rbacUsers: Array<{
+    email: string;
+    name: string;
+    role: 'ADMIN' | 'HOLDER' | 'INTERPRETER';
+    defaultPassword: string;
+  }> = [
+    {
+      email: 'interpretersfree@gmail.com',
+      name: 'Administrador Titular',
+      role: 'ADMIN',
+      defaultPassword: 'AdminSecurePassword2026!',
+    },
     {
       email: 'melvinramonduranmesa@gmail.com',
       name: 'Melvin Duran',
       role: 'ADMIN',
-      // This is a hashed version of a temporary password or 'password123' 
-      // User should reset this or we should provide a way to set it.
-      // For seeding purposes, I'll use a known hash for 'Melvin123!'
-      password: await (import('bcryptjs')).then(b => b.default.hash('Melvin123!', 12)),
+      defaultPassword: 'Melvin123!',
     },
     {
       email: 'admin@freeinterpreters.com',
       name: 'Arismendy Admin',
       role: 'ADMIN',
-      password: await (import('bcryptjs')).then(b => b.default.hash('Admin123!', 12)),
-    }
+      defaultPassword: 'Admin123!',
+    },
   ];
 
   for (const user of rbacUsers) {
-    await prisma.rbacUser.upsert({
+    const existingUser = await prisma.rbacUser.findUnique({
       where: { email: user.email },
-      update: {},
-      create: user as any,
     });
-  }
 
-  console.log('✅ Seed completed successfully!');
+    if (!existingUser) {
+      const hashedPassword = await bcrypt.hash(user.defaultPassword, SALT_ROUNDS);
+
+      await prisma.rbacUser.create({
+        data: {
+          email: user.email,
+          password: hashedPassword,
+          name: user.name,
+          role: user.role,
+        },
+      });
+
+      console.log(`  ✅ Created RBAC user: ${user.email} (${user.role})`);
+    } else {
+      console.log(`  ℹ️  RBAC user already exists: ${user.email}`);
+    }
+  }
+}
+
+async function main(): Promise<void> {
+  console.log('🌱 Seeding database...\n');
+
+  await seedInterpreters();
+  await seedRecruitmentCandidates();
+  await seedRbacUsers();
+
+  console.log('\n✅ Seed completed successfully!');
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error: unknown) => {
+    console.error('❌ Error crítico durante la ejecución del Seed:', error);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
+    console.log('🔌 Conexión con Prisma cerrada limpiamente.');
   });
