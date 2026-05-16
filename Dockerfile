@@ -39,6 +39,7 @@ ENV DIRECT_URL=$DIRECT_URL
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV AUTH_TRUST_HOST=true
 
 # Increase Node.js heap to prevent OOM during build on constrained VPS
 ENV NODE_OPTIONS="--max-old-space-size=2048"
@@ -78,6 +79,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_ROLE=$NEXT_PUBLIC_APP_ROLE
 ENV DATABASE_URL=$DATABASE_URL
 ENV DIRECT_URL=$DIRECT_URL
+ENV AUTH_TRUST_HOST=true
 # Limit heap to 512MB → triggers GC earlier than host limit, prevents hard OOM kill
 ENV NODE_OPTIONS="--max-old-space-size=512"
 

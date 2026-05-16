@@ -4,6 +4,10 @@ import prisma from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { authConfig } from "./auth.config";
+ 
+ // Force trust host for production proxy environments
+ process.env.AUTH_TRUST_HOST = "true";
+
 
 /**
  * RBAC Auth Configuration — Server-only (Node.js Runtime)
@@ -33,6 +37,7 @@ const LoginSchema = z.object({
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  trustHost: true,
   providers: [
     CredentialsProvider({
       credentials: { email: {}, password: {} },

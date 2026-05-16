@@ -1,4 +1,10 @@
 import type { NextAuthConfig } from "next-auth";
+ 
+ // Force trust host for production proxy environments
+ if (typeof process !== "undefined") {
+   process.env.AUTH_TRUST_HOST = "true";
+ }
+
 
 /**
  * RBAC Auth Configuration — Edge-compatible subset

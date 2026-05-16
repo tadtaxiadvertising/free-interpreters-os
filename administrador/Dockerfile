@@ -60,6 +60,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=80
+ENV AUTH_TRUST_HOST=true
 # CRÍTICO: visible desde el proxy de Easypanel
 ENV HOSTNAME="0.0.0.0"
 
