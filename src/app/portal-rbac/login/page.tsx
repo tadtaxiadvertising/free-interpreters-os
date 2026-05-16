@@ -4,9 +4,9 @@ import { signIn } from "next-auth/react";
 import toast from "react-hot-toast";
 
 const ROLE_ROUTES: Record<string, string> = {
-  ADMIN: "/portal-rbac/admin",
-  HOLDER: "/portal-rbac/holder",
-  INTERPRETER: "/portal-rbac/interpreter",
+  ADMIN: "/portal-rbac/admin/dashboard",
+  HOLDER: "/portal-rbac/holder/dashboard",
+  INTERPRETER: "/portal-rbac/interpreter/dashboard",
 };
 
 export default function UnifiedLogin() {
