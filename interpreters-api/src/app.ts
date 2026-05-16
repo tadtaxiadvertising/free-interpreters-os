@@ -65,6 +65,7 @@ app.use('/api/v1/production', productionRoutes);
 // Easypanel uses this to determine if the container is healthy.
 // We verify the DB connection to prevent "ghost" healthy states.
 app.get('/health', asyncHandler(async (_req: Request, res: Response) => {
+  console.log(`[HEALTH] Heartbeat check received at ${new Date().toISOString()}`);
   try {
     // Simple query to verify DB heartbeat
     await prisma.$queryRaw`SELECT 1`;
