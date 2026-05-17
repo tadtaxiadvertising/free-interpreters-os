@@ -55,7 +55,7 @@ ENV NODE_OPTIONS="--max-old-space-size=256"
 USER apiuser
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
 
 EXPOSE 3000
 
