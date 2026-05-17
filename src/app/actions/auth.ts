@@ -174,19 +174,41 @@ export async function requestPasswordReset(formData: FormData) {
   if (!email) return { error: 'Email is required' };
 
   try {
-    const supabase = await createClient();
     const headersList = await (await import('next/headers')).headers();
     const host = headersList.get('x-forwarded-host') || headersList.get('host');
     const proto = headersList.get('x-forwarded-proto') || 'https';
     const origin = host ? `${proto}://${host}` : '';
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${origin}/auth/callback?next=/reset-password`,
+    // Create an admin client to generate the recovery link directly (SMTP-less)
+    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
+    const supabaseAdmin = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      options: {
+        redirectTo: `${origin}/auth/callback?next=/reset-password`,
+      }
     });
 
-    if (error) return { error: error.message };
+    if (error) {
+      console.error('🔴 [AUTH_RESET] Error generating link:', error.message);
+      return { error: error.message };
+    }
+
+    // AUDIT-FIRST RECOVERY: Log the token securely to the server console
+    console.log('\n======================================================');
+    console.log('🔐 [ZERO-COST RECOVERY] PASSWORD RESET LINK GENERATED');
+    console.log(`👤 User: ${email}`);
+    console.log(`🔗 Link: ${data.properties?.action_link}`);
+    console.log('======================================================\n');
+
     return { success: true };
   } catch (err) {
+    console.error('🔴 [AUTH_RESET] Unexpected error:', err);
     return { error: 'Error al solicitar el reset de contraseña.' };
   }
 }
