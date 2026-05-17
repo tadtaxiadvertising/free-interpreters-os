@@ -4,23 +4,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Navbar } from "./Navbar";
-import { LayoutDashboard, Users, MessageSquare, Briefcase, Key } from "lucide-react";
-
-const ROLE_NAV: Record<string, any[]> = {
-  ADMIN: [
-    { label: "Dashboard", href: "/portal-rbac/admin/dashboard", icon: LayoutDashboard },
-    { label: "Usuarios", href: "/portal-rbac/admin/users", icon: Users },
-    { label: "Moderación", href: "/portal-rbac/admin/messages", icon: MessageSquare },
-  ],
-  HOLDER: [
-    { label: "Mis Cuentas", href: "/portal-rbac/holder/dashboard", icon: Briefcase },
-    { label: "Mensajes", href: "/portal-rbac/holder/messages", icon: MessageSquare },
-  ],
-  INTERPRETER: [
-    { label: "Cuentas Asignadas", href: "/portal-rbac/interpreter/dashboard", icon: Key },
-    { label: "Mensajes", href: "/portal-rbac/interpreter/messages", icon: MessageSquare },
-  ],
-};
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrador",
@@ -73,7 +56,6 @@ export default function RbacShell({ requiredRole, children }: Props) {
     );
   }
 
-  const customMenu = ROLE_NAV[role] || [];
   const subtitle = ROLE_LABELS[role] || "Portal";
 
   return (
@@ -82,7 +64,6 @@ export default function RbacShell({ requiredRole, children }: Props) {
         role={role.toLowerCase()} 
         isCollapsed={isCollapsed} 
         onToggle={handleToggle} 
-        customMenu={customMenu}
         appName="Portal RBAC"
         appSubtitle={subtitle}
       />

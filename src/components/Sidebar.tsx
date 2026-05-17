@@ -16,6 +16,9 @@ import {
   Trophy,
   Award,
   Clock,
+  MessageSquare,
+  Briefcase,
+  Key
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/types';
@@ -33,7 +36,7 @@ interface MenuItem {
   exact?: boolean;
 }
 
-const adminMenu: MenuItem[] = [
+export const adminMenu: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Command Center', href: '/admin', exact: true },
   { icon: Users, label: 'Interpreter Roster', href: '/interpreters' },
   { icon: UserPlus, label: 'Recruitment', href: '/recruitment' },
@@ -42,16 +45,24 @@ const adminMenu: MenuItem[] = [
   { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
   { icon: DollarSign, label: 'Payroll & Rates', href: '/payroll' },
   { icon: Clock, label: 'Registro Manual', href: '/admin/production/manual' },
-  { icon: Users, label: 'Gestión de Usuarios', href: '/admin/users' },
+  { icon: Users, label: 'Gestión de Usuarios', href: '/portal-rbac/admin/users' },
+  { icon: MessageSquare, label: 'Moderación', href: '/portal-rbac/admin/messages' },
   { icon: Settings, label: 'System Settings', href: '/settings' },
 ];
 
-const interpreterMenu: MenuItem[] = [
+export const interpreterMenu: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Mi Dashboard', href: '/dashboard', exact: true },
+  { icon: Key, label: 'Cuentas Asignadas', href: '/portal-rbac/interpreter/dashboard' },
   { icon: Clock, label: 'Calendario de Metas', href: '/dashboard/calendar' },
   { icon: Trophy, label: 'Mi Ranking', href: '/dashboard/ranking' },
   { icon: DollarSign, label: 'Mis Ganancias', href: '/dashboard/earnings' },
+  { icon: MessageSquare, label: 'Mensajes', href: '/portal-rbac/interpreter/messages' },
   { icon: Settings, label: 'Configuración', href: '/dashboard/settings' },
+];
+
+export const holderMenu: MenuItem[] = [
+  { icon: Briefcase, label: 'Mis Cuentas', href: '/portal-rbac/holder/dashboard' },
+  { icon: MessageSquare, label: 'Mensajes', href: '/portal-rbac/holder/messages' },
 ];
 
 // ── Ranking data shape ──
@@ -111,7 +122,11 @@ function getActiveIndex(pathname: string, items: MenuItem[]): number {
 
 export function Sidebar({ role, isCollapsed, onToggle, ranking, customMenu, appName, appSubtitle }: SidebarProps) {
   const pathname = usePathname();
-  const menuItems = customMenu || (role === 'admin' ? adminMenu : interpreterMenu);
+  let defaultMenu = interpreterMenu;
+  if (role === 'admin' || role === 'ADMIN') defaultMenu = adminMenu;
+  if (role === 'holder' || role === 'HOLDER') defaultMenu = holderMenu;
+  
+  const menuItems = customMenu || defaultMenu;
   const activeIndex = getActiveIndex(pathname, menuItems);
 
   // Inline ranking data for the sidebar (interpreter only)
