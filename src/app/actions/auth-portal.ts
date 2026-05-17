@@ -4,6 +4,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import prisma from "@/lib/prisma"; // Singleton global de Prisma asignado al puerto 6543
+import { signIn } from "@/lib/auth-rbac";
 
 // Esquemas de validación estrictos en tiempo de ejecución
 const loginSchema = z.object({
@@ -35,27 +36,25 @@ export async function loginAction(formData: FormData) {
     const rawFields = Object.fromEntries(formData.entries());
     const validated = loginSchema.parse(rawFields);
 
-    const user = await prisma.rbacUser.findUnique({
-      where: { email: validated.email },
+    // Call Auth.js signIn to write the session cookie and log in the user
+    await signIn("rbac-credentials", {
+      email: validated.email,
+      password: validated.password,
+      redirect: false,
     });
 
-    if (!user) {
-      return { error: "Credenciales de acceso inválidas" };
-    }
-
-    const isValid = await bcrypt.compare(validated.password, user.password);
-    if (!isValid) {
-      return { error: "Credenciales de acceso inválidas" };
-    }
-
-    // Aquí se invoca la infraestructura de sesión de Auth.js (v5)
-    // Para simplificar la portabilidad directa, devolvemos el estado exitoso
     return { success: true };
   } catch (err) {
     if (err instanceof z.ZodError) {
       return { error: err.issues[0].message };
     }
-    return { error: "Error crítico de comunicación con el portal" };
+    // Return custom error message if NextAuth throws credentials error
+    const errMsg = err instanceof Error ? err.message : "";
+    if (errMsg.includes("NEXT_REDIRECT")) {
+      return { success: true };
+    }
+    console.error("[AUTH] Login error in action:", err);
+    return { error: "Credenciales de acceso inválidas o error de comunicación" };
   }
 }
 
