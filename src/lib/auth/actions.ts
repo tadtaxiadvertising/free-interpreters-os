@@ -10,57 +10,67 @@ import { cache } from 'react';
  * ============================================================
  */
 export const getCurrentUser = cache(async () => {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    // Fallback to Auth.js session (RBAC users)
-    const { auth } = await import('@/lib/auth-rbac');
-    const session = await auth();
-    
-    if (session?.user?.email) {
-      const rbacUser = await prisma.rbacUser.findUnique({
-        where: { email: session.user.email }
+  let supabaseUser = null;
+  let supabaseProfile = null;
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      supabaseUser = user;
+      supabaseProfile = await prisma.userProfile.findUnique({
+        where: { id: user.id },
+        select: {
+          id: true,
+          role: true,
+          displayName: true,
+          email: true,
+          interpreterId: true
+        }
       });
-      
-      if (rbacUser) {
-        // Try to map to an interpreter profile
-        const interpreter = await prisma.interpreter.findUnique({
-          where: { emailCorporativo: rbacUser.email }
-        });
-        
-        return {
-          id: rbacUser.id,
-          email: rbacUser.email,
-          profile: {
-            id: rbacUser.id,
-            role: rbacUser.role.toLowerCase(), // map 'INTERPRETER' to 'interpreter'
-            displayName: rbacUser.name,
-            email: rbacUser.email,
-            interpreterId: interpreter?.id || null
-          }
-        };
-      }
     }
-    
-    return null;
+  } catch (error) {
+    // Supabase variables might be missing in RBAC-only environments (e.g. interpreters subproject)
+    // We catch it here to allow clean fallback to Auth.js credentials session
+  }
+  
+  if (supabaseUser) {
+    return {
+      ...supabaseUser,
+      profile: supabaseProfile
+    };
   }
 
-  const profile = await prisma.userProfile.findUnique({
-    where: { id: user.id },
-    select: {
-      id: true,
-      role: true,
-      displayName: true,
-      email: true,
-      interpreterId: true
+  // Fallback to Auth.js session (RBAC users)
+  const { auth } = await import('@/lib/auth-rbac');
+  const session = await auth();
+  
+  if (session?.user?.email) {
+    const rbacUser = await prisma.rbacUser.findUnique({
+      where: { email: session.user.email }
+    });
+    
+    if (rbacUser) {
+      // Try to map to an interpreter profile
+      const interpreter = await prisma.interpreter.findUnique({
+        where: { emailCorporativo: rbacUser.email }
+      });
+      
+      return {
+        id: rbacUser.id,
+        email: rbacUser.email,
+        profile: {
+          id: rbacUser.id,
+          role: rbacUser.role.toLowerCase(), // map 'INTERPRETER' to 'interpreter'
+          displayName: rbacUser.name,
+          email: rbacUser.email,
+          interpreterId: interpreter?.id || null
+        }
+      };
     }
-  });
-
-  return {
-    ...user,
-    profile
-  };
+  }
+  
+  return null;
 });
 
 /**
