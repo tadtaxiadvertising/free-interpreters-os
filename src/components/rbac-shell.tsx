@@ -61,7 +61,7 @@ export default function RbacShell({ requiredRole, children }: Props) {
   return (
     <div className="flex min-h-screen w-full bg-[#0a0f1c] overflow-hidden">
       <Sidebar 
-        role={role.toLowerCase()} 
+        role={role} 
         isCollapsed={isCollapsed} 
         onToggle={handleToggle} 
         appName="Portal RBAC"

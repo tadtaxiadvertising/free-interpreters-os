@@ -1,246 +1,308 @@
-"use client";
-import { useEffect, useState, useTransition } from "react";
-import RbacShell from "@/components/rbac-shell";
-import { 
-  createHolder, 
-  createInterpreter, 
-  getAdminStats, 
-  listUsersByRole, 
-  listPendingMessages, 
-  moderateMessage 
-} from "@/app/actions/rbac-admin";
-import { RbacStatCard, RbacStatSkeleton } from "@/components/rbac-dashboard/stat-card";
-import { RbacTable } from "@/components/rbac-dashboard/data-table";
-import { RbacActionContainer } from "@/components/rbac-dashboard/action-container";
-import type { RbacRole } from "@prisma/client";
-import toast from "react-hot-toast";
+import React from "react";
+import { getRbacAdminDashboard } from "@/app/actions/rbac-data";
+import {
+  Users,
+  Phone,
+  DollarSign,
+  Activity,
+  BarChart3,
+  TrendingUp,
+  ChevronRight,
+  Trophy,
+  Clock,
+  MessageSquare,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import Link from "next/link";
 
-type Stats = { holders: number; interpreters: number; accounts: number; pendingMessages: number };
-type User = { id: string; email: string; name: string; role: RbacRole | string; createdAt: Date | string };
-type Message = { id: string; content: string; createdAt: Date | string; author: User; recipient: User | null; };
+export const dynamic = "force-dynamic";
 
-export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [pending, startTransition] = useTransition();
-  const [activeTab, setActiveTab] = useState<"HOLDER" | "INTERPRETER">("HOLDER");
+export default async function AdminDashboardPage() {
+  const data = await getRbacAdminDashboard();
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = () => {
-    getAdminStats().then(setStats).catch(() => {});
-    listUsersByRole().then(data => setUsers(data as User[])).catch(() => {});
-    listPendingMessages().then(data => setMessages(data as unknown as Message[])).catch(() => {});
-  };
-
-  const handleCreate = (formData: FormData) => {
-    startTransition(async () => {
-      try {
-        const data = Object.fromEntries(formData);
-        if (activeTab === "HOLDER") {
-          await createHolder(data);
-          toast.success("Titular creado exitosamente");
-        } else {
-          await createInterpreter(data);
-          toast.success("Intérprete creado exitosamente");
-        }
-        loadData();
-      } catch (err: unknown) {
-        const errorMsg = err instanceof Error ? err.message : "Error al crear usuario";
-        toast.error(errorMsg);
-      }
-    });
-  };
-
-  const handleModerate = (messageId: string, action: "APPROVED" | "REJECTED") => {
-    startTransition(async () => {
-      try {
-        await moderateMessage({ messageId, action });
-        toast.success(`Mensaje ${action === "APPROVED" ? "aprobado" : "rechazado"}`);
-        loadData();
-      } catch (err: unknown) {
-        const errorMsg = err instanceof Error ? err.message : "Error al moderar";
-        toast.error(errorMsg);
-      }
-    });
-  };
+  const STALE_THRESHOLD = 2 * 60 * 1000;
+  const nowTime = Date.now();
 
   return (
-    <RbacShell requiredRole="ADMIN">
-      <div className="mb-10">
-        <h1 className="text-4xl font-extrabold text-white tracking-tight">Centro de Control</h1>
-        <p className="text-slate-400 mt-2 text-lg">Panel de administración global para Free Interpreters OS</p>
-      </div>
+    <div className="space-y-8 animate-in fade-in duration-700">
+      <header className="flex justify-between items-start">
+        <div>
+          <h2 className="text-3xl font-bold text-white tracking-tight">
+            Executive Command Center
+          </h2>
+          <p className="text-gray-400 mt-1 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            Global Performance Oversight — Portal RBAC
+          </p>
+        </div>
+      </header>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-        {stats ? (
-          <>
-            <RbacStatCard label="Titulares" value={stats.holders} icon="👤" color="from-amber-500 to-orange-600" delay={0} />
-            <RbacStatCard label="Intérpretes" value={stats.interpreters} icon="🎧" color="from-blue-500 to-indigo-600" delay={100} />
-            <RbacStatCard label="Cuentas Vault" value={stats.accounts} icon="🔐" color="from-emerald-500 to-teal-600" delay={200} />
-            <RbacStatCard label="Pendientes" value={stats.pendingMessages} icon="📨" color="from-rose-500 to-pink-600" delay={300} />
-          </>
-        ) : (
-          [1, 2, 3, 4].map((i) => <RbacStatSkeleton key={i} />)
-        )}
-      </div>
-
-      {/* Action Container */}
-      <RbacActionContainer 
-        title="Provisionar Nuevo Usuario" 
-        description="Añade titulares o intérpretes al sistema de forma segura"
-        buttonLabel="+ Nuevo Usuario"
-      >
-        <div className="flex gap-3 mb-8 bg-white/5 p-1.5 rounded-2xl w-fit">
-          {(["HOLDER", "INTERPRETER"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                activeTab === tab
-                  ? "bg-white/10 text-white shadow-lg border border-white/10"
-                  : "text-slate-500 hover:text-slate-300"
-              }`}
+      {/* Primary KPI Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[
+          {
+            label: "MTD Hours",
+            value: (data.totalMinutesMonth / 60).toFixed(1),
+            sub: `Today: ${(data.totalMinutesToday / 60).toFixed(1)}h`,
+            icon: Activity,
+            color: "text-blue-400",
+          },
+          {
+            label: "MTD Payout",
+            value: `RD$${data.totalCostMonth.toLocaleString()}`,
+            sub: `Today: RD$${data.totalCostToday.toFixed(2)}`,
+            icon: DollarSign,
+            color: "text-green-400",
+          },
+          {
+            label: "Active Roster",
+            value: data.totalInterpreters,
+            sub: `${data.onlineCount} Online Now`,
+            icon: Users,
+            color: "text-purple-400",
+          },
+          {
+            label: "Live Traffic",
+            value: data.activeCalls,
+            sub: "Call Sessions",
+            icon: Phone,
+            color: "text-orange-400",
+          },
+        ].map((stat, i) => (
+          <div
+            key={i}
+            className="glass p-6 rounded-3xl border border-white/5 relative overflow-hidden group flex flex-col justify-between min-h-[160px]"
+          >
+            <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
+              <stat.icon size={80} />
+            </div>
+            <div
+              className={`p-3 rounded-2xl bg-white/5 ${stat.color} w-fit mb-2`}
             >
-              {tab === "HOLDER" ? "Titular" : "Intérprete"}
-            </button>
-          ))}
+              <stat.icon size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
+              <h3 className="text-3xl font-bold text-white mt-1 leading-none">
+                {stat.value}
+              </h3>
+            </div>
+            <div className="mt-2 pt-2 border-t border-white/5">
+              <p className="text-xs text-gray-400 flex items-center gap-1">
+                <TrendingUp size={12} className="text-green-400" />
+                {stat.sub}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        {/* Live Roster - 2/3 width */}
+        <div className="xl:col-span-2 space-y-6">
+          <div className="glass rounded-3xl overflow-hidden border border-white/5">
+            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+              <h3 className="text-xl font-bold text-white flex items-center gap-3">
+                <BarChart3 size={20} className="text-blue-400" />
+                Live Interpreter Roster
+              </h3>
+              <div className="flex gap-4">
+                <span className="text-[10px] uppercase font-bold text-green-400 flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />{" "}
+                  {data.onlineCount} Ready
+                </span>
+                <span className="text-[10px] uppercase font-bold text-orange-400 flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 bg-orange-500 rounded-full" />{" "}
+                  {data.busyCount} Busy
+                </span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-white/[0.01] text-gray-500 text-[10px] uppercase tracking-wider">
+                  <tr>
+                    <th className="py-4 px-6">Interpreter</th>
+                    <th className="py-4 px-4">Campaign</th>
+                    <th className="py-4 px-4">Hourly Rate</th>
+                    <th className="py-4 px-4">Status</th>
+                    <th className="py-4 px-6 text-right">MTD Hours</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {data.interpreterStats.map((interp: any) => {
+                    const isStale =
+                      nowTime - new Date(interp.updatedAt).getTime() >
+                      STALE_THRESHOLD;
+                    const status =
+                      isStale && interp.realtimeStatus !== "Offline"
+                        ? "Disconnected"
+                        : interp.realtimeStatus;
+
+                    return (
+                      <tr
+                        key={interp.id}
+                        className="hover:bg-white/5 transition-colors group"
+                      >
+                        <td className="py-4 px-6">
+                          <p className="font-bold text-white text-sm">
+                            {interp.name}
+                          </p>
+                          <p className="text-[10px] text-gray-500 font-mono">
+                            {interp.externalId}
+                          </p>
+                        </td>
+                        <td className="py-4 px-4 text-gray-400 text-xs">
+                          {interp.campaign || "—"}
+                        </td>
+                        <td className="py-4 px-4 text-indigo-400 font-medium text-sm font-mono">
+                          RD${(interp.tariffPerMinute * 60).toFixed(2)}/h
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={cn(
+                                "w-2 h-2 rounded-full",
+                                status === "Online"
+                                  ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"
+                                  : status === "Busy"
+                                    ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]"
+                                    : status === "Disconnected"
+                                      ? "bg-red-500 animate-pulse"
+                                      : "bg-gray-600"
+                              )}
+                            />
+                            <span className="text-[10px] text-gray-400 font-bold uppercase">
+                              {status}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-4 px-6 text-right">
+                          <span className="text-white font-bold text-sm">
+                            {interp.totalHours.toFixed(1)}h
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
-        <form action={handleCreate} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <FormInput name="name" label="Nombre Completo" placeholder="Ej. Juan Pérez" />
-          <FormInput name="email" label="Email Corporativo" type="email" placeholder="usuario@freeinterpreters.com" />
-          <FormInput name="password" label="Contraseña Temporal" type="password" placeholder="••••••••" />
-          <div className="md:col-span-3 pt-2">
-            <button
-              disabled={pending}
-              className="px-10 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold hover:shadow-2xl hover:shadow-blue-500/40 transition-all disabled:opacity-50"
-            >
-              {pending ? "Procesando..." : `Confirmar Alta de ${activeTab === "HOLDER" ? "Titular" : "Intérprete"}`}
-            </button>
+        {/* Top Performers - 1/3 width */}
+        <div className="space-y-6">
+          <div className="glass p-6 rounded-3xl border border-white/5">
+            <h3 className="text-xl font-bold text-white flex items-center gap-3 mb-6">
+              <Trophy size={20} className="text-yellow-500" />
+              Monthly Ranking
+            </h3>
+
+            <div className="space-y-6">
+              {data.topPerformers.map((interp: any, i: number) => (
+                <div
+                  key={interp.id}
+                  className="flex items-center justify-between group cursor-default"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white font-bold border border-white/10 group-hover:border-yellow-500/50 transition-colors">
+                        {interp.name.charAt(0)}
+                      </div>
+                      {i === 0 && (
+                        <div className="absolute -top-1 -right-1 text-yellow-500 bg-black rounded-full">
+                          <Trophy size={12} />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-white font-bold text-sm truncate max-w-[100px]">
+                        {interp.name}
+                      </p>
+                      <p className="text-[10px] text-gray-500">
+                        Rank #{i + 1}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-white font-bold text-xs">
+                      {interp.totalHours.toFixed(1)}h
+                    </p>
+                    <p className="text-[10px] text-indigo-400 font-bold">
+                      Total hrs
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </form>
-      </RbacActionContainer>
 
-      <div className="space-y-10">
-        {/* Users Table */}
-        <RbacTable
-          title="Directorio de Usuarios"
-          data={users}
-          columns={[
-            {
-              header: "Identidad",
-              accessor: (u) => (
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center font-bold text-white border border-white/5`}>
-                    {u.name[0]?.toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="font-bold text-white">{u.name}</div>
-                    <div className="text-xs text-slate-500">{u.email}</div>
-                  </div>
+          {/* Pending Messages Card */}
+          {data.pendingMessages > 0 && (
+            <Link
+              href="/portal-rbac/admin/messages"
+              className="glass p-5 rounded-3xl border border-amber-500/20 hover:border-amber-500/40 transition-all group flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                  <MessageSquare size={18} />
                 </div>
-              ),
-            },
-            {
-              header: "Rol",
-              accessor: (u) => (
-                <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${
-                  u.role === "ADMIN" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
-                  u.role === "HOLDER" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
-                  "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                }`}>
-                  {u.role}
-                </span>
-              ),
-            },
-            {
-              header: "Registro",
-              accessor: (u) => (
-                <span className="text-slate-400 font-medium">
-                  {new Date(u.createdAt).toLocaleDateString("es-DO", { day: "2-digit", month: "short", year: "numeric" })}
-                </span>
-              ),
-            },
-          ]}
-        />
+                <div>
+                  <span className="text-white font-bold text-sm">
+                    Mensajes Pendientes
+                  </span>
+                  <p className="text-[10px] text-amber-400">
+                    {data.pendingMessages} por moderar
+                  </p>
+                </div>
+              </div>
+              <ChevronRight
+                size={16}
+                className="text-gray-600 group-hover:text-white transition-colors"
+              />
+            </Link>
+          )}
 
-        {/* Moderation Table */}
-        <RbacTable
-          title="Bandeja de Moderación"
-          data={messages}
-          columns={[
-            {
-              header: "Tráfico (De → Para)",
-              accessor: (m) => (
-                <div className="text-xs">
-                  <span className="text-white font-bold">{m.author.name}</span>
-                  <span className="text-slate-600 mx-2">→</span>
-                  <span className="text-slate-400">{m.recipient?.name || "Global"}</span>
+          {/* Quick Actions */}
+          <div className="grid grid-cols-1 gap-4">
+            <Link
+              href="/portal-rbac/admin/users"
+              className="glass p-5 rounded-3xl border border-white/5 hover:border-blue-500/30 transition-all group flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+                  <Users size={18} />
                 </div>
-              ),
-            },
-            {
-              header: "Contenido",
-              accessor: (m) => (
-                <div className="max-w-xs truncate text-slate-300 bg-white/5 px-3 py-2 rounded-lg border border-white/5" title={m.content}>
-                  {m.content}
+                <span className="text-white font-bold text-sm">
+                  Gestión de Usuarios
+                </span>
+              </div>
+              <ChevronRight
+                size={16}
+                className="text-gray-600 group-hover:text-white transition-colors"
+              />
+            </Link>
+            <Link
+              href="/portal-rbac/admin/messages"
+              className="glass p-5 rounded-3xl border border-white/5 hover:border-indigo-500/30 transition-all group flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
+                  <MessageSquare size={18} />
                 </div>
-              ),
-            },
-            {
-              header: "Acciones Críticas",
-              className: "text-right",
-              accessor: (m) => (
-                <div className="flex gap-2 justify-end">
-                  <button
-                    disabled={pending}
-                    onClick={() => handleModerate(m.id, "APPROVED")}
-                    className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/10"
-                  >
-                    <CheckIcon />
-                  </button>
-                  <button
-                    disabled={pending}
-                    onClick={() => handleModerate(m.id, "REJECTED")}
-                    className="p-2 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-all border border-rose-500/10"
-                  >
-                    <XIcon />
-                  </button>
-                </div>
-              ),
-            },
-          ]}
-        />
+                <span className="text-white font-bold text-sm">
+                  Moderación de Mensajes
+                </span>
+              </div>
+              <ChevronRight
+                size={16}
+                className="text-gray-600 group-hover:text-white transition-colors"
+              />
+            </Link>
+          </div>
+        </div>
       </div>
-    </RbacShell>
-  );
-}
-
-// ── Helpers ────────────────────────────────────────────────────
-
-function FormInput({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <div>
-      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
-        {label}
-      </label>
-      <input
-        {...props}
-        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all shadow-inner"
-      />
     </div>
   );
-}
-
-function CheckIcon() {
-  return <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>;
-}
-
-function XIcon() {
-  return <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
 }

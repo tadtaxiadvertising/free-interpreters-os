@@ -52,12 +52,26 @@ export const adminMenu: MenuItem[] = [
 
 export const interpreterMenu: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Mi Dashboard', href: '/dashboard', exact: true },
-  { icon: Key, label: 'Cuentas Asignadas', href: '/portal-rbac/interpreter/dashboard' },
   { icon: Clock, label: 'Calendario de Metas', href: '/dashboard/calendar' },
   { icon: Trophy, label: 'Mi Ranking', href: '/dashboard/ranking' },
   { icon: DollarSign, label: 'Mis Ganancias', href: '/dashboard/earnings' },
-  { icon: MessageSquare, label: 'Mensajes', href: '/portal-rbac/interpreter/messages' },
   { icon: Settings, label: 'Configuración', href: '/dashboard/settings' },
+];
+
+// ── RBAC-specific menus (portal-rbac routes, Auth.js session) ──
+export const rbacAdminMenu: MenuItem[] = [
+  { icon: LayoutDashboard, label: 'Command Center', href: '/portal-rbac/admin/dashboard', exact: true },
+  { icon: Users, label: 'Gestión de Usuarios', href: '/portal-rbac/admin/users' },
+  { icon: MessageSquare, label: 'Moderación', href: '/portal-rbac/admin/messages' },
+];
+
+export const rbacInterpreterMenu: MenuItem[] = [
+  { icon: LayoutDashboard, label: 'Mi Dashboard', href: '/portal-rbac/interpreter/dashboard', exact: true },
+  { icon: Key, label: 'Cuentas Asignadas', href: '/portal-rbac/interpreter/accounts' },
+  { icon: Clock, label: 'Calendario de Metas', href: '/portal-rbac/interpreter/calendar' },
+  { icon: Trophy, label: 'Mi Ranking', href: '/portal-rbac/interpreter/ranking' },
+  { icon: DollarSign, label: 'Mis Ganancias', href: '/portal-rbac/interpreter/earnings' },
+  { icon: MessageSquare, label: 'Mensajes', href: '/portal-rbac/interpreter/messages' },
 ];
 
 export const holderMenu: MenuItem[] = [
@@ -122,8 +136,14 @@ function getActiveIndex(pathname: string, items: MenuItem[]): number {
 
 export function Sidebar({ role, isCollapsed, onToggle, ranking, customMenu, appName, appSubtitle }: SidebarProps) {
   const pathname = usePathname();
+  
+  // Determine the correct menu based on role + context
+  // Uppercase roles (ADMIN, INTERPRETER, HOLDER) = portal-rbac (Auth.js)
+  // Lowercase roles (admin, interpreter) = main dashboard (Supabase)
   let defaultMenu = interpreterMenu;
-  if (role === 'admin' || role === 'ADMIN') defaultMenu = adminMenu;
+  if (role === 'admin') defaultMenu = adminMenu;
+  if (role === 'ADMIN') defaultMenu = rbacAdminMenu;
+  if (role === 'INTERPRETER') defaultMenu = rbacInterpreterMenu;
   if (role === 'holder' || role === 'HOLDER') defaultMenu = holderMenu;
   
   const menuItems = customMenu || defaultMenu;

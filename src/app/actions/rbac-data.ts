@@ -1,0 +1,368 @@
+"use server";
+/**
+ * RBAC DATA ACTIONS
+ * ============================================================
+ * Unified data-fetching layer for portal-rbac pages.
+ * Uses requireRole() for Auth.js session validation, then
+ * queries the same Prisma models as the main dashboard.
+ *
+ * Bridge: RbacUser.email → Interpreter.emailCorporativo
+ * ============================================================
+ */
+import { requireRole, type RbacSession } from "@/lib/auth-rbac";
+import prisma from "@/lib/prisma";
+
+const db = prisma as any;
+
+// ── Helper: Resolve RbacUser → Interpreter ─────────────────────
+async function resolveInterpreter(session: RbacSession) {
+  const interpreter = await db.interpreter.findFirst({
+    where: { emailCorporativo: session.user.email },
+  });
+  return interpreter;
+}
+
+// ── Interpreter: Dashboard Data ────────────────────────────────
+export async function getRbacInterpreterDashboard() {
+  const session = await requireRole("INTERPRETER");
+  const interpreter = await resolveInterpreter(session);
+  if (!interpreter) return { interpreter: null };
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const [activeCall, todayCalls, monthCalls, monthLogs] = await Promise.all([
+    db.callSession.findFirst({
+      where: { interpreterId: interpreter.id, endedAt: null },
+      orderBy: { startedAt: "desc" },
+    }),
+    db.callSession.findMany({
+      where: {
+        interpreterId: interpreter.id,
+        startedAt: { gte: todayStart },
+        endedAt: { not: null },
+      },
+      select: { durationSeconds: true, callCost: true },
+    }),
+    db.callSession.findMany({
+      where: {
+        interpreterId: interpreter.id,
+        startedAt: { gte: startOfMonth, lte: endOfMonth },
+        endedAt: { not: null },
+      },
+      select: { durationSeconds: true, callCost: true },
+    }),
+    db.productionLog.findMany({
+      where: {
+        interpreterId: interpreter.id,
+        date: { gte: startOfMonth, lte: endOfMonth },
+      },
+      select: { interpretedMinutes: true },
+    }),
+  ]);
+
+  const todayMinutes =
+    todayCalls.reduce(
+      (s: number, c: any) => s + (c.durationSeconds || 0),
+      0
+    ) / 60;
+  const sessionMinMtd =
+    monthCalls.reduce(
+      (s: number, c: any) => s + (c.durationSeconds || 0),
+      0
+    ) / 60;
+  const logMinMtd = monthLogs.reduce(
+    (s: number, l: any) => s + (l.interpretedMinutes || 0),
+    0
+  );
+  const mtdMinutes = sessionMinMtd + logMinMtd;
+  const monthlyGoal = interpreter.monthlyGoal || 7200; // default 120h * 60
+  const dailyGoal = monthlyGoal / 22;
+  const mtdEarnings = monthCalls.reduce(
+    (s: number, c: any) => s + Number(c.callCost || 0),
+    0
+  );
+
+  // QA
+  const qaScores = await db.qaScore.findMany({
+    where: { interpreterId: interpreter.id },
+    orderBy: { createdAt: "desc" },
+    take: 1,
+    select: { totalScore: true },
+  });
+  const latestQa = qaScores[0]?.totalScore
+    ? Number(qaScores[0].totalScore)
+    : 0;
+
+  return {
+    interpreter: {
+      id: interpreter.id,
+      name: interpreter.name,
+      campaign: interpreter.campaign,
+      languageA: interpreter.languageA,
+      languageB: interpreter.languageB,
+      tariffPerMinute: Number(interpreter.tariffPerMinute || 0),
+      realtimeStatus: interpreter.realtimeStatus,
+      monthlyGoal,
+    },
+    activeCall: activeCall
+      ? {
+          sessionId: activeCall.id,
+          startedAt: activeCall.startedAt.toISOString(),
+          tariffSnapshot: Number(activeCall.tariffSnapshot),
+        }
+      : null,
+    todayMinutes: Math.round(todayMinutes),
+    mtdMinutes: Math.round(mtdMinutes),
+    dailyGoal: Math.round(dailyGoal),
+    monthlyGoal,
+    mtdEarnings,
+    latestQa,
+  };
+}
+
+// ── Interpreter: Calendar Commitment ───────────────────────────
+export async function getRbacCalendarData() {
+  const session = await requireRole("INTERPRETER");
+  const interpreter = await resolveInterpreter(session);
+  if (!interpreter) return null;
+
+  const { getInterpreterCommitment } = await import("./calendar");
+  const todayStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santo_Domingo",
+  }).format(new Date());
+  return getInterpreterCommitment(interpreter.id, todayStr);
+}
+
+// ── Interpreter: Ranking Data ──────────────────────────────────
+export async function getRbacRankingData() {
+  const session = await requireRole("INTERPRETER");
+  const interpreter = await resolveInterpreter(session);
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  let globalGoalMinutes = 7200;
+  try {
+    const { getSystemConfig } = await import("./settings");
+    const h = parseFloat(await getSystemConfig("standard_monthly_goal_hours", "120"));
+    globalGoalMinutes = h * 60;
+  } catch {}
+
+  const allInterpreters = await db.interpreter.findMany({
+    where: { status: "Activo" },
+    select: {
+      id: true,
+      name: true,
+      campaign: true,
+      monthlyGoal: true,
+      callSessions: {
+        where: {
+          startedAt: { gte: startOfMonth, lte: endOfMonth },
+          endedAt: { not: null },
+        },
+        select: { durationSeconds: true },
+      },
+      productionLogs: {
+        where: { date: { gte: startOfMonth, lte: endOfMonth } },
+        select: { interpretedMinutes: true },
+      },
+      qaScores: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { totalScore: true },
+      },
+    },
+  });
+
+  const rankings = allInterpreters
+    .map((interp: any) => {
+      const sessionMin = Math.round(
+        (interp.callSessions || []).reduce(
+          (s: number, c: any) => s + (c.durationSeconds || 0),
+          0
+        ) / 60
+      );
+      const logMin = (interp.productionLogs || []).reduce(
+        (s: number, l: any) => s + (l.interpretedMinutes || 0),
+        0
+      );
+      const totalMinutes = sessionMin + logMin;
+      const qaScore = interp.qaScores?.[0]?.totalScore
+        ? Number(interp.qaScores[0].totalScore)
+        : 0;
+      const goal = interp.monthlyGoal ?? globalGoalMinutes;
+      const goalProgress = Math.min((totalMinutes / goal) * 100, 100);
+
+      return {
+        id: interp.id,
+        name: interp.name,
+        campaign: interp.campaign,
+        totalMinutes,
+        qaScore,
+        monthlyGoal: goal,
+        goalProgress,
+      };
+    })
+    .sort((a: any, b: any) => {
+      if (b.totalMinutes !== a.totalMinutes)
+        return b.totalMinutes - a.totalMinutes;
+      return b.qaScore - a.qaScore;
+    });
+
+  const totalAll = rankings.reduce(
+    (s: number, r: any) => s + r.totalMinutes,
+    0
+  );
+  const avg = rankings.length > 0 ? Math.round(totalAll / rankings.length) : 0;
+  const myIdx = interpreter
+    ? rankings.findIndex((r: any) => r.id === interpreter.id)
+    : -1;
+
+  return { rankings, avg, myIdx, myInterpreterId: interpreter?.id || null };
+}
+
+// ── Interpreter: Earnings ──────────────────────────────────────
+export async function getRbacEarningsData() {
+  const session = await requireRole("INTERPRETER");
+  const interpreter = await resolveInterpreter(session);
+  if (!interpreter) return null;
+
+  const full = await db.interpreter.findUnique({
+    where: { id: interpreter.id },
+    select: {
+      id: true,
+      name: true,
+      tariffPerMinute: true,
+      metodoPago: true,
+      cuentaPago: true,
+      payrollRecords: {
+        orderBy: { periodStart: "desc" },
+        take: 12,
+      },
+    },
+  });
+
+  return full;
+}
+
+// ── Admin: Full Dashboard Stats ────────────────────────────────
+export async function getRbacAdminDashboard() {
+  await requireRole("ADMIN");
+
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [interpreters, activeCalls, todaySessions, monthSessions, monthLogs, pendingMessages] =
+    await Promise.all([
+      db.interpreter.findMany({
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          externalId: true,
+          name: true,
+          realtimeStatus: true,
+          campaign: true,
+          tariffPerMinute: true,
+          updatedAt: true,
+          monthlyGoal: true,
+        },
+      }),
+      db.callSession.findMany({
+        where: { endedAt: null },
+        select: { id: true, interpreterId: true },
+      }),
+      db.callSession.findMany({
+        where: { startedAt: { gte: todayStart } },
+        select: { durationSeconds: true, callCost: true },
+      }),
+      db.callSession.findMany({
+        where: { startedAt: { gte: monthStart }, endedAt: { not: null } },
+        select: {
+          durationSeconds: true,
+          callCost: true,
+          interpreterId: true,
+        },
+      }),
+      db.productionLog.findMany({
+        where: { date: { gte: monthStart } },
+        select: { interpretedMinutes: true, interpreterId: true },
+      }),
+      db.vaultMessage.count({ where: { status: "PENDING_ADMIN" } }),
+    ]);
+
+  // Calculate per-interpreter stats
+  const interpreterStats = interpreters
+    .map((interp: any) => {
+      const sessionMin = Math.round(
+        monthSessions
+          .filter((s: any) => s.interpreterId === interp.id)
+          .reduce((sum: number, s: any) => sum + (s.durationSeconds || 0), 0) /
+          60
+      );
+      const logMin = monthLogs
+        .filter((l: any) => l.interpreterId === interp.id)
+        .reduce(
+          (sum: number, l: any) => sum + (l.interpretedMinutes || 0),
+          0
+        );
+
+      return {
+        ...interp,
+        tariffPerMinute: Number(interp.tariffPerMinute),
+        totalMinutes: sessionMin + logMin,
+        totalHours: (sessionMin + logMin) / 60,
+      };
+    })
+    .sort((a: any, b: any) => b.totalMinutes - a.totalMinutes);
+
+  const totalMinutesToday = Math.round(
+    todaySessions.reduce(
+      (sum: number, s: any) => sum + (s.durationSeconds || 0),
+      0
+    ) / 60
+  );
+  const totalCostToday = todaySessions.reduce(
+    (sum: number, s: any) => sum + Number(s.callCost || 0),
+    0
+  );
+  const totalMinutesMonth = interpreterStats.reduce(
+    (sum: number, i: any) => sum + i.totalMinutes,
+    0
+  );
+  const totalCostMonth = monthSessions.reduce(
+    (sum: number, s: any) => sum + Number(s.callCost || 0),
+    0
+  );
+
+  const STALE_THRESHOLD = 2 * 60 * 1000;
+  const nowTime = Date.now();
+  const onlineCount = interpreters.filter(
+    (i: any) =>
+      i.realtimeStatus === "Online" &&
+      nowTime - new Date(i.updatedAt).getTime() < STALE_THRESHOLD
+  ).length;
+  const busyCount = interpreters.filter(
+    (i: any) => i.realtimeStatus === "Busy"
+  ).length;
+
+  return {
+    interpreterStats,
+    topPerformers: interpreterStats.slice(0, 5),
+    activeCalls: activeCalls.length,
+    totalMinutesToday,
+    totalCostToday,
+    totalMinutesMonth,
+    totalCostMonth,
+    onlineCount,
+    busyCount,
+    totalInterpreters: interpreters.length,
+    pendingMessages,
+  };
+}
