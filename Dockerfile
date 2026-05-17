@@ -1,5 +1,5 @@
 # ============================================================
-# FREE INTERPRETERS OS — MULTI-STAGE DOCKERFILE
+# FREE INTERPRETERS OS — STABLE MULTI-STAGE DOCKERFILE
 # Target: Easypanel (Docker/VPS ~457MB RAM) — STANDALONE BUILD
 # ============================================================
 
@@ -8,7 +8,11 @@ FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
+# Copy package definition files
 COPY package.json package-lock.json ./
+COPY prisma ./prisma/
+
+# Clean install of all dependencies (needed for build & Prisma client)
 RUN npm ci
 
 # --- STAGE 2: Builder ---
@@ -48,6 +52,12 @@ FROM node:22-alpine AS runner
 RUN apk add --no-cache libc6-compat openssl curl
 WORKDIR /app
 
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Limit heap to 384MB → triggers GC before the 457MB hard kill
+ENV NODE_OPTIONS="--max-old-space-size=384"
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
@@ -55,26 +65,16 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# ── RUNTIME CONFIG ───────────────────────────────────────────
-# CRITICAL: Port 3000 is the industrial standard for Next.js standalone.
-# Easypanel must expose/proxy to this port. Any mismatch causes
-# healthcheck failures → SIGTERM → restart loops.
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-
-# Limit heap to 384MB → triggers GC before the 457MB hard kill
-ENV NODE_OPTIONS="--max-old-space-size=384"
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 USER nextjs
 EXPOSE 3000
 
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
 # ── HEALTHCHECK ──────────────────────────────────────────────
 # Points to /api/health (a zero-auth, ultra-fast endpoint).
-# start-period=15s is sufficient for standalone server cold start.
-# Easypanel health check path MUST also point to /api/health:3000.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -f http://localhost:3000/api/health || exit 1
 
