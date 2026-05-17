@@ -1,7 +1,11 @@
 import React from "react";
+import Link from "next/link";
 import { getRbacInterpreterDashboard, getRbacRankingData } from "@/app/actions/rbac-data";
 import { getOnboardingStatus } from "@/app/actions/onboarding";
 import { OnboardingGate } from "@/components/OnboardingGate";
+import { CallTimer } from "@/components/CallTimer";
+import { StatusToggle } from "@/components/StatusToggle";
+import { CallHistory } from "@/components/CallHistory";
 import {
   Clock,
   DollarSign,
@@ -89,21 +93,7 @@ export default async function InterpreterDashboardPage() {
               )}
             </p>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
-            <div
-              className={cn(
-                "w-2.5 h-2.5 rounded-full",
-                interpreter.realtimeStatus === "Online"
-                  ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"
-                  : interpreter.realtimeStatus === "Busy"
-                    ? "bg-orange-500"
-                    : "bg-gray-600"
-              )}
-            />
-            <span className="text-sm text-slate-300 font-medium">
-              {interpreter.realtimeStatus || "Offline"}
-            </span>
-          </div>
+          <StatusToggle currentStatus={interpreter.realtimeStatus || "Offline"} />
         </div>
 
         <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
@@ -265,8 +255,8 @@ export default async function InterpreterDashboardPage() {
           </div>
         </div>
 
-        {/* Live Call Status */}
-        <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden">
+        {/* Temporizador en Vivo */}
+        <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-16 bg-blue-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
           <div className="flex items-center justify-between mb-6 relative z-10">
             <div className="flex items-center gap-3">
@@ -274,7 +264,7 @@ export default async function InterpreterDashboardPage() {
                 <Phone size={22} />
               </div>
               <h3 className="text-xl font-bold text-white tracking-tight">
-                Estado de Llamada
+                Temporizador en Vivo
               </h3>
             </div>
             {data.activeCall && (
@@ -283,31 +273,11 @@ export default async function InterpreterDashboardPage() {
               </span>
             )}
           </div>
-          <div className="relative z-10 flex flex-col items-center justify-center py-6">
-            {data.activeCall ? (
-              <>
-                <div className="w-20 h-20 bg-orange-500/20 rounded-full flex items-center justify-center mb-4 animate-pulse">
-                  <Phone size={32} className="text-orange-400" />
-                </div>
-                <p className="text-lg font-bold text-orange-400">
-                  Llamada activa
-                </p>
-                <p className="text-sm text-slate-400">
-                  Iniciada:{" "}
-                  {new Date(data.activeCall.startedAt).toLocaleTimeString()}
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mb-4">
-                  <Phone size={32} className="text-slate-600" />
-                </div>
-                <p className="text-lg font-bold text-slate-400">
-                  Sin llamada activa
-                </p>
-                <p className="text-sm text-slate-500">Disponible</p>
-              </>
-            )}
+          <div className="relative z-10">
+            <CallTimer
+              activeCall={data.activeCall}
+              currentRate={interpreter.tariffPerMinute}
+            />
           </div>
         </div>
 
@@ -381,9 +351,19 @@ export default async function InterpreterDashboardPage() {
                 </div>
               </>
             )}
+
+            <Link 
+              href="/portal-rbac/interpreter/ranking"
+              className="block text-center text-xs text-indigo-400 hover:text-indigo-300 font-bold mt-4 pt-2 hover:underline transition-all"
+            >
+              Ver Ranking Completo
+            </Link>
           </div>
         </div>
       </div>
+
+      {/* Recent Calls */}
+      <CallHistory calls={data.recentCalls || []} />
     </div>
     </>
   );

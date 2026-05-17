@@ -1,0 +1,17 @@
+{
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/dist": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.next/**": true
+  },
+  "markdown.validate.ignoredPaths": [
+    "**/node_modules/**"
+  ],
+  "markdownlint.exclude": [
+    "**/node_modules/**"
+  ]
+}

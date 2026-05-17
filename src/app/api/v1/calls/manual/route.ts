@@ -1,13 +1,21 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth/actions';
 import prismaClient from '@/lib/prisma';
 const prisma = prismaClient;
 
 export async function POST(req: Request) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const userData = await getCurrentUser();
+    if (!userData || !userData.profile || !userData.profile.interpreterId) {
+      return NextResponse.json({ error: 'Unauthorized or no interpreter profile' }, { status: 401 });
+    }
+
+    const interpreter = await prisma.interpreter.findUnique({
+      where: { id: userData.profile.interpreterId }
+    });
+
+    if (!interpreter) {
+      return NextResponse.json({ error: 'Interpreter profile not found' }, { status: 404 });
     }
 
     const { durationMinutes, seconds = 0 } = await req.json();
@@ -15,17 +23,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid duration' }, { status: 400 });
     }
 
-    // Get interpreter profile
-    const profile = await prisma.userProfile.findUnique({
-      where: { id: userId },
-      include: { interpreter: true }
-    });
-
-    if (!profile || !profile.interpreter) {
-      return NextResponse.json({ error: 'Interpreter profile not found' }, { status: 404 });
-    }
-
-    const interpreter = profile.interpreter;
     const totalSeconds = (Number(durationMinutes) * 60) + Number(seconds);
     const tariffSnapshot = Number(interpreter.tariffPerMinute);
     const callCost = (totalSeconds / 60) * tariffSnapshot;

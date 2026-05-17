@@ -34,7 +34,7 @@ export async function getRbacInterpreterDashboard() {
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
 
-  const [activeCall, todayCalls, monthCalls, monthLogs] = await Promise.all([
+  const [activeCall, todayCalls, monthCalls, monthLogs, recentCalls] = await Promise.all([
     db.callSession.findFirst({
       where: { interpreterId: interpreter.id, endedAt: null },
       orderBy: { startedAt: "desc" },
@@ -61,6 +61,11 @@ export async function getRbacInterpreterDashboard() {
         date: { gte: startOfMonth, lte: endOfMonth },
       },
       select: { interpretedMinutes: true },
+    }),
+    db.callSession.findMany({
+      where: { interpreterId: interpreter.id, endedAt: { not: null } },
+      orderBy: { startedAt: "desc" },
+      take: 10,
     }),
   ]);
 
@@ -121,6 +126,14 @@ export async function getRbacInterpreterDashboard() {
     monthlyGoal,
     mtdEarnings,
     latestQa,
+    recentCalls: recentCalls.map((c: any) => ({
+      id: c.id,
+      started_at: c.startedAt.toISOString(),
+      ended_at: c.endedAt?.toISOString() || null,
+      duration_seconds: c.durationSeconds,
+      call_cost: Number(c.callCost),
+      tariff_snapshot: Number(c.tariffSnapshot)
+    })),
   };
 }
 
