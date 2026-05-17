@@ -63,10 +63,13 @@ interface RankingData {
 }
 
 interface SidebarProps {
-  role: UserRole;
+  role: UserRole | string;
   isCollapsed: boolean;
   onToggle: () => void;
   ranking?: RankingData | null;
+  customMenu?: MenuItem[];
+  appName?: string;
+  appSubtitle?: string;
 }
 
 /**
@@ -106,9 +109,9 @@ function getActiveIndex(pathname: string, items: MenuItem[]): number {
   return bestIdx;
 }
 
-export function Sidebar({ role, isCollapsed, onToggle, ranking }: SidebarProps) {
+export function Sidebar({ role, isCollapsed, onToggle, ranking, customMenu, appName, appSubtitle }: SidebarProps) {
   const pathname = usePathname();
-  const menuItems = role === 'admin' ? adminMenu : interpreterMenu;
+  const menuItems = customMenu || (role === 'admin' ? adminMenu : interpreterMenu);
   const activeIndex = getActiveIndex(pathname, menuItems);
 
   // Inline ranking data for the sidebar (interpreter only)
@@ -123,10 +126,10 @@ export function Sidebar({ role, isCollapsed, onToggle, ranking }: SidebarProps) 
         {!isCollapsed && (
           <div className="animate-in fade-in duration-500">
             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent truncate">
-              Free Interpreters
+              {appName || 'Free Interpreters'}
             </h1>
             <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">
-              {role === 'admin' ? 'Admin OS' : 'Portal'}
+              {appSubtitle || (role === 'admin' ? 'Admin OS' : 'Portal')}
             </p>
           </div>
         )}
