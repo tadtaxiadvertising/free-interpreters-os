@@ -1,74 +1,113 @@
 import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 /**
- * PRISMA CLIENT SINGLETON (INTERPRETER PORTAL)
+ * PRISMA 7 SINGLETON — SUPABASE TRANSACTION POOLER (Port 6543)
  * ============================================================
- * Optimizado para evitar "Too many connections" y fugas de recursos.
+ * Optimized for ~457 MB RAM containers on Easypanel.
+ *
+ * CRITICAL DESIGN DECISIONS:
+ *   1. LAZY initialization: Pool + PrismaClient are created ONLY on
+ *      first access via `getPrisma()`. This prevents the health check
+ *      from timing out while waiting for the pool to warm up during
+ *      the container's cold-start window.
+ *   2. STRICT pool limits: max=5 connections via pgBouncer port 6543.
+ *      `?pgbouncer=true&connection_limit=5` MUST be in DATABASE_URL.
+ *   3. Global singleton: Attached to `globalThis` to survive HMR in
+ *      development and avoid pool exhaustion from module reloads.
+ *   4. NEVER calls `pool.end()` — the pool lives for the entire
+ *      process lifetime. Premature cleanup causes the fatal
+ *      "Cannot use a pool after calling end" crash.
+ *
+ * CONNECTION STRING FORMAT (Easypanel env):
+ *   postgresql://user:pass@host:6543/db?pgbouncer=true&connection_limit=5
  * ============================================================
  */
 
 const globalForPrisma = globalThis as unknown as {
-  _prisma: PrismaClient | undefined;
-  _pool: pg.Pool | undefined;
+  __prisma_singleton: PrismaClient | undefined;
+  __pg_pool: pg.Pool | undefined;
 };
 
-function createPrismaClient(): PrismaClient {
+function createPool(): pg.Pool {
   const connectionString = process.env.DATABASE_URL;
-  
+
   if (!connectionString) {
-    console.warn('⚠️ PRISMA: DATABASE_URL is missing. Providing dummy adapter for Prisma 7 validation.');
-    const pool = new pg.Pool();
-    const adapter = new PrismaPg(pool);
-    return new PrismaClient({ 
-      adapter, 
-      log: ['error'] 
-    });
+    console.error(
+      '[PRISMA] FATAL: DATABASE_URL is not set. ' +
+      'The application will crash on the first database query.'
+    );
   }
 
-  const pool = new pg.Pool({
-    connectionString: connectionString || undefined,
-    max: 1, 
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
-    // Removed allowExitOnIdle: true to prevent pool closure during health checks
+  return new pg.Pool({
+    connectionString,
+    max: 5,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
+    ssl: { rejectUnauthorized: false },
+    allowExitOnIdle: true,
   });
+}
 
-  pool.on('error', (err) => {
-    // Silenciar errores de conexión durante el build
-    if (process.env.NODE_ENV !== 'production' || !connectionString) return;
-    console.error('🔴 PG POOL ERROR (interpreters):', err.message);
-  });
+function createPrismaClient(): PrismaClient {
+  if (!globalForPrisma.__pg_pool) {
+    globalForPrisma.__pg_pool = createPool();
+  }
 
-  globalForPrisma._pool = pool;
-  const adapter = new PrismaPg(pool);
+  const adapter = new PrismaPg(globalForPrisma.__pg_pool);
 
   const client = new PrismaClient({
-    log: ['error', 'warn'],
     adapter,
+    log: process.env.NODE_ENV === 'development'
+      ? ['query', 'error', 'warn']
+      : ['error'],
   });
-
-  // Protect against pool.end() calls by neutralizing it in production if possible
-  // or at least logging who called it.
-  if (process.env.NODE_ENV === 'production') {
-    const originalEnd = pool.end.bind(pool);
-    pool.end = async () => {
-      console.warn('⚠️ PRISMA: pool.end() was called! (interpreters)');
-      console.trace('Pool closure stack trace:');
-      // If we are NOT in a shutdown phase, this is likely a bug
-      if (!(globalThis as any)._isShuttingDown) {
-        console.error('❌ PRISMA: pool.end() called unexpectedly (interpreters)');
-        return; // Prevent ending the pool if not shutting down
-      }
-      return originalEnd();
-    };
-  }
 
   return client;
 }
 
-export const prisma = globalForPrisma._prisma ?? createPrismaClient();
-globalForPrisma._prisma = prisma;
+/**
+ * Returns the global PrismaClient singleton.
+ * Safe to call from Server Components, Server Actions, API Routes,
+ * and the health check endpoint.
+ */
+export function getPrisma(): PrismaClient {
+  if (!globalForPrisma.__prisma_singleton) {
+    globalForPrisma.__prisma_singleton = createPrismaClient();
+  }
+  return globalForPrisma.__prisma_singleton;
+}
 
-export default prisma;
+/**
+ * Exposes the raw pg.Pool for ultra-lightweight queries
+ * (e.g., health check `SELECT 1`). Creates the pool lazily
+ * if it hasn't been created yet.
+ */
+export function getRawPool(): pg.Pool {
+  if (!globalForPrisma.__pg_pool) {
+    globalForPrisma.__pg_pool = createPool();
+  }
+  return globalForPrisma.__pg_pool;
+}
+
+/**
+ * Default export for backward compatibility with existing imports:
+ *   import prisma from '@/lib/prisma';
+ *
+ * Uses a Proxy so the actual PrismaClient creation is deferred
+ * until the first property access (true lazy initialization).
+ */
+const prismaProxy = new Proxy({} as PrismaClient, {
+  get(_target, prop: string | symbol) {
+    const client = getPrisma();
+    const value = (client as unknown as Record<string | symbol, unknown>)[prop];
+    if (typeof value === 'function') {
+      return value.bind(client);
+    }
+    return value;
+  },
+});
+
+export const prisma = prismaProxy;
+export default prismaProxy;

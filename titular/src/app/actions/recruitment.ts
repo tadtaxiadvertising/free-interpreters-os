@@ -3,47 +3,30 @@
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { ActionResult } from '@/lib/types';
-import { createClient } from '@/lib/supabase/server';
+import { validateAction } from '@/lib/auth/actions';
 
 const db = prisma;
-
-/** Shared admin guard for recruitment actions */
-async function requireAdmin(): Promise<{ userId: string } | ActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
-
-  const profile = await db.userProfile.findUnique({
-    where: { id: user.id },
-    select: { role: true }
-  });
-  if (profile?.role !== 'admin') {
-    return { success: false, error: 'Admin access required', code: 'UNAUTHORIZED' };
-  }
-
-  return { userId: user.id };
-}
 
 /**
  * ACTION: Delete Candidate
  */
 export async function deleteCandidate(id: number): Promise<ActionResult> {
-  const auth = await requireAdmin();
-  if ('success' in auth) return auth as ActionResult;
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
     await db.recruitmentCandidate.delete({
-      where: { id }
+      where: { id },
+      select: { id: true }
     });
 
     revalidatePath('/admin/recruitment');
     return { success: true };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error in deleteCandidate action:', message);
+    console.error('Error in deleteCandidate action:', error);
     return { 
       success: false, 
-      error: message,
+      error: 'Failed to delete candidate',
       code: 'INTERNAL_ERROR'
     };
   }
@@ -54,12 +37,13 @@ export async function deleteCandidate(id: number): Promise<ActionResult> {
  * Placeholder for actual hiring logic
  */
 export async function hireCandidate(id: number): Promise<ActionResult> {
-  const auth = await requireAdmin();
-  if ('success' in auth) return auth as ActionResult;
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
     const candidate = await db.recruitmentCandidate.findUnique({
-      where: { id }
+      where: { id },
+      select: { id: true }
     });
 
     if (!candidate) {
@@ -70,17 +54,17 @@ export async function hireCandidate(id: number): Promise<ActionResult> {
     // For now, just update status
     await db.recruitmentCandidate.update({
       where: { id },
-      data: { status: 'Contratado' }
+      data: { status: 'Contratado' },
+      select: { id: true }
     });
 
     revalidatePath('/admin/recruitment');
     return { success: true };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error in hireCandidate action:', message);
+    console.error('Error in hireCandidate action:', error);
     return { 
       success: false, 
-      error: message,
+      error: 'Failed to hire candidate',
       code: 'INTERNAL_ERROR'
     };
   }

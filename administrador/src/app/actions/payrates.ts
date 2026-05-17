@@ -1,8 +1,8 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
+import { validateAction } from '@/lib/auth/actions';
 import { revalidatePath } from 'next/cache';
 
 const db = prisma;
@@ -11,21 +11,10 @@ export async function updatePayrate(
   interpreterId: number,
   newRate: number
 ): Promise<ActionResult<{ oldRate: number; newRate: number }>> {
-  const supabase = await createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    // 1. Verify admin role using user_profiles table via Prisma
-    const profile = await db.userProfile.findUnique({
-      where: { id: user.id },
-      select: { role: true }
-    });
-
-    if (profile?.role !== 'admin') {
-      return { success: false, error: 'Admin access required', code: 'UNAUTHORIZED' };
-    }
 
     if (newRate <= 0 || newRate > 999.99) {
       return { success: false, error: 'Rate must be between $0.01 and $999.99', code: 'VALIDATION_ERROR' };
@@ -46,7 +35,8 @@ export async function updatePayrate(
     // 3. Update rate via Prisma
     await db.interpreter.update({
       where: { id: interpreterId },
-      data: { tariffPerMinute: newRate }
+      data: { tariffPerMinute: newRate },
+      select: { id: true }
     });
 
     // 4. Write audit log via Prisma
@@ -55,8 +45,9 @@ export async function updatePayrate(
         interpreterId: interpreterId,
         oldRate: oldRate,
         newRate: newRate,
-        changedBy: user.id,
-      }
+        changedBy: auth.user.id,
+      },
+      select: { id: true }
     });
 
     revalidatePath('/admin');
@@ -73,16 +64,21 @@ export async function updatePayrate(
 export async function getPayrateHistory(
   interpreterId: number
 ): Promise<ActionResult<unknown[]>> {
-  const supabase = await createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Not authenticated', code: 'UNAUTHORIZED' };
+  const auth = await validateAction();
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
     const history = await db.payrateAuditLog.findMany({
       where: { interpreterId: interpreterId },
       orderBy: { changedAt: 'desc' },
-      take: 20
+      take: 20,
+      select: {
+        id: true,
+        oldRate: true,
+        newRate: true,
+        changedAt: true,
+        changedBy: true
+      }
     });
 
     return { success: true, data: history ?? [] };

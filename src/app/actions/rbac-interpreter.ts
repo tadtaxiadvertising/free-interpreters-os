@@ -26,3 +26,25 @@ export async function getInterpreterAccounts() {
     };
   });
 }
+
+export async function listInterpreterMessages() {
+  const session = await requireRole("INTERPRETER", "ADMIN");
+  return prisma.vaultMessage.findMany({
+    where: {
+      status: "APPROVED",
+      OR: [
+        { recipientId: session.user.id },
+        { recipientId: null }
+      ]
+    },
+    include: {
+      author: {
+        select: {
+          name: true,
+          role: true
+        }
+      }
+    },
+    orderBy: { createdAt: "desc" }
+  });
+}

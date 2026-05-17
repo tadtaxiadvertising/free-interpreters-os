@@ -1,112 +1,170 @@
-import React from "react";
-import prisma from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-rbac";
+"use client";
+import { useEffect, useState, useTransition } from "react";
+import RbacShell from "@/components/rbac-shell";
+import { getHolderStats, listHolderAccounts, listAvailableInterpreters } from "@/app/actions/rbac-holder";
 import { createVaultAccount } from "@/app/actions/vault.actions";
+import { RbacStatCard, RbacStatSkeleton } from "@/components/rbac-dashboard/stat-card";
+import { RbacTable } from "@/components/rbac-dashboard/data-table";
+import { RbacActionContainer } from "@/components/rbac-dashboard/action-container";
+import toast from "react-hot-toast";
 
-export default async function HolderDashboard() {
-  const session = await requireRole("HOLDER", "ADMIN");
+export default function HolderDashboard() {
+  const [stats, setStats] = useState<any>(null);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [interpreters, setInterpreters] = useState<any[]>([]);
+  const [pending, startTransition] = useTransition();
 
-  const accounts = await prisma.vaultAccount.findMany({
-    where: { holderId: session.user.id },
-    include: { interpreter: true },
-  });
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const interpreters = await prisma.rbacUser.findMany({
-    where: { role: "INTERPRETER" },
-    select: { id: true, name: true, email: true },
-  });
+  const loadData = async () => {
+    getHolderStats().then(setStats).catch(() => {});
+    listHolderAccounts().then(setAccounts).catch(() => {});
+    listAvailableInterpreters().then(setInterpreters).catch(() => {});
+  };
+
+  const handleCreateAccount = (formData: FormData) => {
+    startTransition(async () => {
+      const res = await createVaultAccount(formData);
+      if (res?.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("Cuenta de Vault creada con éxito");
+        loadData();
+      }
+    });
+  };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-8">
-      <header className="flex justify-between items-center pb-4 border-b">
-        <h1 className="text-3xl font-bold">Holder Dashboard</h1>
-        <p className="text-sm text-gray-500">Welcome, {session.user.name}</p>
-      </header>
+    <RbacShell requiredRole="HOLDER">
+      <div className="mb-10">
+        <h1 className="text-4xl font-extrabold text-white tracking-tight">Mis Cuentas de Vault</h1>
+        <p className="text-slate-400 mt-2 text-lg">Gestiona tus credenciales y asigna intérpretes de forma segura</p>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <section className="col-span-1 bg-white p-6 rounded-lg shadow border">
-          <h2 className="text-xl font-semibold mb-4">Create New Account</h2>
-          <form action={async (formData) => { "use server"; await createVaultAccount(formData); }} className="space-y-4">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+        {stats ? (
+          <>
+            <RbacStatCard label="Total de Cuentas" value={stats.totalAccounts} icon="🔐" color="from-blue-500 to-indigo-600" delay={0} />
+            <RbacStatCard label="Sin Asignar" value={stats.unassigned} icon="⚠️" color="from-amber-500 to-orange-600" delay={100} />
+            <RbacStatCard label="Intérpretes Disponibles" value={interpreters.length} icon="🎧" color="from-emerald-500 to-teal-600" delay={200} />
+          </>
+        ) : (
+          [1, 2, 3].map((i) => <RbacStatSkeleton key={i} />)
+        )}
+      </div>
+
+      {/* Create Account Section */}
+      <RbacActionContainer 
+        title="Nueva Cuenta Protegida" 
+        description="Encripta credenciales y asígnalas a un intérprete de confianza"
+        buttonLabel="+ Añadir Cuenta"
+      >
+        <form action={handleCreateAccount} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <FormInput name="platformName" label="Nombre de la Plataforma" placeholder="Ej. Boost Mobile, Verizon..." required />
+            <FormInput name="url" label="URL de Acceso" type="url" placeholder="https://..." />
+            <FormInput name="vpnConfig" label="Configuración VPN" placeholder="Nombre del servidor o perfil" />
+          </div>
+          <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium mb-1">Platform Name</label>
-              <input name="platformName" required className="w-full border rounded p-2" />
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+                Credenciales (User/Pass)
+              </label>
+              <textarea 
+                name="credentials" 
+                required 
+                className="w-full h-32 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all shadow-inner"
+                placeholder="Ingresa los datos sensibles. Serán encriptados inmediatamente."
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">URL (optional)</label>
-              <input name="url" type="url" className="w-full border rounded p-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">VPN Config (optional)</label>
-              <input name="vpnConfig" className="w-full border rounded p-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Credentials (Username/Password)</label>
-              <textarea name="credentials" required className="w-full border rounded p-2 h-24" placeholder="Enter credentials to encrypt..." />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Assign Interpreter</label>
-              <select name="interpreterId" className="w-full border rounded p-2">
-                <option value="">-- Unassigned --</option>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+                Asignar Intérprete
+              </label>
+              <select 
+                name="interpreterId" 
+                className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all"
+              >
+                <option value="" className="bg-slate-900 text-slate-500 italic">-- Sin asignar (Solo Titular) --</option>
                 {interpreters.map((int) => (
-                  <option key={int.id} value={int.id}>
+                  <option key={int.id} value={int.id} className="bg-slate-900 text-white">
                     {int.name} ({int.email})
                   </option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Notes</label>
-              <textarea name="notes" className="w-full border rounded p-2" />
-            </div>
-            <button type="submit" className="w-full bg-blue-600 text-white font-semibold py-2 rounded hover:bg-blue-700">
-              Save Encrypted Account
+          </div>
+          <div className="md:col-span-2 pt-4">
+            <button
+              disabled={pending}
+              className="w-full md:w-auto px-12 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold hover:shadow-2xl hover:shadow-emerald-500/40 transition-all disabled:opacity-50"
+            >
+              {pending ? "Encriptando..." : "Guardar en el Vault Seguro"}
             </button>
-          </form>
-        </section>
+          </div>
+        </form>
+      </RbacActionContainer>
 
-        <section className="col-span-1 lg:col-span-2 bg-white p-6 rounded-lg shadow border">
-          <h2 className="text-xl font-semibold mb-4">Managed Accounts</h2>
-          {accounts.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No accounts created yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="p-3">Platform</th>
-                    <th className="p-3">Assigned Interpreter</th>
-                    <th className="p-3">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accounts.map((acc) => (
-                    <tr key={acc.id} className="border-b hover:bg-gray-50">
-                      <td className="p-3">
-                        <div className="font-medium">{acc.platformName}</div>
-                        {acc.url && <a href={acc.url} className="text-xs text-blue-500 hover:underline">{acc.url}</a>}
-                      </td>
-                      <td className="p-3">
-                        {acc.interpreter ? (
-                          <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                            {acc.interpreter.name}
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full">
-                            Unassigned
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 text-sm text-gray-500">
-                        {new Date(acc.createdAt).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </div>
+      {/* Managed Accounts Table */}
+      <RbacTable
+        title="Mis Activos de Vault"
+        data={accounts}
+        columns={[
+          {
+            header: "Plataforma",
+            accessor: (acc) => (
+              <div>
+                <div className="font-bold text-white">{acc.platformName}</div>
+                {acc.url && <a href={acc.url} target="_blank" className="text-xs text-blue-400 hover:underline">{acc.url}</a>}
+              </div>
+            ),
+          },
+          {
+            header: "Acceso Permitido A",
+            accessor: (acc) => (
+              acc.interpreter ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-blue-500/20 flex items-center justify-center text-[10px] font-bold text-blue-400">
+                    {acc.interpreter.name[0]}
+                  </div>
+                  <span className="font-medium text-slate-300">{acc.interpreter.name}</span>
+                </div>
+              ) : (
+                <span className="text-xs text-slate-600 bg-white/5 px-2 py-1 rounded-md border border-white/5">Privado (Solo Yo)</span>
+              )
+            ),
+          },
+          {
+            header: "VPN",
+            accessor: (acc) => <span className="text-slate-400 text-xs font-mono">{acc.vpnConfig || "N/A"}</span>,
+          },
+          {
+            header: "Fecha de Creación",
+            accessor: (acc) => (
+              <span className="text-slate-500 text-xs">
+                {new Date(acc.createdAt).toLocaleDateString("es-DO", { day: "2-digit", month: "short", year: "numeric" })}
+              </span>
+            ),
+          },
+        ]}
+      />
+    </RbacShell>
+  );
+}
+
+function FormInput({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div>
+      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+        {label}
+      </label>
+      <input
+        {...props}
+        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-white placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all shadow-inner"
+      />
     </div>
   );
 }

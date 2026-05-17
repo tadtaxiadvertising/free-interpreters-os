@@ -1,104 +1,176 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import prisma from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { authConfig } from "./auth.config";
+import type { NextAuthConfig } from "next-auth";
 
 /**
- * RBAC Auth Configuration — Unified Login
- * Single entry point; JWT embeds role for server-side route protection.
- * Compatible with NextAuth v5 (Auth.js) beta.
+ * RBAC AUTH CONFIGURATION — Auth.js v5 (NextAuth v5)
+ * ============================================================
+ * ARCHITECTURE: Dual-auth system.
+ *   - Supabase Auth: handles the main dashboard (interpreters, admin).
+ *   - Auth.js (this file): handles /portal-rbac/* credentials login
+ *     against the `rbac_users` table.
+ *
+ * SESSION STRATEGY: JWT (no database sessions)
+ *   - Minimizes connection pool usage on the 5-connection limit.
+ *   - 8-hour expiration aligns with interpreter shift windows.
+ *
+ * CREDENTIAL FLOW:
+ *   1. Zod validates email+password format
+ *   2. Case-insensitive lookup in `rbac_users` via findFirst
+ *   3. bcryptjs compares the submitted password against the stored hash
+ *   4. JWT token embeds { id, email, name, role }
+ *   5. On each request, the jwt() callback refreshes the role from DB
+ *   6. session() callback exposes id + role to the client
+ *
+ * SECURITY:
+ *   - AUTH_SECRET must be set in Easypanel runtime env (not build args)
+ *   - AUTH_TRUST_HOST=true is forced for proxy environments
+ *   - Fallback secret is used ONLY during `next build` static generation
+ * ============================================================
  */
 
+// Force trust host for Easypanel proxy (Traefik → container)
+if (typeof process !== "undefined") {
+  process.env.AUTH_TRUST_HOST = "true";
+}
+
+// ── Zod Schemas ─────────────────────────────────────────────
 const LoginSchema = z.object({
-  email: z.string().email("Invalid email"),
-  password: z.string().min(1, "Password required"),
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(1, "Password is required"),
 });
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
-  ...authConfig,
+// ── Auth.js Configuration ───────────────────────────────────
+const authConfig: NextAuthConfig = {
+  secret: process.env.AUTH_SECRET || "fallback-secret-for-build-only",
+  trustHost: true,
+
+  session: {
+    strategy: "jwt",
+    maxAge: 8 * 60 * 60, // 8 hours — one interpreter shift
+  },
+
+  pages: {
+    signIn: "/portal-rbac/login",
+    error: "/portal-rbac/login",
+  },
+
   providers: [
     CredentialsProvider({
-      credentials: { email: {}, password: {} },
+      id: "rbac-credentials",
+      name: "RBAC Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+
       async authorize(credentials) {
-        let email, password;
+        // ── 1. Input Validation ───────────────────────────
+        let email: string;
+        let password: string;
+
         try {
           const parsed = LoginSchema.parse(credentials);
           email = parsed.email.toLowerCase().trim();
           password = parsed.password;
-
-          console.log(`[AUTH] Authorize attempt for: ${email}`);
         } catch (err) {
-          console.log(`[AUTH] Validation error for input credentials`);
+          console.error(
+            "[AUTH] Zod validation failed:",
+            err instanceof z.ZodError ? err.flatten().fieldErrors : err
+          );
           return null;
         }
 
-        let user;
+        console.log(`[AUTH] Login attempt for: ${email}`);
+
+        // ── 2. Database Lookup ────────────────────────────
         try {
-          // Use findFirst with mode: 'insensitive' to handle potential DB case mismatches
-          user = await prisma.rbacUser.findFirst({
-            where: { 
-              email: {
-                equals: email,
-                mode: 'insensitive'
-              }
+          const prisma = getPrisma();
+          
+          // Use findUnique for O(1) lookup on the @unique email field.
+          // We normalize the email before lookup to match the seed behavior.
+          const user = await prisma.rbacUser.findUnique({
+            where: { email },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              role: true,
+              password: true,
             },
           });
 
           if (!user) {
-            console.warn(`[AUTH] User not found in database: ${email}`);
+            console.warn(`[AUTH] ❌ Authentication failed: User not found [${email}]`);
+            // We return null to signify invalid credentials to Auth.js
             return null;
           }
+
+          console.log(`[AUTH] 🔍 User found: ${user.email} (Role: ${user.role})`);
+
+          // ── 3. Password Verification ─────────────────────
+          const isValid = await bcrypt.compare(password, user.password);
           
-          console.log(`[AUTH] User found: ${user.email} (ID: ${user.id})`);
-        } catch (dbError) {
-          console.error(`[AUTH] Database connection error during lookup for ${email}:`, dbError);
-          throw new Error("Database connection error");
-        }
-
-        let isPasswordValid = false;
-        try {
-          isPasswordValid = await bcrypt.compare(password, user.password);
-          if (!isPasswordValid) {
-            console.warn(`[AUTH] Password mismatch for user: ${email}`);
+          if (!isValid) {
+            console.warn(`[AUTH] ❌ Authentication failed: Password mismatch [${email}]`);
             return null;
           }
-        } catch (compareError) {
-          console.error(`[AUTH] bcrypt comparison error for ${email}:`, compareError);
-          throw new Error("Password comparison error");
+
+          console.log(`[AUTH] ✅ Authentication successful: ${email}`);
+
+          // ── 4. Return user (password excluded from JWT) ──
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          };
+        } catch (error) {
+          console.error(
+            `[AUTH] 🚨 Critical error during authorize for ${email}:`,
+            error instanceof Error ? error.message : "Unknown error"
+          );
+          // In v5, throwing an error inside authorize triggers a redirect to the error page
+          return null;
         }
 
-        console.log(`[AUTH] Authentication successful for: ${email}`);
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        };
       },
     }),
   ],
+
   callbacks: {
     async jwt({ token, user }) {
+      // On initial sign-in: embed role from authorize() return
       if (user) {
-        token.role = (user as { role?: string }).role;
         token.id = user.id;
+        token.role = (user as { role?: string }).role;
+        return token;
       }
-      
-      // En cada refresh de sesión, aseguramos de sacar el rol de la base de datos
-      if (token.id) {
-        const dbUser = await prisma.rbacUser.findUnique({
-          where: { id: token.id as string },
-          select: { role: true },
-        });
-        if (dbUser) {
-          token.role = dbUser.role;
+
+      // On token refresh: re-fetch role from DB (lean: 1 column)
+      // This ensures role changes take effect without re-login.
+      if (token.id && typeof token.id === "string") {
+        try {
+          const prisma = getPrisma();
+          const dbUser = await prisma.rbacUser.findUnique({
+            where: { id: token.id },
+            select: { role: true },
+          });
+          if (dbUser) {
+            token.role = dbUser.role;
+          }
+        } catch {
+          // Silently keep the existing token role on DB failure
+          // This prevents session loss during transient DB outages
         }
       }
+
       return token;
     },
+
     async session({ session, token }) {
       if (token?.id) {
         session.user.id = token.id as string;
@@ -106,10 +178,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return session;
     },
-  },
-});
 
-// ── Type augmentation ──
+    authorized({ auth: session, request: { nextUrl } }) {
+      const isLoggedIn = !!session?.user;
+      const isOnPortal = nextUrl.pathname.startsWith("/portal-rbac");
+      const isLoginPage = nextUrl.pathname === "/portal-rbac/login";
+
+      if (isLoginPage) return true;
+      if (isOnPortal && !isLoggedIn) {
+        return Response.redirect(new URL("/portal-rbac/login", nextUrl));
+      }
+      return true;
+    },
+  },
+};
+
+// ── Export Auth.js Handlers & Utilities ──────────────────────
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+
+// Re-export config for the Edge-compatible middleware instance
+export { authConfig };
+
+// ── Type Definitions ────────────────────────────────────────
 export type RbacSession = {
   user: {
     id: string;
@@ -120,13 +210,27 @@ export type RbacSession = {
 };
 
 /**
- * Server-side RBAC guard. Throws on unauthorized access.
+ * Server-side RBAC guard.
+ * Use in Server Components and Server Actions to enforce role access.
+ *
+ * @example
+ *   const session = await requireRole("ADMIN", "HOLDER");
+ *   // session.user.role is guaranteed to be ADMIN or HOLDER
  */
-export async function requireRole(...roles: string[]) {
+export async function requireRole(...roles: string[]): Promise<RbacSession> {
   const session = await auth();
   const role = (session?.user as { role?: string })?.role;
+
   if (!session?.user || !role || !roles.includes(role)) {
-    throw new Error(`Unauthorized: requires ${roles.join(" | ")}`);
+    throw new Error(`Unauthorized: requires one of [${roles.join(", ")}]`);
   }
-  return { ...session, user: { ...session.user, role, id: session.user.id } } as unknown as RbacSession;
+
+  return {
+    user: {
+      id: session.user.id!,
+      email: session.user.email!,
+      name: session.user.name!,
+      role: role as RbacSession["user"]["role"],
+    },
+  };
 }

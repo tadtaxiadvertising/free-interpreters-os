@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { validateAction } from '@/lib/auth/actions';
 
 const db = prisma;
 
@@ -14,39 +15,46 @@ export type CreateNotificationInput = {
 };
 
 export async function createNotification(input: CreateNotificationInput) {
+  // Allow system or admin to create notifications
+  const auth = await validateAction(['admin', 'interpreter']);
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
     const notification = await db.notification.create({
       data: {
-        userId: input.userId,
+        userId: input.userId as any, // Cast to any because of UUID/String mapping if needed
         title: input.title,
         message: input.message,
         type: input.type || 'info',
         link: input.link
-      }
+      },
+      select: { id: true }
     });
 
-    revalidatePath('/'); // Global revalidation for the bell icon
+    revalidatePath('/'); 
     return { success: true, data: notification };
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    console.error('Failed to create notification:', message);
-    return { success: false, error: message };
+  } catch (error) {
+    console.error('Failed to create notification:', error);
+    return { success: false, error: 'Internal server error' };
   }
 }
 
 export async function markNotificationAsRead(id: string) {
+  const auth = await validateAction();
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   try {
     await db.notification.update({
       where: { id },
-      data: { isRead: true }
+      data: { isRead: true },
+      select: { id: true }
     });
 
     revalidatePath('/');
     return { success: true };
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to update notification';
-    console.error('Failed to update notification:', message);
-    return { success: false, error: message };
+  } catch (error) {
+    console.error('Failed to update notification:', error);
+    return { success: false, error: 'Failed to update notification' };
   }
 }
 

@@ -1,7 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
+import { validateAction } from '@/lib/auth/actions';
 import { revalidatePath } from 'next/cache';
 import { createNotification } from './notifications';
 import { z } from 'zod';
@@ -24,15 +24,13 @@ const QAEvaluationSchema = z.object({
 export type QAScoreInput = z.infer<typeof QAEvaluationSchema>;
 
 export async function submitQAEvaluation(rawInput: QAScoreInput) {
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
   // Validate input with Zod
   const parseResult = QAEvaluationSchema.safeParse(rawInput);
-  if (!parseResult.success) {
-    const fieldErrors = parseResult.error.flatten().fieldErrors;
-    return { success: false, error: `Validation failed: ${JSON.stringify(fieldErrors)}` };
-  }
+  if (!parseResult.success) return { success: false, error: 'Invalid input', code: 'VALIDATION_ERROR' };
   const input = parseResult.data;
-
-  const supabase = await createClient();
 
   // Note: Total score calculation is handled by database trigger trg_calculate_qa_total
   // We still calculate it here for the notification, but the DB is the source of truth.
@@ -56,7 +54,7 @@ export async function submitQAEvaluation(rawInput: QAScoreInput) {
     actionRequired = 'Feedback Requerido';
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const auditorEmail = auth.user.email || 'System';
   
   try {
     const data = await db.qAScore.create({
@@ -64,7 +62,7 @@ export async function submitQAEvaluation(rawInput: QAScoreInput) {
         productionLogId: input.productionLogId,
         interpreterId: input.interpreterId,
         auditDate: new Date(),
-        auditor: user?.email || 'System',
+        auditor: auditorEmail,
         protocolScore: input.protocolScore,
         interpretationScore: input.interpretationScore,
         languageScore: input.languageScore,
@@ -73,7 +71,8 @@ export async function submitQAEvaluation(rawInput: QAScoreInput) {
         criticalError: input.criticalError,
         comentarios: input.comments,
         accionRequerida: actionRequired
-      }
+      },
+      select: { id: true }
     });
 
     // Notify Interpreter

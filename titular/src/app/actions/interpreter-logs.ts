@@ -1,73 +1,88 @@
 'use server';
 
-import prismaClient from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { auth } from '@/lib/auth';
-import { getCurrentProfile } from './auth';
+import { validateAction } from '@/lib/auth/actions';
+import { ActionResult } from '@/lib/types';
 import { refreshPayrollRecord } from '@/services/PayrollService';
+import { z } from 'zod';
 
-const prisma = prismaClient;
+const db = prisma;
 
-export async function createInterpreterLog(formData: FormData) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
+const ProductionLogSchema = z.object({
+  date: z.coerce.date(),
+  interpretedMinutes: z.coerce.number().positive('Minutes must be positive'),
+  callsAttended: z.coerce.number().int().nonnegative().default(0),
+  observations: z.string().trim().optional(),
+});
 
-  const profile = await getCurrentProfile();
-  if (!profile || !profile.interpreter_id) {
-    throw new Error('User not linked to an interpreter profile');
-  }
+export async function createInterpreterLog(formData: FormData): Promise<ActionResult> {
+  const auth = await validateAction('interpreter');
+  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
-  const date = new Date(formData.get('date') as string);
-  const interpretedMinutes = parseInt(formData.get('minutes') as string, 10);
-  const callsAttended = parseInt(formData.get('calls') as string, 10) || 0;
-  const observations = formData.get('observations') as string;
-
-  if (isNaN(interpretedMinutes) || interpretedMinutes <= 0) {
-    return { error: 'Invalid minutes' };
-  }
-
-  // Prevent logging for future dates
-  if (date > new Date()) {
-    return { error: 'Cannot log production for future dates' };
+  const profile = auth.profile;
+  if (!profile.interpreterId) {
+    return { success: false, error: 'User not linked to an interpreter profile', code: 'BAD_REQUEST' };
   }
 
   try {
-    // Check if log already exists for this date
-    const existingLog = await prisma.productionLog.findFirst({
+    const rawData = {
+      date: formData.get('date'),
+      interpretedMinutes: formData.get('interpretedMinutes') || formData.get('minutes'),
+      callsAttended: formData.get('callsAttended') || formData.get('calls'),
+      observations: formData.get('observations'),
+    };
+
+    const validated = ProductionLogSchema.parse(rawData);
+
+    // Prevent logging for future dates
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (validated.date > today) {
+      return { success: false, error: 'Cannot log production for future dates', code: 'VALIDATION_ERROR' };
+    }
+    // Atomic check and create using transaction or lean check
+    const existingLog = await db.productionLog.findFirst({
       where: {
-        interpreterId: profile.interpreter_id,
-        date: {
-          equals: date
-        }
-      }
+        interpreterId: profile.interpreterId,
+        date: validated.date
+      },
+      select: { id: true }
     });
 
     if (existingLog) {
-      return { error: 'A log already exists for this date. Please contact an admin to modify it.' };
+      return { 
+        success: false, 
+        error: 'A log already exists for this date. Please contact an admin to modify it.',
+        code: 'CONFLICT'
+      };
     }
 
-    await prisma.productionLog.create({
+    await db.productionLog.create({
       data: {
-        interpreterId: profile.interpreter_id,
-        date,
-        interpretedMinutes,
-        callsAttended,
+        interpreterId: profile.interpreterId,
+        date: validated.date,
+        interpretedMinutes: validated.interpretedMinutes,
+        callsAttended: validated.callsAttended,
         status: 'Completed',
-        observaciones: observations,
-        adherence: 100 // Default for manual log if not specified
-      }
+        observaciones: validated.observations,
+        adherence: 100
+      },
+      select: { id: true }
     });
 
     // Refresh payroll record for this period
-    await refreshPayrollRecord(profile.interpreter_id, date);
+    await refreshPayrollRecord(profile.interpreterId, validated.date);
 
     revalidatePath('/dashboard');
     revalidatePath('/production');
     
     return { success: true };
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error: 'Datos de registro inválidos', code: 'VALIDATION_ERROR' };
+    }
     console.error('Error creating production log:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return { error: 'Failed to create log: ' + message };
+    return { success: false, error: 'Failed to create log', code: 'INTERNAL_ERROR' };
   }
 }

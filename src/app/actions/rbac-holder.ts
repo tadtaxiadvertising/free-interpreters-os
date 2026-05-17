@@ -38,3 +38,40 @@ export async function listAvailableInterpreters() {
     select: { id: true, name: true, email: true },
   });
 }
+
+export async function listHolderMessages() {
+  const session = await requireRole("HOLDER", "ADMIN");
+  return prisma.vaultMessage.findMany({
+    where: { authorId: session.user.id },
+    include: {
+      recipient: {
+        select: {
+          id: true,
+          name: true,
+          role: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function sendMessage(data: any) {
+  const session = await requireRole("HOLDER", "ADMIN");
+  const content = data.content as string;
+  const recipientId = data.recipientId as string || null;
+
+  if (!content || content.trim().length === 0) {
+    throw new Error("El contenido del mensaje es requerido");
+  }
+
+  return prisma.vaultMessage.create({
+    data: {
+      content,
+      authorId: session.user.id,
+      recipientId: recipientId || null,
+      status: "PENDING_ADMIN",
+    },
+  });
+}
+

@@ -4,142 +4,109 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import type { UserProfile, UserRole } from '@/lib/types';
 import prismaClient from '@/lib/prisma';
-
+import { z } from 'zod';
 
 const prisma = prismaClient;
 
+const AuthSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+/**
+ * ACTION: User Login
+ */
 export async function login(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   
-  if (!email || !password) {
-    return { error: 'Email and password are required' };
-  }
-
-  const supabase = await createClient();
-
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
-    console.error(`[AUTH_LOGIN] Login failed for ${email}:`, error.message);
-    return { error: error.message };
-  }
-
-  console.log(`[AUTH_LOGIN] Login successful for ${email}, fetching profile via Prisma...`);
-
-  // Use Prisma instead of Supabase client to avoid DNS/fetch issues
   try {
+    const validated = AuthSchema.parse({ email, password });
+    const supabase = await createClient();
+
+    const { data, error } = await supabase.auth.signInWithPassword(validated);
+
+    if (error) {
+      console.error(`🔴 [AUTH_LOGIN] Failed for ${email}:`, error.message);
+      return { error: 'Credenciales inválidas o error de autenticación.' };
+    }
+
+    // Fetch minimal profile via Prisma
     const profile = await prisma.userProfile.findUnique({
       where: { id: data.user.id },
       select: { role: true }
     });
 
-    const role = profile?.role || 'interpreter';
-    console.log(`[AUTH_LOGIN] User role: ${role}`);
-    return { success: true, role };
-  } catch (dbError: unknown) {
-    const errorMsg = dbError instanceof Error ? dbError.message : 'Unknown database error';
-    console.error('[AUTH_LOGIN] Prisma error fetching profile:', errorMsg);
-    // Fallback to minimal info if DB is struggling
-    return { success: true, role: 'interpreter' };
+    return { success: true, role: profile?.role || 'interpreter' };
+  } catch (err: unknown) {
+    if (err instanceof z.ZodError) return { error: 'Email o contraseña inválidos.' };
+    console.error('🔴 [AUTH_LOGIN] Unexpected error:', err);
+    return { error: 'Error interno del sistema.' };
   }
 }
 
+/**
+ * ACTION: User Registration
+ */
 export async function register(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
-  const name = formData.get('name') as string;
+  const name = (formData.get('name') as string) || email.split('@')[0];
   const role = (formData.get('role') as string) || 'interpreter';
 
-  console.log(`[AUTH_REGISTER] Attempting registration for: ${email}`);
+  try {
+    const validated = AuthSchema.parse({ email, password });
+    const supabase = await createClient();
 
-  if (!email || !password) {
-    return { error: 'Email and password are required' };
-  }
+    const { data, error } = await supabase.auth.signUp({
+      email: validated.email,
+      password: validated.password,
+      options: { data: { display_name: name } },
+    });
 
-  const supabase = await createClient();
+    if (error) return { error: error.message };
+    if (!data.user) return { error: 'No se pudo crear el usuario.' };
 
-  // 1. Sign up user in Supabase Auth (Still needs fetch for Auth)
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        display_name: name || email.split('@')[0],
+    // Sync Profile via Prisma
+    const interpreter = await prisma.interpreter.findUnique({
+      where: { emailCorporativo: email },
+      select: { id: true }
+    });
+
+    await prisma.userProfile.upsert({
+      where: { id: data.user.id },
+      update: {
+        email,
+        displayName: name,
+        role: role,
+        interpreterId: interpreter?.id ?? null,
       },
-    },
-  });
+      create: {
+        id: data.user.id,
+        email,
+        displayName: name,
+        role: role,
+        interpreterId: interpreter?.id ?? null,
+      }
+    });
 
-  if (error) {
-    console.error('[AUTH_REGISTER] Supabase Auth Error:', error.message);
-    return { error: error.message };
+    return { success: true, role };
+  } catch (err: unknown) {
+    if (err instanceof z.ZodError) return { error: 'Datos de registro inválidos.' };
+    console.error('🔴 [AUTH_REGISTER] Error:', err);
+    return { error: 'Error interno durante el registro.' };
   }
-
-  if (data.user) {
-    console.log(`[AUTH_REGISTER] Auth user created: ${data.user.id}, creating profile via Prisma...`);
-    
-    try {
-      // 2. Try to find a matching interpreter by email via Prisma
-      const interpreter = await prisma.interpreter.findUnique({
-        where: { emailCorporativo: email },
-        select: { id: true }
-      });
-
-      console.log(`[AUTH_REGISTER] Linking to interpreter: ${interpreter?.id || 'none'}`);
-
-      // 3. Upsert UserProfile record via Prisma
-      await prisma.userProfile.upsert({
-        where: { id: data.user.id },
-        update: {
-          email,
-          displayName: name || email.split('@')[0],
-          role: role,
-          interpreterId: interpreter?.id ?? null,
-        },
-        create: {
-          id: data.user.id,
-          email,
-          displayName: name || email.split('@')[0],
-          role: role,
-          interpreterId: interpreter?.id ?? null,
-        }
-      });
-      
-      console.log('[AUTH_REGISTER] Registration successful via Prisma');
-    } catch (dbError: unknown) {
-      const errorMsg = dbError instanceof Error ? dbError.message : 'Unknown database error';
-      console.error('[AUTH_REGISTER] Prisma error during profile creation:', errorMsg);
-      return { 
-        success: true, 
-        role, 
-        warning: 'Account created but profile linking had an issue. Please contact support.' 
-      };
-    }
-  } else {
-    console.warn('[AUTH_REGISTER] signUp returned no user and no error');
-  }
-
-  return { success: true, role };
 }
 
+/**
+ * ACTION: Get Current User Profile (Selective)
+ */
 export async function getCurrentProfile(): Promise<UserProfile | null> {
-  const supabase = await createClient();
-  
-  // Safe getUser call
-  let user = null;
   try {
-    const { data: { user: currentUser }, error } = await supabase.auth.getUser();
-    if (!error) user = currentUser;
-  } catch {
-    // Silent fail
-  }
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
 
-  if (!user) return null;
-
-  try {
     const profile = await prisma.userProfile.findUnique({
       where: { id: user.id },
       select: {
@@ -163,32 +130,15 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
             name: true,
             status: true,
             realtimeStatus: true,
-            campaign: true,
-            languageA: true,
-            languageB: true,
             tariffPerMinute: true,
-            emailCorporativo: true,
-            pais: true,
-            metodoPago: true,
-            cuentaPago: true,
-            documentosCompleto: true,
-            notas: true,
-            banco: true,
-            tipoCuenta: true,
-            cedulaRnc: true,
-            updatedAt: true,
-            createdAt: true,
+            emailCorporativo: true
           }
         } 
       }
     });
 
-    if (!profile) {
-      console.warn(`[AUTH] Profile not found in DB for user ${user.id}`);
-      return null;
-    }
+    if (!profile) return null;
 
-    // Map Prisma model to UserProfile interface
     return {
       id: profile.id,
       email: profile.email,
@@ -205,12 +155,10 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
       created_at: profile.createdAt?.toISOString() || new Date().toISOString(),
     };
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown database error';
-    console.error('❌ AUTH: Prisma profile fetch failed:', errorMsg);
+    console.error('🔴 [AUTH] Profile fetch failed:', error);
     return null;
   }
 }
-
 
 export async function logout() {
   const supabase = await createClient();
@@ -220,55 +168,42 @@ export async function logout() {
 
 export async function requestPasswordReset(formData: FormData) {
   const email = formData.get('email') as string;
-  
-  if (!email) {
-    return { error: 'Email is required' };
+  if (!email) return { error: 'Email is required' };
+
+  try {
+    const supabase = await createClient();
+    const headersList = await (await import('next/headers')).headers();
+    const host = headersList.get('x-forwarded-host') || headersList.get('host');
+    const proto = headersList.get('x-forwarded-proto') || 'https';
+    const origin = host ? `${proto}://${host}` : '';
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/auth/callback?next=/reset-password`,
+    });
+
+    if (error) return { error: error.message };
+    return { success: true };
+  } catch (err) {
+    return { error: 'Error al solicitar el reset de contraseña.' };
   }
-
-  const supabase = await createClient();
-  
-  // Robust origin detection for Server Actions
-  const headersList = await (await import('next/headers')).headers();
-  const forwardedHost = headersList.get('x-forwarded-host');
-  const host = forwardedHost || headersList.get('host');
-  const proto = headersList.get('x-forwarded-proto') || 'https';
-  const origin = host ? `${proto}://${host}` : headersList.get('origin') || '';
-
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/reset-password`,
-  });
-
-  if (error) {
-    console.error('[AUTH_RESET_REQUEST] Reset request failed:', error.message);
-    return { error: error.message };
-  }
-
-  return { success: true };
 }
 
 export async function updatePassword(formData: FormData) {
   const password = formData.get('password') as string;
   const confirmPassword = formData.get('confirmPassword') as string;
 
-  if (!password || !confirmPassword) {
-    return { error: 'Both password fields are required' };
+  if (!password || password !== confirmPassword) {
+    return { error: 'Las contraseñas no coinciden o están vacías.' };
   }
 
-  if (password !== confirmPassword) {
-    return { error: 'Passwords do not match' };
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) return { error: error.message };
+    return { success: true };
+  } catch (err) {
+    return { error: 'Error al actualizar la contraseña.' };
   }
-
-  const supabase = await createClient();
-
-  const { error } = await supabase.auth.updateUser({
-    password: password,
-  });
-
-  if (error) {
-    console.error('[AUTH_UPDATE_PASSWORD] Password update failed:', error.message);
-    return { error: error.message };
-  }
-
-  return { success: true };
 }
+
 
