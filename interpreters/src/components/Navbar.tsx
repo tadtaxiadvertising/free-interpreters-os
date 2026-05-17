@@ -8,9 +8,10 @@ import { NotificationBell } from './NotificationBell';
 interface NavbarProps {
   email?: string;
   notifications?: unknown[];
+  onSignOut?: () => void;
 }
 
-export function Navbar({ email, notifications = [] }: NavbarProps) {
+export function Navbar({ email, notifications = [], onSignOut }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const initials = email ? email[0].toUpperCase() : 'U';
 
@@ -69,7 +70,13 @@ export function Navbar({ email, notifications = [] }: NavbarProps) {
                 
                 <div className="px-2 pt-2 border-t border-slate-800">
                   <button 
-                    onClick={async () => await logout()}
+                    onClick={async () => {
+                      if (onSignOut) {
+                        onSignOut();
+                      } else {
+                        await logout();
+                      }
+                    }}
                     className="w-full text-left px-3 py-2 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-3"
                   >
                     <LogOut size={16} /> Sign out

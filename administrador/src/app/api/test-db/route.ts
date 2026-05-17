@@ -1,40 +1,40 @@
 import { NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import prisma from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
+/**
+ * DB DIAGNOSTIC ROUTE
+ * Only for troubleshooting production connection issues.
+ * Returns a list of registered RBAC emails.
+ */
 export async function GET() {
   try {
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+    // 1. Test connection
+    await prisma.$connect();
+    
+    // 2. Fetch lean list of users
+    const users = await prisma.rbacUser.findMany({
+      select: {
+        email: true,
+        role: true,
+        name: true,
+      }
     });
-    
-    const client = await pool.connect();
-    
-    const res = await client.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'interpreters' 
-      AND column_name = 'payment_frequency';
-    `);
-    
-    client.release();
-    await pool.end();
 
-    const hasColumn = res.rows.length > 0;
-    
     return NextResponse.json({
-      success: true,
-      databaseUrlLength: process.env.DATABASE_URL?.length || 0,
-      databaseUrlPrefix: process.env.DATABASE_URL?.substring(0, 30) || 'Missing',
-      hasPaymentFrequency: hasColumn,
-      message: hasColumn 
-        ? "Column payment_frequency EXISTS in this runtime's database."
-        : "Column payment_frequency IS MISSING from this runtime's database!",
+      status: 'success',
+      database: 'connected',
+      userCount: users.length,
+      users: users,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[DB-DIAGNOSTIC] Error:', error);
     return NextResponse.json({
-      success: false,
-      error: message,
-    });
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Unknown database error',
+      error: String(error)
+    }, { status: 500 });
   }
 }

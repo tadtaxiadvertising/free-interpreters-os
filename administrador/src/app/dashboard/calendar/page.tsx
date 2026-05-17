@@ -1,22 +1,17 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import prisma from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth/actions';
 import { getInterpreterCommitment } from '@/app/actions/calendar';
 import { Flame, Trophy, TrendingUp, AlertCircle, CalendarDays } from 'lucide-react';
 
 export default async function InterpreterCalendarPage() {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const userData = await getCurrentUser();
 
-  if (error || !user) {
+  if (!userData) {
     redirect('/login');
   }
 
-  const profile = await prisma.userProfile.findUnique({
-    where: { id: user.id },
-    select: { interpreterId: true }
-  });
+  const profile = userData.profile;
 
   if (!profile || !profile.interpreterId) {
     return <div className="p-8 text-white">Interpreter profile not found.</div>;

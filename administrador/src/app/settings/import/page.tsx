@@ -3,6 +3,8 @@ import { CSVImporter } from '@/components/CSVImporter';
 import { ArrowLeft, FileSpreadsheet } from 'lucide-react';
 import Link from 'next/link';
 
+export const dynamic = 'force-dynamic';
+
 export default function ImportPage() {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">

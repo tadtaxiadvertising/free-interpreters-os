@@ -16,6 +16,9 @@ import {
   Trophy,
   Award,
   Clock,
+  MessageSquare,
+  Briefcase,
+  Key
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/types';
@@ -33,7 +36,7 @@ interface MenuItem {
   exact?: boolean;
 }
 
-const adminMenu: MenuItem[] = [
+export const adminMenu: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Command Center', href: '/admin', exact: true },
   { icon: Users, label: 'Interpreter Roster', href: '/interpreters' },
   { icon: UserPlus, label: 'Recruitment', href: '/recruitment' },
@@ -42,16 +45,41 @@ const adminMenu: MenuItem[] = [
   { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
   { icon: DollarSign, label: 'Payroll & Rates', href: '/payroll' },
   { icon: Clock, label: 'Registro Manual', href: '/admin/production/manual' },
-  { icon: Users, label: 'Gestión de Usuarios', href: '/admin/users' },
+  { icon: Users, label: 'Gestión de Usuarios', href: '/portal-rbac/admin/users' },
+  { icon: MessageSquare, label: 'Moderación', href: '/portal-rbac/admin/messages' },
   { icon: Settings, label: 'System Settings', href: '/settings' },
 ];
 
-const interpreterMenu: MenuItem[] = [
+export const interpreterMenu: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Mi Dashboard', href: '/dashboard', exact: true },
   { icon: Clock, label: 'Calendario de Metas', href: '/dashboard/calendar' },
   { icon: Trophy, label: 'Mi Ranking', href: '/dashboard/ranking' },
   { icon: DollarSign, label: 'Mis Ganancias', href: '/dashboard/earnings' },
   { icon: Settings, label: 'Configuración', href: '/dashboard/settings' },
+];
+
+// ── RBAC-specific menus (portal-rbac routes, Auth.js session) ──
+export const rbacAdminMenu: MenuItem[] = [
+  { icon: LayoutDashboard, label: 'Command Center', href: '/portal-rbac/admin/dashboard', exact: true },
+  { icon: Users, label: 'Gestión de Usuarios', href: '/portal-rbac/admin/users' },
+  { icon: MessageSquare, label: 'Moderación', href: '/portal-rbac/admin/messages' },
+  { icon: DollarSign, label: 'Nómina (Payroll)', href: '/portal-rbac/admin/payroll' },
+  { icon: ShieldCheck, label: 'Calidad (QA)', href: '/portal-rbac/admin/qa' },
+  { icon: Clock, label: 'Registro Manual', href: '/portal-rbac/admin/manual-logs' },
+];
+
+export const rbacInterpreterMenu: MenuItem[] = [
+  { icon: LayoutDashboard, label: 'Mi Dashboard', href: '/portal-rbac/interpreter/dashboard', exact: true },
+  { icon: Key, label: 'Cuentas Asignadas', href: '/portal-rbac/interpreter/accounts' },
+  { icon: Clock, label: 'Calendario de Metas', href: '/portal-rbac/interpreter/calendar' },
+  { icon: Trophy, label: 'Mi Ranking', href: '/portal-rbac/interpreter/ranking' },
+  { icon: DollarSign, label: 'Mis Ganancias', href: '/portal-rbac/interpreter/earnings' },
+  { icon: MessageSquare, label: 'Mensajes', href: '/portal-rbac/interpreter/messages' },
+];
+
+export const holderMenu: MenuItem[] = [
+  { icon: Briefcase, label: 'Mis Cuentas', href: '/portal-rbac/holder/dashboard' },
+  { icon: MessageSquare, label: 'Mensajes', href: '/portal-rbac/holder/messages' },
 ];
 
 // ── Ranking data shape ──
@@ -63,10 +91,13 @@ interface RankingData {
 }
 
 interface SidebarProps {
-  role: UserRole;
+  role: UserRole | string;
   isCollapsed: boolean;
   onToggle: () => void;
   ranking?: RankingData | null;
+  customMenu?: MenuItem[];
+  appName?: string;
+  appSubtitle?: string;
 }
 
 /**
@@ -106,9 +137,19 @@ function getActiveIndex(pathname: string, items: MenuItem[]): number {
   return bestIdx;
 }
 
-export function Sidebar({ role, isCollapsed, onToggle, ranking }: SidebarProps) {
+export function Sidebar({ role, isCollapsed, onToggle, ranking, customMenu, appName, appSubtitle }: SidebarProps) {
   const pathname = usePathname();
-  const menuItems = role === 'admin' ? adminMenu : interpreterMenu;
+  
+  // Determine the correct menu based on role + context
+  // Uppercase roles (ADMIN, INTERPRETER, HOLDER) = portal-rbac (Auth.js)
+  // Lowercase roles (admin, interpreter) = main dashboard (Supabase)
+  let defaultMenu = interpreterMenu;
+  if (role === 'admin') defaultMenu = adminMenu;
+  if (role === 'ADMIN') defaultMenu = rbacAdminMenu;
+  if (role === 'INTERPRETER') defaultMenu = rbacInterpreterMenu;
+  if (role === 'holder' || role === 'HOLDER') defaultMenu = holderMenu;
+  
+  const menuItems = customMenu || defaultMenu;
   const activeIndex = getActiveIndex(pathname, menuItems);
 
   // Inline ranking data for the sidebar (interpreter only)
@@ -123,10 +164,10 @@ export function Sidebar({ role, isCollapsed, onToggle, ranking }: SidebarProps) 
         {!isCollapsed && (
           <div className="animate-in fade-in duration-500">
             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent truncate">
-              Free Interpreters
+              {appName || 'Free Interpreters'}
             </h1>
             <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">
-              {role === 'admin' ? 'Admin OS' : 'Portal'}
+              {appSubtitle || (role === 'admin' ? 'Admin OS' : 'Portal')}
             </p>
           </div>
         )}

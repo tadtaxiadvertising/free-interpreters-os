@@ -1,147 +1,370 @@
-"use client";
-import { useEffect, useState, useTransition } from "react";
-import RbacShell from "@/components/rbac-shell";
-import { getInterpreterAccounts } from "@/app/actions/rbac-interpreter";
-import { RbacStatCard, RbacStatSkeleton } from "@/components/rbac-dashboard/stat-card";
-import toast from "react-hot-toast";
+import React from "react";
+import Link from "next/link";
+import { getRbacInterpreterDashboard, getRbacRankingData } from "@/app/actions/rbac-data";
+import { getOnboardingStatus } from "@/app/actions/onboarding";
+import { OnboardingGate } from "@/components/OnboardingGate";
+import { CallTimer } from "@/components/CallTimer";
+import { StatusToggle } from "@/components/StatusToggle";
+import { CallHistory } from "@/components/CallHistory";
+import {
+  Clock,
+  DollarSign,
+  TrendingUp,
+  ShieldCheck,
+  Phone,
+  Trophy,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export default function InterpreterDashboard() {
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [visibleCredentials, setVisibleCredentials] = useState<Record<string, boolean>>({});
+export const dynamic = "force-dynamic";
 
-  useEffect(() => {
-    loadData();
-  }, []);
+export default async function InterpreterDashboardPage() {
+  const [data, rankingRes, onboardingRes] = await Promise.all([
+    getRbacInterpreterDashboard(),
+    getRbacRankingData(),
+    getOnboardingStatus()
+  ]);
 
-  const loadData = async () => {
-    setLoading(true);
-    getInterpreterAccounts()
-      .then(setAccounts)
-      .catch(() => toast.error("Error al cargar cuentas asignadas"))
-      .finally(() => setLoading(false));
-  };
+  if (!data.interpreter) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="glass p-10 rounded-3xl text-center max-w-lg border border-white/5">
+          <div className="w-20 h-20 bg-orange-500/10 rounded-3xl flex items-center justify-center text-orange-400 mx-auto mb-6 border border-orange-500/20">
+            <ShieldCheck size={40} />
+          </div>
+          <h2 className="text-3xl font-black text-white mb-4">
+            Perfil no vinculado
+          </h2>
+          <p className="text-slate-300">
+            Tu cuenta RBAC no está vinculada a un perfil de intérprete activo.
+            Contacta al administrador.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  const toggleVisibility = (id: string) => {
-    setVisibleCredentials(prev => ({ ...prev, [id]: !prev[id] }));
-  };
+  const {
+    interpreter,
+    todayMinutes,
+    mtdMinutes,
+    dailyGoal,
+    monthlyGoal,
+    mtdEarnings,
+    latestQa,
+  } = data;
+
+  const mtdProgress = Math.min((mtdMinutes / (monthlyGoal / 60)) * 100, 100);
+  const todayProgress = Math.min((todayMinutes / dailyGoal) * 100, 100);
+  const isQaExcellent = latestQa >= 95;
+
+  const onboardingComplete = onboardingRes.success && onboardingRes.data ? onboardingRes.data.onboardingComplete : false;
 
   return (
-    <RbacShell requiredRole="INTERPRETER">
-      <div className="mb-10">
-        <h1 className="text-4xl font-extrabold text-white tracking-tight">Cuentas Asignadas</h1>
-        <p className="text-slate-400 mt-2 text-lg">Accede a las credenciales encriptadas para tus sesiones de interpretación</p>
-      </div>
+    <>
+      <OnboardingGate 
+        isComplete={onboardingComplete} 
+        interpreterName={interpreter.name} 
+      />
+      <div className="space-y-8 animate-in fade-in duration-700">
+      {/* Hero */}
+      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-indigo-900/50 to-slate-900 border border-indigo-500/20 p-8 shadow-2xl">
+        <div className="absolute top-0 right-0 p-32 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-0 left-0 p-32 bg-emerald-500/10 blur-[100px] rounded-full pointer-events-none" />
 
-      {/* Stats Quick View */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-        {!loading ? (
-          <>
-            <RbacStatCard label="Cuentas Activas" value={accounts.length} icon="🔑" color="from-blue-500 to-indigo-600" />
-            <RbacStatCard label="Pendientes de Revisión" value={0} icon="🕒" color="from-amber-500 to-orange-600" delay={100} />
-          </>
-        ) : (
-          [1, 2].map(i => <RbacStatSkeleton key={i} />)
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 gap-6">
-        {loading ? (
-          [1, 2, 3].map(i => (
-            <div key={i} className="h-48 bg-white/5 rounded-2xl animate-pulse border border-white/5" />
-          ))
-        ) : accounts.length === 0 ? (
-          <div className="bg-white/[0.02] border border-dashed border-white/10 rounded-3xl p-20 text-center">
-            <div className="text-4xl mb-4 opacity-20">📭</div>
-            <p className="text-slate-500 font-medium">No tienes cuentas de acceso asignadas en este momento.</p>
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <h2 className="text-3xl font-bold text-white tracking-tight">
+                Hola, {interpreter.name}
+              </h2>
+              {isQaExcellent && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                  Top Tier QA ✨
+                </span>
+              )}
+            </div>
+            <p className="text-slate-200 font-medium">
+              {interpreter.languageA} ↔ {interpreter.languageB}
+              {interpreter.campaign && (
+                <span className="ml-3 text-indigo-300">
+                  • {interpreter.campaign}
+                </span>
+              )}
+            </p>
           </div>
-        ) : (
-          accounts.map((acc) => (
-            <div key={acc.id} className="group relative bg-white/[0.03] border border-white/5 rounded-3xl p-8 hover:border-white/10 transition-all overflow-hidden shadow-2xl">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-              
-              <div className="flex flex-col md:flex-row justify-between gap-6 relative z-10">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h2 className="text-2xl font-bold text-white tracking-tight">{acc.platformName}</h2>
-                    <span className="px-3 py-1 rounded-full bg-white/5 border border-white/5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Asignado por: {acc.holder.name}
-                    </span>
-                  </div>
-                  {acc.url && (
-                    <a href={acc.url} target="_blank" className="text-sm text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
-                      {acc.url}
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                    </a>
-                  )}
+          <StatusToggle currentStatus={interpreter.realtimeStatus || "Offline"} />
+        </div>
 
-                  <div className="mt-8 space-y-6">
-                    <div className="relative">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Credenciales de Acceso</span>
-                        <button 
-                          onClick={() => toggleVisibility(acc.id)}
-                          className="text-xs font-bold text-blue-400 hover:text-blue-300 transition-all flex items-center gap-1.5"
-                        >
-                          {visibleCredentials[acc.id] ? "Ocultar Datos" : "Revelar Credenciales"}
-                          {visibleCredentials[acc.id] ? <EyeOffIcon /> : <EyeIcon />}
-                        </button>
-                      </div>
-                      <div className={`relative rounded-2xl border transition-all duration-300 ${visibleCredentials[acc.id] ? 'bg-black border-blue-500/30' : 'bg-white/5 border-white/5'}`}>
-                        <pre className={`p-5 font-mono text-sm overflow-x-auto transition-all duration-300 ${visibleCredentials[acc.id] ? 'text-blue-400' : 'text-slate-700 blur-sm select-none'}`}>
-                          {visibleCredentials[acc.id] ? acc.decryptedCredentials : "••••••••••••••••••••••••••••••••"}
-                        </pre>
-                        {visibleCredentials[acc.id] && (
-                          <button 
-                            onClick={() => {
-                              navigator.clipboard.writeText(acc.decryptedCredentials);
-                              toast.success("Copiado al portapapeles");
-                            }}
-                            className="absolute top-3 right-3 p-2 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-all"
-                          >
-                            <CopyIcon />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {acc.vpnConfig && (
-                        <div>
-                          <span className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Configuración VPN</span>
-                          <div className="p-4 bg-white/5 border border-white/5 rounded-2xl text-slate-300 text-sm font-medium">
-                            {acc.vpnConfig}
-                          </div>
-                        </div>
-                      )}
-                      {acc.notes && (
-                        <div>
-                          <span className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Notas del Titular</span>
-                          <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl text-amber-200/70 text-sm italic">
-                            {acc.notes}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          {/* MTD Progress */}
+          <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm">
+            <div className="flex justify-between items-end mb-4">
+              <div>
+                <p className="text-sm text-white font-semibold mb-1">
+                  Horas MTD
+                </p>
+                <p className="text-3xl font-bold text-white">
+                  <span suppressHydrationWarning>
+                    {(mtdMinutes / 60).toFixed(1)}
+                  </span>
+                  <span className="text-lg text-slate-300">
+                    {" "}
+                    / {Math.round(monthlyGoal / 60)}
+                  </span>
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400">
+                <Clock size={24} />
               </div>
             </div>
-          ))
-        )}
+            <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400 rounded-full relative"
+                style={{ width: `${mtdProgress}%` }}
+              >
+                <div className="absolute inset-0 bg-white/20 animate-pulse" />
+              </div>
+            </div>
+            <p
+              suppressHydrationWarning
+              className="text-xs text-slate-200 mt-2 text-right font-medium"
+            >
+              {mtdProgress.toFixed(1)}% de la meta mensual
+            </p>
+          </div>
+
+          {/* QA Score */}
+          <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm flex flex-col justify-center">
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-sm text-white font-semibold">QA Score</p>
+              <div
+                className={cn(
+                  "p-2 rounded-xl",
+                  isQaExcellent
+                    ? "bg-emerald-500/10 text-emerald-400"
+                    : "bg-slate-800 text-slate-200"
+                )}
+              >
+                <ShieldCheck size={20} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p
+                className={cn(
+                  "text-4xl font-bold",
+                  isQaExcellent
+                    ? "text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                    : "text-white"
+                )}
+              >
+                {latestQa}%
+              </p>
+              {isQaExcellent && (
+                <span className="text-sm font-medium text-emerald-400">
+                  ¡Excelente!
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Earnings */}
+          <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm flex flex-col justify-center">
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-sm text-white font-semibold">Ganancias MTD</p>
+              <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
+                <DollarSign size={20} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className="text-4xl font-bold text-white tracking-tight">
+                RD${mtdEarnings.toFixed(2)}
+              </p>
+              <span className="text-slate-300 text-sm font-medium">
+                ({(mtdMinutes / 60).toFixed(1)} hrs)
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 mt-2 font-medium">
+              Tarifa: RD$
+              {(interpreter.tariffPerMinute * 60).toFixed(2)}/hr
+            </p>
+          </div>
+        </div>
       </div>
-    </RbacShell>
+
+      {/* Daily Progress & Leaderboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-16 bg-emerald-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
+          <div className="flex items-center justify-between mb-6 relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
+                <TrendingUp size={22} />
+              </div>
+              <h3 className="text-xl font-bold text-white tracking-tight">
+                Meta Diaria
+              </h3>
+            </div>
+            <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md uppercase tracking-wider border border-emerald-500/20">
+              Daily Target
+            </span>
+          </div>
+          <div className="relative z-10">
+            <div className="flex justify-between items-end mb-4">
+              <div>
+                <p className="text-sm text-slate-400 font-medium mb-1">
+                  Producción de hoy
+                </p>
+                <p className="text-3xl font-bold text-white">
+                  <span suppressHydrationWarning>{todayMinutes}</span>
+                  <span className="text-lg text-slate-400">
+                    {" "}
+                    / {dailyGoal} min
+                  </span>
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-slate-400 font-medium mb-1">
+                  Restante
+                </p>
+                <p className="text-xl font-bold text-emerald-400">
+                  {Math.max(0, dailyGoal - todayMinutes)} min
+                </p>
+              </div>
+            </div>
+
+            <div className="w-full h-4 bg-slate-800/50 rounded-full overflow-hidden border border-white/5">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full relative transition-all duration-1000 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                style={{ width: `${todayProgress}%` }}
+              >
+                <div className="absolute inset-0 bg-white/20 animate-pulse" />
+              </div>
+            </div>
+
+            <div className="flex justify-between mt-3">
+              <p className="text-xs text-slate-500 font-medium">
+                {todayProgress.toFixed(1)}% completado
+              </p>
+              {todayProgress >= 100 && (
+                <p className="text-xs text-emerald-400 font-bold flex items-center gap-1">
+                  <ShieldCheck size={12} /> ¡Meta lograda!
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Temporizador en Vivo */}
+        <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-16 bg-blue-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
+          <div className="flex items-center justify-between mb-6 relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
+                <Phone size={22} />
+              </div>
+              <h3 className="text-xl font-bold text-white tracking-tight">
+                Temporizador en Vivo
+              </h3>
+            </div>
+            {data.activeCall && (
+              <span className="text-[10px] font-black text-orange-500 bg-orange-500/10 px-2 py-1 rounded-md uppercase tracking-wider border border-orange-500/20 animate-pulse">
+                En Llamada
+              </span>
+            )}
+          </div>
+          <div className="relative z-10">
+            <CallTimer
+              activeCall={data.activeCall}
+              currentRate={interpreter.tariffPerMinute}
+            />
+          </div>
+        </div>
+
+        {/* Ranking / Leaderboard */}
+        <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-16 bg-amber-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
+          <div className="flex items-center justify-between mb-6 relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
+                <Trophy size={22} />
+              </div>
+              <h3 className="text-xl font-bold text-white tracking-tight">Tabla de Posiciones</h3>
+            </div>
+            <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-1 rounded-md uppercase tracking-wider border border-amber-500/20">Monthly</span>
+          </div>
+          
+          <div className="relative z-10 space-y-4">
+            {rankingRes.rankings.slice(0, 3).map((entry: any, i: number) => {
+              const isMe = entry.id === rankingRes.myInterpreterId;
+              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
+              return (
+                <div 
+                  key={entry.id} 
+                  className={cn(
+                    "flex items-center justify-between p-2 rounded-xl transition-all",
+                    isMe ? "bg-blue-500/10 border border-blue-500/20" : "hover:bg-white/5"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold w-6 text-center text-slate-400">
+                      {medal || `#${i + 1}`}
+                    </span>
+                    <div>
+                      <p className={cn("text-sm font-bold", isMe ? "text-blue-400" : "text-white")}>
+                        {entry.name} {isMe && <span className="text-[10px] text-blue-400">(Tú)</span>}</p>
+                      <p className="text-[10px] text-slate-500">{entry.campaign || 'General'}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-slate-200">{(entry.totalMinutes / 60).toFixed(1)} hrs</p>
+                    {entry.qaScore > 0 && (
+                      <p className="text-[9px] font-bold text-emerald-400">QA: {entry.qaScore}%</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            
+            {/* If user is not in top 3, show their position row */}
+            {rankingRes.myIdx >= 3 && (
+              <>
+                <div className="border-t border-dashed border-white/10 my-2" />
+                <div className="flex items-center justify-between p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold w-6 text-center text-blue-400">
+                      #{rankingRes.myIdx + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-blue-400">
+                        {rankingRes.rankings[rankingRes.myIdx]?.name} <span className="text-[10px]">(Tú)</span>
+                      </p>
+                      <p className="text-[10px] text-slate-500">{rankingRes.rankings[rankingRes.myIdx]?.campaign || 'General'}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-blue-400">{(rankingRes.rankings[rankingRes.myIdx]?.totalMinutes / 60).toFixed(1)} hrs</p>
+                    {rankingRes.rankings[rankingRes.myIdx]?.qaScore > 0 && (
+                      <p className="text-[9px] font-bold text-emerald-400">QA: {rankingRes.rankings[rankingRes.myIdx]?.qaScore}%</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <Link 
+              href="/portal-rbac/interpreter/ranking"
+              className="block text-center text-xs text-indigo-400 hover:text-indigo-300 font-bold mt-4 pt-2 hover:underline transition-all"
+            >
+              Ver Ranking Completo
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Calls */}
+      <CallHistory calls={data.recentCalls || []} />
+    </div>
+    </>
   );
-}
-
-function EyeIcon() {
-  return <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>;
-}
-
-function EyeOffIcon() {
-  return <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>;
-}
-
-function CopyIcon() {
-  return <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>;
 }

@@ -1,51 +1,44 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+
+/**
+ * HEALTH CHECK — /api/health
+ * ============================================================
+ * MISSION: Keep the Easypanel/Traefik container alive.
+ *
+ * DESIGN:
+ *   1. `force-dynamic` prevents Next.js from caching this as a
+ *      static page during the build phase.
+ *   2. Returns 200 with `{ status: "healthy" }` unconditionally.
+ *      This is a PURE liveness probe — no DB, no I/O, no auth.
+ *   3. The health endpoint is bypassed by the middleware (no auth,
+ *      no Supabase session refresh, no CORS overhead).
+ *   4. Database connectivity should be checked via a separate
+ *      readiness probe, NOT the liveness healthcheck. Coupling
+ *      DB state to container liveness causes cascading restarts
+ *      during transient DB hiccups (the #1 cause of SIGTERM loops).
+ *
+ * EASYPANEL CONFIG:
+ *   Health Check Path: /api/health
+ *   Health Check Port: 3000
+ *   Interval: 30s | Timeout: 5s | Start Period: 15s | Retries: 3
+ * ============================================================
+ */
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-export async function GET() {
-  const start = performance.now();
-  
-  try {
-    // ── Pre-check: Environment ─────────────────────────
-    if (!process.env.DATABASE_URL) {
-      throw new Error('CONFIG_ERROR: DATABASE_URL is missing');
-    }
-
-    // ── DB Probe ──────────────────────────────────────
-    const dbResult = await Promise.race([
-      prisma.$queryRaw<[{ ok: number }]>`SELECT 1 as ok`,
-      new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('DB_TIMEOUT')), 3000)
-      ),
-    ]);
-
-    const latencyMs = Math.round(performance.now() - start);
-    const memoryMB = Math.round(process.memoryUsage().rss / 1024 / 1024);
-
-    return NextResponse.json({
+export async function GET(): Promise<NextResponse> {
+  return NextResponse.json(
+    {
       status: 'healthy',
-      service: 'titular',
-      checks: {
-        database: {
-          status: 'connected',
-          latencyMs,
-          ok: dbResult?.[0]?.ok === 1,
-        },
-        memory: {
-          rssMB: memoryMB,
-          warning: memoryMB > 120 ? 'HIGH_MEMORY' : null,
-        }
+      timestamp: new Date().toISOString(),
+      service: 'free-interpreters-os',
+    },
+    {
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
       },
-      timestamp: new Date().toISOString(),
-    }, { status: 200 });
-  } catch (error) {
-    console.error('[HEALTH] titular failed:', error);
-    return NextResponse.json({
-      status: 'unhealthy',
-      service: 'titular',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString(),
-    }, { status: 503 });
-  }
+    }
+  );
 }

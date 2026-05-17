@@ -187,22 +187,22 @@ export async function calculateIncentive(totalHours: number): Promise<IncentiveR
 }
 
 /**
- * Motor de cÃ¡lculo completo: unifica tiempo + incentivos + QA + penalidades.
- * FÃ³rmula base: (totalMinutes) Ã— tariffPerMinute = grossTotal
+ * Motor de cálculo completo: unifica tiempo + incentivos + QA + penalidades.
+ * Siguiendo estrictamente las reglas de negocio v3.
  */
 export async function calculateFullPayroll(
   interpreterId: number,
   periodStart: Date,
   periodEnd: Date
 ): Promise<PayrollCalculationResult> {
-  // 1. Obtener intérprete y sus tasas por cuenta
+  // 1. Obtener intérprete con sus metadatos financieros
   const interpreter = await db.interpreter.findUnique({
     where: { id: interpreterId },
     select: {
       id: true,
       name: true,
       tariffPerMinute: true,
-      accountRates: true
+      metodoPago: true,
     },
   });
 
@@ -210,53 +210,50 @@ export async function calculateFullPayroll(
     throw new Error(`Interpreter ${interpreterId} not found`);
   }
 
+  // Regla C: Manejo seguro de Decimal
   const baseRatePerMinute = parseFloat(interpreter.tariffPerMinute.toString());
 
-  // 2. Obtener logs de producción para cálculo detallado de costos
+  // 2. Obtener logs de producción
   const productionLogs = await db.productionLog.findMany({
     where: {
       interpreterId,
       date: { gte: periodStart, lte: periodEnd },
     },
-    select: { interpretedMinutes: true, verifiedMinutes: true, accountId: true },
+    select: { interpretedMinutes: true, verifiedMinutes: true },
   }) as ProductionLogRecord[];
 
-  // 3. Obtener logs de llamadas en tiempo real
+  // 3. Obtener logs de llamadas (Timer)
   const callSessions = await db.callSession.findMany({
     where: {
       interpreterId,
       startedAt: { gte: periodStart, lte: periodEnd },
       endedAt: { not: null },
     },
-    select: { durationSeconds: true, callCost: true },
-  }) as unknown as CallSessionRecord[];
+    select: { durationSeconds: true },
+  });
 
-  // 4. Cálculos de Minutos
-  const importedMinutes = (productionLogs || []).reduce((sum: number, log: ProductionLogRecord) => {
-    return sum + (log.verifiedMinutes !== null ? log.verifiedMinutes : (log.interpretedMinutes || 0));
+  // 4. Cálculos de Minutos (Regla Payroll Engine)
+  const interpretedSum = (productionLogs || []).reduce((sum: number, log: ProductionLogRecord) => {
+    return sum + (log.interpretedMinutes || 0);
   }, 0);
-  const realtimeMinutes = Math.round((callSessions || []).reduce((sum: number, call: CallSessionRecord) => sum + (call.durationSeconds || 0), 0) / 60);
-  const totalMinutes = importedMinutes + realtimeMinutes;
+  
+  const realtimeSum = (callSessions || []).reduce((sum: number, call: { durationSeconds: number | null }) => {
+    return sum + (call.durationSeconds || 0);
+  }, 0);
+  const realtimeMinutes = realtimeSum / 60;
+
+  // Minutos Totales Base
+  const calculatedTotalMinutes = interpretedSum + realtimeMinutes;
+  
+  // Prioridad de Supervisión: Si verifiedMinutes existe en PayrollRecord se usará, 
+  // pero aquí calculamos la base inicial.
+  const totalMinutes = Math.round(calculatedTotalMinutes * 100) / 100;
   const totalHours = Math.round((totalMinutes / 60) * 100) / 100;
 
-  // 5. Cálculo de Gross Total (respetando accountRates y verifiedMinutes)
-  let importedCost = 0;
-  for (const log of (productionLogs || [])) {
-    let ratePerMinute = baseRatePerMinute;
-    if (log.accountId) {
-      const specificRate = interpreter.accountRates?.find((r: { accountId: number | null }) => r.accountId === log.accountId);
-      if (specificRate) {
-        ratePerMinute = parseFloat(specificRate.tariffPerHour.toString()) / 60;
-      }
-    }
-    const effectiveMinutes = log.verifiedMinutes !== null ? log.verifiedMinutes : (log.interpretedMinutes || 0);
-    importedCost += effectiveMinutes * ratePerMinute;
-  }
+  // 5. Cálculo Bruto (Regla: minutos_finales * tariffPerMinute)
+  const grossTotal = Math.round(totalMinutes * baseRatePerMinute * 100) / 100;
 
-  const realtimeCost = (callSessions || []).reduce((sum: number, call: CallSessionRecord) => sum + parseFloat(call.callCost?.toString() || '0'), 0);
-  const grossTotal = Math.round((importedCost + realtimeCost) * 100) / 100;
-
-  // 6. Incentivos dinámicos desde SystemConfig
+  // 6. Incentivos dinámicos
   const incentive = await calculateIncentive(totalHours);
 
   // 7. Quality bonus (QA) con Regla de Auto-Fail
@@ -271,11 +268,12 @@ export async function calculateFullPayroll(
 
   if (qaScores && qaScores.length > 0) {
     const avgQA = qaScores.reduce((sum: number, qa: QAScoreRecord) => {
-      // Auto-Fail Rule: if criticalError === true, QA score counts as 0.00
+      // Auto-Fail Rule
       const score = qa.criticalError ? 0 : (parseFloat(qa.totalScore?.toString() || '0') || 0);
       return sum + score;
     }, 0) / qaScores.length;
 
+    // El bono se aplica si el promedio es >= 90 (Asumido por lógica previa, no especificado cambio)
     if (avgQA >= 90) {
       qualityBonus = Math.round(grossTotal * 0.05 * 100) / 100;
     }
@@ -288,10 +286,20 @@ export async function calculateFullPayroll(
     penalidades = Math.round(grossTotal * 0.1 * criticalErrors * 100) / 100;
   }
 
-  // 9. Net total
-  const subtotal = grossTotal + qualityBonus + incentive.totalIncentive - penalidades;
-  const transferDeduction = Math.round(subtotal * 0.015 * 100) / 100;
-  const netTotal = Math.round((subtotal - transferDeduction) * 100) / 100;
+  // 9. Deducción de Pasarela (Regla: PayPal 5%, Local 0%)
+  let transferDeduction = 0;
+  if (interpreter.metodoPago === 'PayPal') {
+    transferDeduction = Math.round(grossTotal * 0.05 * 100) / 100;
+  } else if (interpreter.metodoPago === 'Bank Transfer') {
+    // Asumimos Bank Transfer como local si no es PayPal, según instrucción
+    transferDeduction = 0;
+  }
+
+  // 10. Cálculo Neto Consolidado
+  // netTotal = (grossTotal + qualityBonus + incentivesTotal) - (penalidades + transferDeduction)
+  const netTotal = Math.round(
+    ((grossTotal + qualityBonus + incentive.totalIncentive) - (penalidades + transferDeduction)) * 100
+  ) / 100;
 
   return {
     interpreterId: interpreter.id,
@@ -309,9 +317,9 @@ export async function calculateFullPayroll(
   };
 }
 
+
 /**
  * Recalcula netTotal cuando el admin sobrescribe los minutos verificados.
- * Usa verifiedMinutes en lugar de totalMinutes para el cÃ¡lculo.
  */
 export async function recalculateWithVerifiedMinutes(
   payrollRecordId: string,
@@ -326,7 +334,7 @@ export async function recalculateWithVerifiedMinutes(
     where: { id: payrollRecordId },
     include: {
       interpreter: {
-        select: { tariffPerMinute: true },
+        select: { tariffPerMinute: true, metodoPago: true },
       },
     },
   });
@@ -335,20 +343,24 @@ export async function recalculateWithVerifiedMinutes(
     throw new Error(`PayrollRecord ${payrollRecordId} not found`);
   }
 
-  const tariffPerMinute = record.interpreter ? parseFloat(record.interpreter.tariffPerMinute.toString()) : 0;
-  const grossTotal = Math.round(verifiedMinutes * tariffPerMinute * 100) / 100;
+  const baseRatePerMinute = record.interpreter ? parseFloat(record.interpreter.tariffPerMinute.toString()) : 0;
+  const grossTotal = Math.round(verifiedMinutes * baseRatePerMinute * 100) / 100;
 
-  // Recalcular incentivo con las horas verificadas
   const verifiedHours = Math.round((verifiedMinutes / 60) * 100) / 100;
   const incentive = await calculateIncentive(verifiedHours);
 
-  // Mantener qualityBonus y penalidades originales
   const qualityBonus = record.qualityBonus ? parseFloat(record.qualityBonus.toString()) : 0;
   const penalidades = record.penalidades ? parseFloat(record.penalidades.toString()) : 0;
 
-  const subtotal = grossTotal + qualityBonus + incentive.totalIncentive - penalidades;
-  const transferDeduction = Math.round(subtotal * 0.015 * 100) / 100;
-  const netTotal = Math.round((subtotal - transferDeduction) * 100) / 100;
+  // Regla de Pasarela: PayPal 5%, Local 0%
+  let transferDeduction = 0;
+  if (record.interpreter?.metodoPago === 'PayPal') {
+    transferDeduction = Math.round(grossTotal * 0.05 * 100) / 100;
+  }
+
+  const netTotal = Math.round(
+    ((grossTotal + qualityBonus + incentive.totalIncentive) - (penalidades + transferDeduction)) * 100
+  ) / 100;
 
   return {
     grossTotal,
@@ -359,8 +371,7 @@ export async function recalculateWithVerifiedMinutes(
 }
 
 /**
- * Busca y actualiza un registro de nómina existente si está en estado 'Pendiente' o 'PENDING'.
- * Útil después de conciliar minutos en un productionLog.
+ * Busca y actualiza un registro de nómina existente si está en estado 'PENDING'.
  */
 export async function refreshPayrollRecord(
   interpreterId: number,
@@ -392,3 +403,4 @@ export async function refreshPayrollRecord(
     });
   }
 }
+

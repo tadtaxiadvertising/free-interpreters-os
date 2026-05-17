@@ -19,7 +19,7 @@ export function QuickLogButton() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/calls/manual', {
+      const response = await fetch('/api/v1/calls/manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

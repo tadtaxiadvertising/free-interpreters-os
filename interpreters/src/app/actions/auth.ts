@@ -105,37 +105,83 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    const profile = await prisma.userProfile.findUnique({
-      where: { id: user.id },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        interpreterId: true,
-        displayName: true,
-        termsAcceptedAt: true,
-        signatureDate: true,
-        bankName: true,
-        bankAccount: true,
-        bankAccountType: true,
-        bankCedula: true,
-        onboardingComplete: true,
-        createdAt: true,
-        interpreter: {
-          select: {
-            id: true,
-            externalId: true,
-            name: true,
-            status: true,
-            realtimeStatus: true,
-            tariffPerMinute: true,
-            emailCorporativo: true
-          }
-        } 
+    
+    let profile = null;
+    
+    if (user) {
+      profile = await prisma.userProfile.findUnique({
+        where: { id: user.id },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          interpreterId: true,
+          displayName: true,
+          termsAcceptedAt: true,
+          signatureDate: true,
+          bankName: true,
+          bankAccount: true,
+          bankAccountType: true,
+          bankCedula: true,
+          onboardingComplete: true,
+          createdAt: true,
+          interpreter: {
+            select: {
+              id: true,
+              externalId: true,
+              name: true,
+              status: true,
+              realtimeStatus: true,
+              tariffPerMinute: true,
+              emailCorporativo: true
+            }
+          } 
+        }
+      });
+    } else {
+      // Fallback to Auth.js session (RBAC users)
+      const { auth } = await import('@/lib/auth-rbac');
+      const session = await auth();
+      
+      if (session?.user?.email) {
+        const rbacUser = await prisma.rbacUser.findUnique({
+          where: { email: session.user.email }
+        });
+        
+        if (rbacUser) {
+          const interpreter = await prisma.interpreter.findUnique({
+            where: { emailCorporativo: rbacUser.email },
+            select: {
+              id: true,
+              externalId: true,
+              name: true,
+              status: true,
+              realtimeStatus: true,
+              tariffPerMinute: true,
+              emailCorporativo: true
+            }
+          });
+          
+          // Map RbacUser to UserProfile structure
+          profile = {
+            id: rbacUser.id,
+            email: rbacUser.email,
+            role: rbacUser.role.toLowerCase(),
+            interpreterId: interpreter?.id || null,
+            displayName: rbacUser.name,
+            termsAcceptedAt: new Date(),
+            signatureDate: new Date(),
+            bankName: null,
+            bankAccount: null,
+            bankAccountType: null,
+            bankCedula: null,
+            onboardingComplete: true,
+            createdAt: rbacUser.createdAt,
+            interpreter: interpreter || null
+          };
+        }
       }
-    });
+    }
 
     if (!profile) return null;
 

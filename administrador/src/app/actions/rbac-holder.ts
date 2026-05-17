@@ -42,8 +42,21 @@ export async function listAvailableInterpreters() {
 export async function listHolderMessages() {
   const session = await requireRole("HOLDER", "ADMIN");
   return prisma.vaultMessage.findMany({
-    where: { authorId: session.user.id },
+    where: {
+      OR: [
+        { authorId: session.user.id },
+        { recipientId: session.user.id, status: "APPROVED" },
+        { recipientId: null, status: "APPROVED", authorId: { not: session.user.id } }
+      ]
+    },
     include: {
+      author: {
+        select: {
+          id: true,
+          name: true,
+          role: true,
+        },
+      },
       recipient: {
         select: {
           id: true,

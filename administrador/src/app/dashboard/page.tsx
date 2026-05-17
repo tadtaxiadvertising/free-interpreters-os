@@ -2,7 +2,7 @@ import React from 'react';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck, RefreshCw, LogIn, Plus } from 'lucide-react';
+import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck, RefreshCw, LogIn, Plus, Trophy } from 'lucide-react';
 import { getSystemConfig } from '@/app/actions/settings';
 import { cn } from '@/lib/utils';
 import { StatusToggle } from '@/components/StatusToggle';
@@ -83,12 +83,16 @@ export default async function InterpreterDashboard() {
   const endOfMonth = new Date();
   endOfMonth.setMonth(endOfMonth.getMonth() + 1, 0);
 
+  const globalGoalHours = parseFloat(await getSystemConfig('standard_monthly_goal_hours', '120'));
+
   // Fetch full data if we have an interpreter link
   let interpreter: any = null;
   let activeCall: any = null;
   let todayCalls: any[] = [];
   let recentCalls: any[] = [];
   let monthCalls: any[] = [];
+  let rankings: any[] = [];
+  let myRankIdx = -1;
 
   if (profile?.interpreter_id) {
     try {
@@ -120,7 +124,7 @@ export default async function InterpreterDashboard() {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
 
-        [activeCall, todayCalls, recentCalls, monthCalls] = await Promise.all([
+        const [activeCallRes, todayCallsRes, recentCallsRes, monthCallsRes, allInterpreters] = await Promise.all([
           prisma.callSession.findFirst({
             where: { interpreterId: interpreter.id, endedAt: null },
             orderBy: { startedAt: 'desc' }
@@ -139,8 +143,69 @@ export default async function InterpreterDashboard() {
               startedAt: { gte: startOfMonth, lte: endOfMonth },
               endedAt: { not: null }
             }
-          })
+          }),
+          prisma.interpreter.findMany({
+            where: { status: 'Activo' },
+            select: {
+              id: true,
+              name: true,
+              campaign: true,
+              monthlyGoal: true,
+              callSessions: {
+                where: {
+                  startedAt: { gte: startOfMonth, lte: endOfMonth },
+                  endedAt: { not: null },
+                },
+                select: { durationSeconds: true },
+              },
+              productionLogs: {
+                where: { date: { gte: startOfMonth, lte: endOfMonth } },
+                select: { interpretedMinutes: true },
+              },
+              qaScores: {
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+                select: { totalScore: true },
+              },
+            },
+          } as any)
         ]);
+
+        activeCall = activeCallRes;
+        todayCalls = todayCallsRes;
+        recentCalls = recentCallsRes;
+        monthCalls = monthCallsRes;
+
+        // Process rankings
+        rankings = allInterpreters
+          .map((interp: any) => {
+            const sessionMin = Math.round(
+              (interp.callSessions || []).reduce((s: number, c: any) => s + (c.durationSeconds || 0), 0) / 60
+            );
+            const logMin = (interp.productionLogs || []).reduce(
+              (s: number, l: any) => s + (l.interpretedMinutes || 0), 0
+            );
+            const totalMinutes = sessionMin + logMin;
+            const qaScore = interp.qaScores?.[0]?.totalScore ? Number(interp.qaScores[0].totalScore) : 0;
+            const monthlyGoalVal = interp.monthlyGoal ?? (globalGoalHours * 60);
+            const goalProgress = Math.min((totalMinutes / monthlyGoalVal) * 100, 100);
+
+            return {
+              id: interp.id,
+              name: interp.name,
+              campaign: interp.campaign,
+              totalMinutes,
+              qaScore,
+              monthlyGoal: monthlyGoalVal,
+              goalProgress,
+            };
+          })
+          .sort((a: any, b: any) => {
+            if (b.totalMinutes !== a.totalMinutes) return b.totalMinutes - a.totalMinutes;
+            return b.qaScore - a.qaScore;
+          });
+
+        myRankIdx = rankings.findIndex((r: any) => r.id === interpreter.id);
       }
     } catch (error) {
       console.error('❌ DASHBOARD: Data fetch failed:', error);
@@ -150,7 +215,6 @@ export default async function InterpreterDashboard() {
   // ── 📊 METRICS CALCULATION ──
   const todayMinutes = (todayCalls || []).reduce((acc: number, call: any) => acc + (call.durationSeconds || 0), 0) / 60;
   const mtdMinutes = (monthCalls || []).reduce((acc: number, call: any) => acc + (call.durationSeconds || 0), 0) / 60;
-  const globalGoalHours = parseFloat(await getSystemConfig('standard_monthly_goal_hours', '120'));
   const monthlyGoal = interpreter?.monthlyGoal || (globalGoalHours * 60);
   const mtdProgress = Math.min((mtdMinutes / monthlyGoal) * 100, 100);
   
@@ -308,7 +372,7 @@ export default async function InterpreterDashboard() {
         </div>
 
         {/* Quick Tools & Production Registry */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Call Timer */}
           <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-16 bg-blue-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
@@ -379,6 +443,87 @@ export default async function InterpreterDashboard() {
                   </p>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Ranking / Leaderboard */}
+          <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-16 bg-amber-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
+            <div className="flex items-center justify-between mb-6 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
+                  <Trophy size={22} />
+                </div>
+                <h3 className="text-xl font-bold text-white tracking-tight">Tabla de Posiciones</h3>
+              </div>
+              <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-1 rounded-md uppercase tracking-wider border border-amber-500/20">Monthly</span>
+            </div>
+            
+            <div className="relative z-10 space-y-4">
+              {rankings.slice(0, 3).map((entry: any, i: number) => {
+                const isMe = entry.id === interpreter.id;
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
+                return (
+                  <div 
+                    key={entry.id} 
+                    className={cn(
+                      "flex items-center justify-between p-2 rounded-xl transition-all",
+                      isMe ? "bg-blue-500/10 border border-blue-500/20" : "hover:bg-white/5"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold w-6 text-center text-slate-400">
+                        {medal || `#${i + 1}`}
+                      </span>
+                      <div>
+                        <p className={cn("text-sm font-bold", isMe ? "text-blue-400" : "text-white")}>
+                          {entry.name} {isMe && <span className="text-[10px] text-blue-400">(Tú)</span>}
+                        </p>
+                        <p className="text-[10px] text-slate-500">{entry.campaign || 'General'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-slate-200">{(entry.totalMinutes / 60).toFixed(1)} hrs</p>
+                      {entry.qaScore > 0 && (
+                        <p className="text-[9px] font-bold text-emerald-400">QA: {entry.qaScore}%</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* If user is not in top 3, show their position row */}
+              {myRankIdx >= 3 && (
+                <>
+                  <div className="border-t border-dashed border-white/10 my-2" />
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold w-6 text-center text-blue-400">
+                        #{myRankIdx + 1}
+                      </span>
+                      <div>
+                        <p className="text-sm font-bold text-blue-400">
+                          {rankings[myRankIdx]?.name} <span className="text-[10px]">(Tú)</span>
+                        </p>
+                        <p className="text-[10px] text-slate-500">{rankings[myRankIdx]?.campaign || 'General'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-blue-400">{(rankings[myRankIdx]?.totalMinutes / 60).toFixed(1)} hrs</p>
+                      {rankings[myRankIdx]?.qaScore > 0 && (
+                        <p className="text-[9px] font-bold text-emerald-400">QA: {rankings[myRankIdx]?.qaScore}%</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <Link 
+                href="/dashboard/ranking"
+                className="block text-center text-xs text-blue-400 hover:text-blue-300 font-bold mt-4 pt-2 hover:underline transition-all"
+              >
+                Ver Ranking Completo
+              </Link>
             </div>
           </div>
         </div>

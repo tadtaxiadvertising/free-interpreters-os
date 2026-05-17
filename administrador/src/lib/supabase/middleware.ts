@@ -48,8 +48,19 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // 2. Public paths that don't require auth
-  const publicPaths = ['/login', '/api/health', '/forgot-password', '/reset-password', '/auth'];
+  // 2. Public paths that don't require Supabase auth
+  // NOTE: /portal-rbac and /api/auth use a separate Auth.js/NextAuth system
+  const publicPaths = [
+    '/login', 
+    '/register',
+    '/api/health', 
+    '/api/auth',        // NextAuth endpoints (credentials login)
+    '/forgot-password', 
+    '/reset-password', 
+    '/auth',            // Supabase auth callback
+    '/portal-rbac',     // RBAC portal uses its own Auth.js auth
+    '/unauthorized',    // Error/Access Denied page
+  ];
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
 
   // 3. Handle non-authenticated users

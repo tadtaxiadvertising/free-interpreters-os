@@ -1,5 +1,5 @@
 import React from 'react';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/auth/actions';
 import { redirect } from 'next/navigation';
 import { 
   DollarSign, 
@@ -15,10 +15,11 @@ import prisma from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 export default async function EarningsPage() {
-  const supabase = await createClient();
+  const userData = await getCurrentUser();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!userData) redirect('/login');
+
+  const user = userData;
 
   // Fetch the interpreter profile linked to this user
   const interpreter = await prisma.interpreter.findFirst({

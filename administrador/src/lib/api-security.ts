@@ -16,16 +16,19 @@ export function withSecurity(
 ): RouteHandler {
   return async (req: NextRequest, context: unknown) => {
     try {
-      // 1. INPUT VALIDATION & SANITIZATION (Prevention of Injection & Mass Assignment)
-      // We parse the query and body against Zod schemas. 
-      // Zod automatically strips undeclared fields, preventing Mass Assignment.
+      // 1. INPUT VALIDATION & SANITIZATION
       if (schemas?.query) {
         const query = Object.fromEntries(new URL(req.url).searchParams);
         schemas.query.parse(query);
       }
 
-      if (schemas?.body && req.method !== 'GET') {
-        const body = await req.json();
+      // To avoid "Body has already been consumed" error, we don't consume it here
+      // if the handler needs to consume it too. 
+      // However, for strict Rule D, we should validate it.
+      // Next.js 15/16 Request clone() is reliable.
+      if (schemas?.body && req.method !== 'GET' && req.method !== 'DELETE') {
+        const clonedReq = req.clone();
+        const body = await clonedReq.json();
         schemas.body.parse(body);
       }
 
@@ -33,39 +36,25 @@ export function withSecurity(
       return await handler(req, context);
 
     } catch (error) {
-      // 2. GLOBAL ERROR HANDLING (Prevention of Information Disclosure)
-      // Log for internal auditing (not exposed to client)
-      console.error('[SECURITY-AUDIT]', {
-        timestamp: new Date().toISOString(),
-        method: req.method,
+      console.error('🔴 [SECURITY-AUDIT] Critical Failure:', {
         path: req.nextUrl.pathname,
-        error: error instanceof Error ? error.message : error,
+        method: req.method,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
       });
 
-      // Handle Validation Errors (Safe to show specific issues)
       if (error instanceof z.ZodError) {
         return NextResponse.json({ 
-          error: 'Invalid request data', 
-          details: error.issues.map((e: z.ZodIssue) => ({ 
-            path: e.path, 
-            message: e.message 
-          }))
+          error: 'Bad Request: Validation failed', 
+          details: error.issues 
         }, { status: 400 });
       }
 
-      // Handle Database Errors (Mitigate Information Leakage)
-      // We never return Prisma error codes or stack traces to the client.
-      if (error instanceof Prisma.PrismaClientKnownRequestError || 
-          error instanceof Prisma.PrismaClientValidationError) {
-        return NextResponse.json({ 
-          error: 'Unauthorized or invalid operation' // Opaque message for database errors
-        }, { status: 403 });
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        return NextResponse.json({ error: 'Database conflict or constraint violation' }, { status: 409 });
       }
 
-      // Default fallback for unhandled exceptions
-      return NextResponse.json({ 
-        error: 'An internal error occurred' 
-      }, { status: 500 });
+      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
   };
 }
+

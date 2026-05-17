@@ -9,6 +9,7 @@ type Message = {
   content: string;
   status: string;
   createdAt: string;
+  author: { id: string; name: string; role: string };
   recipient: { id: string; name: string; role: string } | null;
 };
 
@@ -121,21 +122,25 @@ export default function HolderMessages() {
           </div>
         ) : messages.length === 0 ? (
           <div className="p-12 text-center text-slate-500">
-            No has enviado mensajes aún
+            No hay mensajes en el historial
           </div>
         ) : (
           <div className="divide-y divide-white/5">
             {messages.map((msg) => {
               const status = STATUS_MAP[msg.status] || STATUS_MAP.PENDING_ADMIN;
+              const isMine = msg.author.role === "HOLDER";
               return (
                 <div key={msg.id} className="p-5 hover:bg-white/[0.02] transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${status.class}`}>
-                          {status.label}
-                        </span>
-                        {msg.recipient && (
+                        <span className="text-sm font-bold text-white">{isMine ? 'Tú' : msg.author.name}</span>
+                        {isMine && (
+                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${status.class}`}>
+                            {status.label}
+                          </span>
+                        )}
+                        {msg.recipient && isMine && (
                           <span className="text-xs text-slate-500">
                             → {msg.recipient.name}
                           </span>

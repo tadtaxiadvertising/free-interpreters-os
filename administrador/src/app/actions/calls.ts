@@ -66,6 +66,7 @@ export async function startCall(): Promise<ActionResult<{ sessionId: number; sta
     });
 
     revalidatePath('/dashboard');
+    revalidatePath('/portal-rbac/interpreter/dashboard');
     return {
       success: true,
       data: { 
@@ -112,6 +113,7 @@ export async function endCall(sessionId: number): Promise<ActionResult<{ duratio
     });
 
     revalidatePath('/dashboard');
+    revalidatePath('/portal-rbac/interpreter/dashboard');
     return {
       success: true,
       data: {

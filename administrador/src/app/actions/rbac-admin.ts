@@ -70,6 +70,35 @@ export async function listPendingMessages() {
   });
 }
 
+// ── Send Message as Admin ──────────────────────────────────────
+export async function sendMessageAsAdmin(data: any) {
+  const session = await requireRole("ADMIN");
+  const content = data.content as string;
+  const recipientId = data.recipientId as string || null;
+
+  if (!content || content.trim().length === 0) {
+    throw new Error("El contenido del mensaje es requerido");
+  }
+
+  return prisma.vaultMessage.create({
+    data: {
+      content,
+      authorId: session.user.id,
+      recipientId: recipientId || null,
+      status: "APPROVED",
+    },
+  });
+}
+
+export async function getAllUsersForMessages() {
+  await requireRole("ADMIN");
+  return prisma.rbacUser.findMany({
+    where: { role: { in: ["HOLDER", "INTERPRETER"] } },
+    select: { id: true, name: true, email: true, role: true },
+    orderBy: { name: "asc" }
+  });
+}
+
 // ── Dashboard Stats ────────────────────────────────────────────
 export async function getAdminStats() {
   await requireRole("ADMIN");

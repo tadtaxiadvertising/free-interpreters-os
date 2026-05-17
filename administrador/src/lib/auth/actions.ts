@@ -12,7 +12,39 @@ import { cache } from 'react';
 export const getCurrentUser = cache(async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  
+  if (!user) {
+    // Fallback to Auth.js session (RBAC users)
+    const { auth } = await import('@/lib/auth-rbac');
+    const session = await auth();
+    
+    if (session?.user?.email) {
+      const rbacUser = await prisma.rbacUser.findUnique({
+        where: { email: session.user.email }
+      });
+      
+      if (rbacUser) {
+        // Try to map to an interpreter profile
+        const interpreter = await prisma.interpreter.findUnique({
+          where: { emailCorporativo: rbacUser.email }
+        });
+        
+        return {
+          id: rbacUser.id,
+          email: rbacUser.email,
+          profile: {
+            id: rbacUser.id,
+            role: rbacUser.role.toLowerCase(), // map 'INTERPRETER' to 'interpreter'
+            displayName: rbacUser.name,
+            email: rbacUser.email,
+            interpreterId: interpreter?.id || null
+          }
+        };
+      }
+    }
+    
+    return null;
+  }
 
   const profile = await prisma.userProfile.findUnique({
     where: { id: user.id },
@@ -20,7 +52,8 @@ export const getCurrentUser = cache(async () => {
       id: true,
       role: true,
       displayName: true,
-      email: true
+      email: true,
+      interpreterId: true
     }
   });
 
