@@ -19,7 +19,7 @@ import { NextResponse } from 'next/server';
  *
  * EASYPANEL CONFIG:
  *   Health Check Path: /api/health
- *   Health Check Port: 3000
+ *   Health Check Port: 80
  *   Interval: 30s | Timeout: 5s | Start Period: 15s | Retries: 3
  * ============================================================
  */
