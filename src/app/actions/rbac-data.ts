@@ -153,48 +153,49 @@ export async function getRbacRankingData() {
     globalGoalMinutes = h * 60;
   } catch {}
 
-  const allInterpreters = await db.interpreter.findMany({
+  const activeInterpreters = await db.interpreter.findMany({
     where: { status: "Activo" },
-    select: {
-      id: true,
-      name: true,
-      campaign: true,
-      monthlyGoal: true,
-      callSessions: {
-        where: {
-          startedAt: { gte: startOfMonth, lte: endOfMonth },
-          endedAt: { not: null },
-        },
-        select: { durationSeconds: true },
-      },
-      productionLogs: {
-        where: { date: { gte: startOfMonth, lte: endOfMonth } },
-        select: { interpretedMinutes: true },
-      },
-      qaScores: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { totalScore: true },
-      },
-    },
+    select: { id: true, name: true, campaign: true, monthlyGoal: true },
   });
+  
+  const interpreterIds = activeInterpreters.map((i: any) => i.id);
 
-  const rankings = allInterpreters
+  const [sessionAgg, logsAgg, latestQas] = await Promise.all([
+    db.callSession.groupBy({
+      by: ['interpreterId'],
+      where: {
+        interpreterId: { in: interpreterIds },
+        startedAt: { gte: startOfMonth, lte: endOfMonth },
+        endedAt: { not: null },
+      },
+      _sum: { durationSeconds: true },
+    }),
+    db.productionLog.groupBy({
+      by: ['interpreterId'],
+      where: {
+        interpreterId: { in: interpreterIds },
+        date: { gte: startOfMonth, lte: endOfMonth },
+      },
+      _sum: { interpretedMinutes: true },
+    }),
+    db.qaScore.findMany({
+      where: { interpreterId: { in: interpreterIds } },
+      orderBy: { createdAt: "desc" },
+      distinct: ['interpreterId'],
+      select: { interpreterId: true, totalScore: true },
+    })
+  ]);
+
+  const sessionMap = new Map<number, number>(sessionAgg.map((s: any) => [s.interpreterId, Number(s._sum.durationSeconds) || 0]));
+  const logsMap = new Map<number, number>(logsAgg.map((l: any) => [l.interpreterId, Number(l._sum.interpretedMinutes) || 0]));
+  const qaMap = new Map<number, number>(latestQas.map((q: any) => [q.interpreterId, Number(q.totalScore) || 0]));
+
+  const rankings = activeInterpreters
     .map((interp: any) => {
-      const sessionMin = Math.round(
-        (interp.callSessions || []).reduce(
-          (s: number, c: any) => s + (c.durationSeconds || 0),
-          0
-        ) / 60
-      );
-      const logMin = (interp.productionLogs || []).reduce(
-        (s: number, l: any) => s + (l.interpretedMinutes || 0),
-        0
-      );
+      const sessionMin = Math.round((sessionMap.get(interp.id) || 0) / 60);
+      const logMin = logsMap.get(interp.id) || 0;
       const totalMinutes = sessionMin + logMin;
-      const qaScore = interp.qaScores?.[0]?.totalScore
-        ? Number(interp.qaScores[0].totalScore)
-        : 0;
+      const qaScore = qaMap.get(interp.id) || 0;
       const goal = interp.monthlyGoal ?? globalGoalMinutes;
       const goalProgress = Math.min((totalMinutes / goal) * 100, 100);
 
@@ -259,7 +260,7 @@ export async function getRbacAdminDashboard() {
   todayStart.setHours(0, 0, 0, 0);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [interpreters, activeCalls, todaySessions, monthSessions, monthLogs, pendingMessages] =
+  const [interpreters, activeCalls, todaySessionsAgg, monthSessionsAgg, monthLogsAgg, pendingMessages] =
     await Promise.all([
       db.interpreter.findMany({
         orderBy: { name: "asc" },
@@ -278,40 +279,38 @@ export async function getRbacAdminDashboard() {
         where: { endedAt: null },
         select: { id: true, interpreterId: true },
       }),
-      db.callSession.findMany({
+      db.callSession.aggregate({
         where: { startedAt: { gte: todayStart } },
-        select: { durationSeconds: true, callCost: true },
+        _sum: { durationSeconds: true, callCost: true },
       }),
-      db.callSession.findMany({
+      db.callSession.groupBy({
+        by: ['interpreterId'],
         where: { startedAt: { gte: monthStart }, endedAt: { not: null } },
-        select: {
-          durationSeconds: true,
-          callCost: true,
-          interpreterId: true,
-        },
+        _sum: { durationSeconds: true, callCost: true },
       }),
-      db.productionLog.findMany({
+      db.productionLog.groupBy({
+        by: ['interpreterId'],
         where: { date: { gte: monthStart } },
-        select: { interpretedMinutes: true, interpreterId: true },
+        _sum: { interpretedMinutes: true },
       }),
       db.vaultMessage.count({ where: { status: "PENDING_ADMIN" } }),
     ]);
 
+  const monthSessionsMap = new Map<number, any>(monthSessionsAgg.map((s: any) => [s.interpreterId, s]));
+  const monthLogsMap = new Map<number, number>(monthLogsAgg.map((l: any) => [l.interpreterId, Number(l._sum.interpretedMinutes) || 0]));
+
+  let totalCostMonth = 0;
+
   // Calculate per-interpreter stats
   const interpreterStats = interpreters
     .map((interp: any) => {
-      const sessionMin = Math.round(
-        monthSessions
-          .filter((s: any) => s.interpreterId === interp.id)
-          .reduce((sum: number, s: any) => sum + (s.durationSeconds || 0), 0) /
-          60
-      );
-      const logMin = monthLogs
-        .filter((l: any) => l.interpreterId === interp.id)
-        .reduce(
-          (sum: number, l: any) => sum + (l.interpretedMinutes || 0),
-          0
-        );
+      const sAgg = monthSessionsMap.get(interp.id) as any;
+      const sessionSeconds = sAgg?._sum?.durationSeconds || 0;
+      const sessionMin = Math.round(sessionSeconds / 60);
+      const callCost = Number(sAgg?._sum?.callCost || 0);
+      totalCostMonth += callCost;
+
+      const logMin = monthLogsMap.get(interp.id) || 0;
 
       return {
         ...interp,
@@ -322,22 +321,11 @@ export async function getRbacAdminDashboard() {
     })
     .sort((a: any, b: any) => b.totalMinutes - a.totalMinutes);
 
-  const totalMinutesToday = Math.round(
-    todaySessions.reduce(
-      (sum: number, s: any) => sum + (s.durationSeconds || 0),
-      0
-    ) / 60
-  );
-  const totalCostToday = todaySessions.reduce(
-    (sum: number, s: any) => sum + Number(s.callCost || 0),
-    0
-  );
+  const totalMinutesToday = Math.round(Number(todaySessionsAgg._sum.durationSeconds || 0) / 60);
+  const totalCostToday = Number(todaySessionsAgg._sum.callCost || 0);
+
   const totalMinutesMonth = interpreterStats.reduce(
     (sum: number, i: any) => sum + i.totalMinutes,
-    0
-  );
-  const totalCostMonth = monthSessions.reduce(
-    (sum: number, s: any) => sum + Number(s.callCost || 0),
     0
   );
 

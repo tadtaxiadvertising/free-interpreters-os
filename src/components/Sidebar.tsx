@@ -63,6 +63,9 @@ export const rbacAdminMenu: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Command Center', href: '/portal-rbac/admin/dashboard', exact: true },
   { icon: Users, label: 'Gestión de Usuarios', href: '/portal-rbac/admin/users' },
   { icon: MessageSquare, label: 'Moderación', href: '/portal-rbac/admin/messages' },
+  { icon: DollarSign, label: 'Nómina (Payroll)', href: '/portal-rbac/admin/payroll' },
+  { icon: ShieldCheck, label: 'Calidad (QA)', href: '/portal-rbac/admin/qa' },
+  { icon: Clock, label: 'Registro Manual', href: '/portal-rbac/admin/manual-logs' },
 ];
 
 export const rbacInterpreterMenu: MenuItem[] = [

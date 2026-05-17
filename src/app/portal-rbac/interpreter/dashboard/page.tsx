@@ -1,5 +1,7 @@
 import React from "react";
 import { getRbacInterpreterDashboard, getRbacRankingData } from "@/app/actions/rbac-data";
+import { getOnboardingStatus } from "@/app/actions/onboarding";
+import { OnboardingGate } from "@/components/OnboardingGate";
 import {
   Clock,
   DollarSign,
@@ -13,9 +15,10 @@ import { cn } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export default async function InterpreterDashboardPage() {
-  const [data, rankingRes] = await Promise.all([
+  const [data, rankingRes, onboardingRes] = await Promise.all([
     getRbacInterpreterDashboard(),
-    getRbacRankingData()
+    getRbacRankingData(),
+    getOnboardingStatus()
   ]);
 
   if (!data.interpreter) {
@@ -51,8 +54,15 @@ export default async function InterpreterDashboardPage() {
   const todayProgress = Math.min((todayMinutes / dailyGoal) * 100, 100);
   const isQaExcellent = latestQa >= 95;
 
+  const onboardingComplete = onboardingRes.success && onboardingRes.data ? onboardingRes.data.onboardingComplete : false;
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <>
+      <OnboardingGate 
+        isComplete={onboardingComplete} 
+        interpreterName={interpreter.name} 
+      />
+      <div className="space-y-8 animate-in fade-in duration-700">
       {/* Hero */}
       <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-indigo-900/50 to-slate-900 border border-indigo-500/20 p-8 shadow-2xl">
         <div className="absolute top-0 right-0 p-32 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
@@ -375,5 +385,6 @@ export default async function InterpreterDashboardPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

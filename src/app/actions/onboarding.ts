@@ -24,16 +24,39 @@ export async function acceptTerms(): Promise<ActionResult> {
 
   try {
     const now = new Date();
-    await db.userProfile.update({
-      where: { id: auth.user.id },
-      data: {
-        termsAcceptedAt: now,
-        signatureDate: now,
-      },
-      select: { id: true }
-    });
+    const isRbacUser = auth.user.id.startsWith('c');
+
+    if (isRbacUser) {
+      if (auth.profile?.interpreterId) {
+        const interpreter = await db.interpreter.findUnique({
+          where: { id: auth.profile.interpreterId }
+        });
+        if (interpreter) {
+          const currentNotas = interpreter.notas || '';
+          if (!currentNotas.includes('[TERMS_ACCEPTED]')) {
+            await db.interpreter.update({
+              where: { id: interpreter.id },
+              data: {
+                notas: `${currentNotas}\n[TERMS_ACCEPTED] signed at ${now.toISOString()}`.trim()
+              },
+              select: { id: true }
+            });
+          }
+        }
+      }
+    } else {
+      await db.userProfile.update({
+        where: { id: auth.user.id },
+        data: {
+          termsAcceptedAt: now,
+          signatureDate: now,
+        },
+        select: { id: true }
+      });
+    }
 
     revalidatePath('/dashboard');
+    revalidatePath('/portal-rbac/interpreter/dashboard');
     return { success: true };
   } catch (error) {
     console.error('[ONBOARDING] acceptTerms error:', error);
@@ -55,25 +78,12 @@ export async function saveBankingDetails(data: {
 
   try {
     const validated = BankingDetailsSchema.parse(data);
+    const isRbacUser = auth.user.id.startsWith('c');
 
-    // ── Execute in Transaction ──────────────────────────
-    await db.$transaction(async (tx) => {
-      // 1. Update User Profile
-      const profile = await tx.userProfile.update({
-        where: { id: auth.user.id },
-        data: {
-          bankName: validated.bankName,
-          bankAccount: validated.bankAccount,
-          bankAccountType: validated.bankAccountType,
-          bankCedula: validated.bankCedula,
-        },
-        select: { interpreterId: true }
-      });
-
-      // 2. Sync with Interpreter record if linked
-      if (profile?.interpreterId) {
-        await tx.interpreter.update({
-          where: { id: profile.interpreterId },
+    if (isRbacUser) {
+      if (auth.profile?.interpreterId) {
+        await db.interpreter.update({
+          where: { id: auth.profile.interpreterId },
           data: {
             banco: validated.bankName,
             cuentaPago: validated.bankAccount,
@@ -82,10 +92,42 @@ export async function saveBankingDetails(data: {
           },
           select: { id: true }
         });
+      } else {
+        return { success: false, error: 'No interpreter profile linked to this RBAC user', code: 'NOT_FOUND' };
       }
-    });
+    } else {
+      // ── Execute in Transaction for Supabase User ──────────────────────────
+      await db.$transaction(async (tx) => {
+        // 1. Update User Profile
+        const profile = await tx.userProfile.update({
+          where: { id: auth.user.id },
+          data: {
+            bankName: validated.bankName,
+            bankAccount: validated.bankAccount,
+            bankAccountType: validated.bankAccountType,
+            bankCedula: validated.bankCedula,
+          },
+          select: { interpreterId: true }
+        });
+
+        // 2. Sync with Interpreter record if linked
+        if (profile?.interpreterId) {
+          await tx.interpreter.update({
+            where: { id: profile.interpreterId },
+            data: {
+              banco: validated.bankName,
+              cuentaPago: validated.bankAccount,
+              tipoCuenta: validated.bankAccountType,
+              cedulaRnc: validated.bankCedula,
+            },
+            select: { id: true }
+          });
+        }
+      });
+    }
 
     revalidatePath('/dashboard');
+    revalidatePath('/portal-rbac/interpreter/dashboard');
     return { success: true };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -104,17 +146,12 @@ export async function completeOnboarding(): Promise<ActionResult> {
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    // ── Execute in Transaction ──────────────────────────
-    await db.$transaction(async (tx) => {
-      const profile = await tx.userProfile.update({
-        where: { id: auth.user.id },
-        data: { onboardingComplete: true },
-        select: { interpreterId: true }
-      });
+    const isRbacUser = auth.user.id.startsWith('c');
 
-      if (profile?.interpreterId) {
-        await tx.interpreter.update({
-          where: { id: profile.interpreterId },
+    if (isRbacUser) {
+      if (auth.profile?.interpreterId) {
+        await db.interpreter.update({
+          where: { id: auth.profile.interpreterId },
           data: {
             documentosCompleto: true,
             metodoPago: 'Transferencia Bancaria',
@@ -122,10 +159,34 @@ export async function completeOnboarding(): Promise<ActionResult> {
           },
           select: { id: true }
         });
+      } else {
+        return { success: false, error: 'No interpreter profile linked to this RBAC user', code: 'NOT_FOUND' };
       }
-    });
+    } else {
+      // ── Execute in Transaction for Supabase User ──────────────────────────
+      await db.$transaction(async (tx) => {
+        const profile = await tx.userProfile.update({
+          where: { id: auth.user.id },
+          data: { onboardingComplete: true },
+          select: { interpreterId: true }
+        });
+
+        if (profile?.interpreterId) {
+          await tx.interpreter.update({
+            where: { id: profile.interpreterId },
+            data: {
+              documentosCompleto: true,
+              metodoPago: 'Transferencia Bancaria',
+              status: 'Activo'
+            },
+            select: { id: true }
+          });
+        }
+      });
+    }
 
     revalidatePath('/dashboard');
+    revalidatePath('/portal-rbac/interpreter/dashboard');
     return { success: true };
   } catch (error) {
     console.error('[ONBOARDING] completeOnboarding error:', error);
@@ -145,33 +206,71 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    // Use the profile already fetched by validateAction/getCurrentUser if available
-    // But since profile is selective in validateAction, let's re-fetch or improve helper.
-    // For now, let's just use the auth.profile if it has the fields, or fetch specifically.
-    const profile = await db.userProfile.findUnique({
-      where: { id: auth.user.id },
-      select: {
-        termsAcceptedAt: true,
-        bankName: true,
-        bankAccount: true,
-        bankCedula: true,
-        onboardingComplete: true
+    const isRbacUser = auth.user.id.startsWith('c');
+
+    if (isRbacUser) {
+      if (!auth.profile?.interpreterId) {
+        // If not linked to an interpreter profile, onboarding is not applicable or incomplete
+        return {
+          success: true,
+          data: {
+            termsAccepted: false,
+            bankingComplete: false,
+            onboardingComplete: false
+          }
+        };
       }
-    });
 
-    if (!profile) return { success: false, error: 'Profile not found', code: 'NOT_FOUND' };
+      const interpreter = await db.interpreter.findUnique({
+        where: { id: auth.profile.interpreterId },
+        select: {
+          documentosCompleto: true,
+          banco: true,
+          cuentaPago: true,
+          cedulaRnc: true,
+          notas: true
+        }
+      });
 
-    return {
-      success: true,
-      data: {
-        termsAccepted: !!profile.termsAcceptedAt,
-        bankingComplete: !!(profile.bankName && profile.bankAccount && profile.bankCedula),
-        onboardingComplete: profile.onboardingComplete,
-      },
-    };
+      if (!interpreter) return { success: false, error: 'Interpreter profile not found', code: 'NOT_FOUND' };
+
+      const termsAccepted = !!(interpreter.documentosCompleto || interpreter.notas?.includes('[TERMS_ACCEPTED]'));
+      const bankingComplete = !!(interpreter.banco && interpreter.cuentaPago && interpreter.cedulaRnc);
+      const onboardingComplete = !!interpreter.documentosCompleto;
+
+      return {
+        success: true,
+        data: {
+          termsAccepted,
+          bankingComplete,
+          onboardingComplete
+        }
+      };
+    } else {
+      const profile = await db.userProfile.findUnique({
+        where: { id: auth.user.id },
+        select: {
+          termsAcceptedAt: true,
+          bankName: true,
+          bankAccount: true,
+          bankCedula: true,
+          onboardingComplete: true
+        }
+      });
+
+      if (!profile) return { success: false, error: 'Profile not found', code: 'NOT_FOUND' };
+
+      return {
+        success: true,
+        data: {
+          termsAccepted: !!profile.termsAcceptedAt,
+          bankingComplete: !!(profile.bankName && profile.bankAccount && profile.bankCedula),
+          onboardingComplete: profile.onboardingComplete,
+        },
+      };
+    }
   } catch (err) {
     console.error('[ONBOARDING] getOnboardingStatus error:', err);
     return { success: false, error: 'Error fetching onboarding status', code: 'INTERNAL_ERROR' };
   }
 }
-
