@@ -1,4 +1,0 @@
-Fecha,ID Intérprete,Nombre,Campaña,Horario Programado,Hora Login,Hora Logout,Horas Conectadas,Minutos Interpretados,Llamadas Atendidas,Adherencia %,QA Score,Estado,Observaciones
-2024-03-01,101,Juan Perez,Medical,08:00 - 16:00,07:55,16:05,8.1,350,25,100%,95%,OK,
-2024-03-01,102,Maria Gomez,Customer Svc,09:00 - 13:00,09:15,13:00,3.75,120,15,93%,,LATE,Retardo justificado
-2024-03-01,104,Luisa Lane,Medical,14:00 - 18:00,14:00,17:30,3.5,100,10,87%,82%,EARLY LEAVE,Emergencia médica

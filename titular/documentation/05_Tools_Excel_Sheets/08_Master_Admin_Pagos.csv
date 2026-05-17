@@ -1,4 +1,0 @@
-ID,Nombre Intérprete,Link a su Hoja (URL),Tarifa por Minuto ($),Total Minutos (Importados),Total Bruto ($),Deducciones ($),Total Neto ($),Estado Pago
-101,Juan Perez,https://docs.google.com/spreadsheets/d/KEY_DE_JUAN,0.12,650,78.00,0.00,78.00,Pendiente
-102,Maria Gomez,https://docs.google.com/spreadsheets/d/KEY_DE_MARIA,0.10,0,0.00,0.00,0.00,Pendiente
-103,Pedro Ruiz,https://docs.google.com/spreadsheets/d/KEY_DE_PEDRO,0.11,0,0.00,0.00,0.00,Pendiente
