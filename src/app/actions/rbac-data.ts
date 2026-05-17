@@ -92,7 +92,7 @@ export async function getRbacInterpreterDashboard() {
   );
 
   // QA
-  const qaScores = await db.qaScore.findMany({
+  const qaScores = await db.qAScore.findMany({
     where: { interpreterId: interpreter.id },
     orderBy: { createdAt: "desc" },
     take: 1,
@@ -191,7 +191,7 @@ export async function getRbacRankingData() {
       },
       _sum: { interpretedMinutes: true },
     }),
-    db.qaScore.findMany({
+    db.qAScore.findMany({
       where: { interpreterId: { in: interpreterIds } },
       orderBy: { createdAt: "desc" },
       distinct: ['interpreterId'],
