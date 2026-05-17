@@ -1,25 +1,20 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/auth/actions';
 import { getComplianceBoard } from '@/app/actions/calendar';
 import Link from 'next/link';
-import prisma from '@/lib/prisma';
 import { ChevronLeft, ChevronRight, CalendarDays, TrendingUp } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminCalendarPage(props: { searchParams: Promise<{ month?: string; year?: string }> }) {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const userData = await getCurrentUser();
 
-  if (error || !user) {
+  if (!userData) {
     redirect('/login');
   }
 
-  const profile = await prisma.userProfile.findUnique({
-    where: { id: user.id },
-    select: { role: true }
-  });
+  const profile = userData.profile;
 
   if (profile?.role !== 'admin') {
     redirect('/dashboard');

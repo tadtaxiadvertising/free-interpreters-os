@@ -1,9 +1,10 @@
 import React from 'react';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/auth/actions';
 import { redirect } from 'next/navigation';
 import { Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ManualCallForm from './ManualCallForm';
+import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,46 +17,38 @@ function formatDuration(seconds: number): string {
 }
 
 export default async function AdminCallsPage() {
-  const supabase = await createClient();
+  const userData = await getCurrentUser();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!userData) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  const profile = userData.profile;
 
   if (profile?.role !== 'admin') redirect('/login');
 
-  // Fetch recent calls with interpreter names (join via interpreter_id)
-  const { data: calls } = await supabase
-    .from('call_sessions')
-    .select(`
-      id,
-      interpreter_id,
-      started_at,
-      ended_at,
-      duration_seconds,
-      tariff_snapshot,
-      call_cost,
-      notes
-    `)
-    .order('started_at', { ascending: false })
-    .limit(50);
+  // Fetch recent calls with interpreter names via Prisma
+  const calls = await prisma.callSession.findMany({
+    orderBy: { startedAt: 'desc' },
+    take: 50,
+    select: {
+      id: true,
+      interpreterId: true,
+      startedAt: true,
+      endedAt: true,
+      durationSeconds: true,
+      tariffSnapshot: true,
+      callCost: true,
+      notes: true,
+      interpreter: {
+        select: { name: true }
+      }
+    }
+  });
 
   // Fetch all interpreters for the manual entry form
-  const { data: allInterpreters } = await supabase
-    .from('interpreters')
-    .select('id, name')
-    .order('name');
-
-  const interpreterIds = [...new Set(calls?.map(c => c.interpreter_id) || [])];
-  const { data: activeInterpreters } = await supabase
-    .from('interpreters')
-    .select('id, name')
-    .in('id', interpreterIds.length > 0 ? interpreterIds : [0]);
+  const allInterpreters = await prisma.interpreter.findMany({
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true }
+  });
 
   const nameMap = new Map((allInterpreters || []).map(i => [i.id, i.name]));
 
@@ -88,11 +81,11 @@ export default async function AdminCallsPage() {
             </thead>
             <tbody className="divide-y divide-white/5">
               {calls?.map((call) => {
-                const isActive = !call.ended_at;
-                const startDate = new Date(call.started_at);
+                const isActive = !call.endedAt;
+                const startDate = new Date(call.startedAt || Date.now());
                 return (
                   <tr key={call.id} className="hover:bg-white/5 transition-colors">
-                    <td className="py-3 px-2 text-white font-medium">{nameMap.get(call.interpreter_id) || 'Unknown'}</td>
+                    <td className="py-3 px-2 text-white font-medium">{call.interpreter?.name || nameMap.get(call.interpreterId!) || 'Unknown'}</td>
                     <td className="py-3 px-2 text-gray-400 text-sm">
                       {startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </td>
@@ -100,11 +93,11 @@ export default async function AdminCallsPage() {
                       {startDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                     </td>
                     <td className="py-3 px-2 text-white font-medium text-sm">
-                      {call.duration_seconds ? formatDuration(call.duration_seconds) : '—'}
+                      {call.durationSeconds ? formatDuration(call.durationSeconds) : '—'}
                     </td>
-                    <td className="py-3 px-2 text-gray-400 text-sm">${Number(call.tariff_snapshot).toFixed(2)}/m</td>
+                    <td className="py-3 px-2 text-gray-400 text-sm">${Number(call.tariffSnapshot).toFixed(2)}/m</td>
                     <td className="py-3 px-2 text-green-400 font-bold text-sm">
-                      {call.call_cost ? `$${Number(call.call_cost).toFixed(2)}` : '—'}
+                      {call.callCost ? `$${Number(call.callCost).toFixed(2)}` : '—'}
                     </td>
                     <td className="py-3 px-2 text-right">
                       <span className={cn(

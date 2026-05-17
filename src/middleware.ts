@@ -155,7 +155,13 @@ export async function middleware(req: NextRequest) {
           cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')
       );
 
-    if (!hasSupabaseSession) {
+    const hasRbacSession =
+      req.cookies.has('authjs.session-token') ||
+      req.cookies.has('__Secure-authjs.session-token') ||
+      req.cookies.has('next-auth.session-token') ||
+      req.cookies.has('__Secure-next-auth.session-token');
+
+    if (!hasSupabaseSession && !hasRbacSession) {
       const loginUrl = req.nextUrl.clone();
       loginUrl.pathname = '/login';
       return NextResponse.redirect(loginUrl);

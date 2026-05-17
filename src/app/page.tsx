@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/auth/actions';
 import { redirect } from 'next/navigation';
 import prismaClient from '@/lib/prisma';
 
@@ -7,19 +7,20 @@ const prisma = prismaClient;
 export const dynamic = 'force-dynamic';
 
 export default async function RootPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const userData = await getCurrentUser();
 
-  if (!user) {
+  if (!userData) {
     redirect('/login');
   }
 
-  // Use Prisma for profile lookup to avoid internal fetch/DNS issues
-  const profile = await prisma.userProfile.findUnique({
-    where: { id: user.id },
-    select: { role: true }
-  });
+  const role = userData.profile?.role;
 
-  redirect(profile?.role === 'admin' ? '/admin' : '/dashboard');
+  if (role === 'admin') {
+    redirect('/admin');
+  } else if (role === 'holder') {
+    redirect('/portal-rbac/holder/dashboard');
+  } else {
+    redirect('/dashboard');
+  }
 }
 
