@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Save, Loader2, User, Mail, Shield, DollarSign, Target, Briefcase, Lock } from 'lucide-react';
-import { createInterpreter, updateInterpreter } from '@/app/actions/interpreters';
+import { createInterpreter, updateInterpreter, resetInterpreterPassword } from '@/app/actions/interpreters';
 
 interface InterpreterFormProps {
   onSuccess?: () => void;
@@ -44,10 +44,14 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
     try {
       let result;
       if (isEditing) {
-         
         result = await updateInterpreter(interpreterId, data as any);
+        if (result.success && password) {
+          const pwdResult = await resetInterpreterPassword(interpreterId, password.toString());
+          if (!pwdResult.success) {
+            throw new Error(pwdResult.error || 'Error al actualizar la contraseña');
+          }
+        }
       } else {
-         
         result = await createInterpreter(data as any);
       }
 
@@ -133,14 +137,15 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
           </div>
         )}
         {interpreterId && (
-          <div className="space-y-2 opacity-50">
-             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Contraseña</label>
+          <div className="space-y-2">
+             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Cambiar Contraseña (Opcional)</label>
              <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
-                  disabled
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-gray-500 cursor-not-allowed"
-                  placeholder="Use la opción de restablecer"
+                  type="password"
+                  name="password"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:border-blue-500/50 transition-all outline-none focus:ring-2 focus:ring-blue-500/20"
+                  placeholder="Dejar en blanco para no cambiar"
                 />
              </div>
           </div>
