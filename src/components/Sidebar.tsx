@@ -45,8 +45,6 @@ export const adminMenu: MenuItem[] = [
   { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
   { icon: DollarSign, label: 'Payroll & Rates', href: '/payroll' },
   { icon: Clock, label: 'Registro Manual', href: '/admin/production/manual' },
-  { icon: Users, label: 'Gestión de Usuarios', href: '/portal-rbac/admin/users' },
-  { icon: MessageSquare, label: 'Moderación', href: '/portal-rbac/admin/messages' },
   { icon: Settings, label: 'System Settings', href: '/settings' },
 ];
 
@@ -56,27 +54,6 @@ export const interpreterMenu: MenuItem[] = [
   { icon: Trophy, label: 'Mi Ranking', href: '/dashboard/ranking' },
   { icon: DollarSign, label: 'Mis Ganancias', href: '/dashboard/earnings' },
   { icon: Settings, label: 'Configuración', href: '/dashboard/settings' },
-];
-
-// ── RBAC-specific menus (portal-rbac routes, Auth.js session) ──
-export const rbacAdminMenu: MenuItem[] = [
-  { icon: LayoutDashboard, label: 'Command Center', href: '/portal-rbac/admin/dashboard', exact: true },
-  { icon: Users, label: 'Gestión de Usuarios', href: '/portal-rbac/admin/users' },
-  { icon: MessageSquare, label: 'Moderación', href: '/portal-rbac/admin/messages' },
-];
-
-export const rbacInterpreterMenu: MenuItem[] = [
-  { icon: LayoutDashboard, label: 'Mi Dashboard', href: '/portal-rbac/interpreter/dashboard', exact: true },
-  { icon: Key, label: 'Cuentas Asignadas', href: '/portal-rbac/interpreter/accounts' },
-  { icon: Clock, label: 'Calendario de Metas', href: '/portal-rbac/interpreter/calendar' },
-  { icon: Trophy, label: 'Mi Ranking', href: '/portal-rbac/interpreter/ranking' },
-  { icon: DollarSign, label: 'Mis Ganancias', href: '/portal-rbac/interpreter/earnings' },
-  { icon: MessageSquare, label: 'Mensajes', href: '/portal-rbac/interpreter/messages' },
-];
-
-export const holderMenu: MenuItem[] = [
-  { icon: Briefcase, label: 'Mis Cuentas', href: '/portal-rbac/holder/dashboard' },
-  { icon: MessageSquare, label: 'Mensajes', href: '/portal-rbac/holder/messages' },
 ];
 
 // ── Ranking data shape ──
@@ -138,13 +115,8 @@ export function Sidebar({ role, isCollapsed, onToggle, ranking, customMenu, appN
   const pathname = usePathname();
   
   // Determine the correct menu based on role + context
-  // Uppercase roles (ADMIN, INTERPRETER, HOLDER) = portal-rbac (Auth.js)
-  // Lowercase roles (admin, interpreter) = main dashboard (Supabase)
   let defaultMenu = interpreterMenu;
   if (role === 'admin') defaultMenu = adminMenu;
-  if (role === 'ADMIN') defaultMenu = rbacAdminMenu;
-  if (role === 'INTERPRETER') defaultMenu = rbacInterpreterMenu;
-  if (role === 'holder' || role === 'HOLDER') defaultMenu = holderMenu;
   
   const menuItems = customMenu || defaultMenu;
   const activeIndex = getActiveIndex(pathname, menuItems);

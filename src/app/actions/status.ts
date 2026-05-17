@@ -28,7 +28,6 @@ export async function updateInterpreterStatus(
     });
 
     revalidatePath('/dashboard');
-    revalidatePath('/portal-rbac/interpreter/dashboard');
     return { success: true, data: { status: newStatus } };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

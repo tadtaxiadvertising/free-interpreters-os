@@ -38,7 +38,7 @@ export default function UnauthorizedPage() {
 
           <div className="grid grid-cols-1 gap-4">
             <Link 
-              href="/portal-rbac/login"
+              href="/login"
               className="flex items-center justify-center gap-3 w-full py-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white rounded-2xl font-bold shadow-xl shadow-red-950/20 transition-all active:scale-[0.98]"
             >
               <ArrowLeft size={20} />
@@ -63,7 +63,7 @@ export default function UnauthorizedPage() {
         </div>
         
         <p className="text-center text-slate-700 text-[10px] mt-8 uppercase tracking-widest font-medium">
-          Free Interpreters OS · Unified RBAC Protection
+          Free Interpreters OS · System Protection
         </p>
       </div>
     </div>

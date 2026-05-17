@@ -17,8 +17,6 @@ export default async function RootPage() {
 
   if (role === 'admin') {
     redirect('/admin');
-  } else if (role === 'holder') {
-    redirect('/portal-rbac/holder/dashboard');
   } else {
     redirect('/dashboard');
   }

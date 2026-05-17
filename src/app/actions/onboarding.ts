@@ -56,7 +56,6 @@ export async function acceptTerms(): Promise<ActionResult> {
     }
 
     revalidatePath('/dashboard');
-    revalidatePath('/portal-rbac/interpreter/dashboard');
     return { success: true };
   } catch (error) {
     console.error('[ONBOARDING] acceptTerms error:', error);
@@ -127,7 +126,6 @@ export async function saveBankingDetails(data: {
     }
 
     revalidatePath('/dashboard');
-    revalidatePath('/portal-rbac/interpreter/dashboard');
     return { success: true };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -186,7 +184,6 @@ export async function completeOnboarding(): Promise<ActionResult> {
     }
 
     revalidatePath('/dashboard');
-    revalidatePath('/portal-rbac/interpreter/dashboard');
     return { success: true };
   } catch (error) {
     console.error('[ONBOARDING] completeOnboarding error:', error);

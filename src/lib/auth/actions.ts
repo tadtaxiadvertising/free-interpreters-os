@@ -40,35 +40,6 @@ export const getCurrentUser = cache(async () => {
       profile: supabaseProfile
     };
   }
-
-  // Fallback to Auth.js session (RBAC users)
-  const { auth } = await import('@/lib/auth-rbac');
-  const session = await auth();
-  
-  if (session?.user?.email) {
-    const rbacUser = await prisma.rbacUser.findUnique({
-      where: { email: session.user.email }
-    });
-    
-    if (rbacUser) {
-      // Try to map to an interpreter profile
-      const interpreter = await prisma.interpreter.findUnique({
-        where: { emailCorporativo: rbacUser.email }
-      });
-      
-      return {
-        id: rbacUser.id,
-        email: rbacUser.email,
-        profile: {
-          id: rbacUser.id,
-          role: rbacUser.role.toLowerCase(), // map 'INTERPRETER' to 'interpreter'
-          displayName: rbacUser.name,
-          email: rbacUser.email,
-          interpreterId: interpreter?.id || null
-        }
-      };
-    }
-  }
   
   return null;
 });

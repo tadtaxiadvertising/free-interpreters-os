@@ -138,49 +138,6 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
           } 
         }
       });
-    } else {
-      // Fallback to Auth.js session (RBAC users)
-      const { auth } = await import('@/lib/auth-rbac');
-      const session = await auth();
-      
-      if (session?.user?.email) {
-        const rbacUser = await prisma.rbacUser.findUnique({
-          where: { email: session.user.email }
-        });
-        
-        if (rbacUser) {
-          const interpreter = await prisma.interpreter.findUnique({
-            where: { emailCorporativo: rbacUser.email },
-            select: {
-              id: true,
-              externalId: true,
-              name: true,
-              status: true,
-              realtimeStatus: true,
-              tariffPerMinute: true,
-              emailCorporativo: true
-            }
-          });
-          
-          // Map RbacUser to UserProfile structure
-          profile = {
-            id: rbacUser.id,
-            email: rbacUser.email,
-            role: rbacUser.role.toLowerCase(),
-            interpreterId: interpreter?.id || null,
-            displayName: rbacUser.name,
-            termsAcceptedAt: new Date(),
-            signatureDate: new Date(),
-            bankName: null,
-            bankAccount: null,
-            bankAccountType: null,
-            bankCedula: null,
-            onboardingComplete: true,
-            createdAt: rbacUser.createdAt,
-            interpreter: interpreter || null
-          };
-        }
-      }
     }
 
     if (!profile) return null;
