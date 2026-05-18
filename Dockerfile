@@ -68,14 +68,19 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 USER nextjs
-EXPOSE 80
 
-ENV PORT=80
+# Accept PORT from Easypanel build-arg (default 3000 to match Easypanel config).
+# Easypanel passes --build-arg PORT=3000, so the container and health check
+# must use the same port the orchestrator expects.
+ARG PORT=3000
+ENV PORT=$PORT
 ENV HOSTNAME="0.0.0.0"
 
+EXPOSE 3000
+
 # ── HEALTHCHECK ──────────────────────────────────────────────
-# Points to /api/health (a zero-auth, ultra-fast endpoint).
+# Uses dynamic PORT so it always matches whatever port the container serves.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD curl -f http://localhost:80/api/health || exit 1
+  CMD curl -f http://localhost:${PORT}/api/health || exit 1
 
 CMD ["node", "server.js"]
