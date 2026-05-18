@@ -17,6 +17,8 @@ import bcrypt from 'bcryptjs';
  * ============================================================
  */
 
+import { getPrisma } from '../src/lib/prisma';
+
 const SALT_ROUNDS = 12;
 
 const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
@@ -26,7 +28,7 @@ if (!connectionString) {
   throw new Error('DATABASE_URL is not set');
 }
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 async function seedInterpreters(): Promise<void> {
   console.log('👥 Seeding interpreters...');
@@ -76,6 +78,54 @@ async function seedInterpreters(): Promise<void> {
       tariffPerMinute: 0.15,
       pais: 'USA',
       metodoPago: 'USDT',
+    },
+    {
+      externalId: 'INT-005',
+      name: 'Deury Interpreter',
+      status: 'Activo',
+      campaign: 'Medical',
+      languageA: 'Español',
+      languageB: 'Inglés',
+      tariffPerMinute: 0.15,
+      pais: 'Dominican Republic',
+      metodoPago: 'PayPal',
+      emailCorporativo: 'deury@freeinterpreters.com',
+    },
+    {
+      externalId: 'INT-006',
+      name: 'Melvin Interpreter',
+      status: 'Activo',
+      campaign: 'Medical',
+      languageA: 'Español',
+      languageB: 'Inglés',
+      tariffPerMinute: 0.15,
+      pais: 'Dominican Republic',
+      metodoPago: 'PayPal',
+      emailCorporativo: 'melvin@freeinterpreters.com',
+    },
+    {
+      externalId: 'INT-007',
+      name: 'Isaac Interpreter',
+      status: 'Activo',
+      campaign: 'Legal',
+      languageA: 'Español',
+      languageB: 'Inglés',
+      tariffPerMinute: 0.18,
+      pais: 'Dominican Republic',
+      metodoPago: 'Bank Transfer',
+      emailCorporativo: 'isaac@freeinterpreters.com',
+    },
+    {
+      externalId: 'INT-008',
+      name: 'Miguel Interpreter',
+      status: 'Activo',
+      campaign: 'Customer Service',
+      languageA: 'Español',
+      languageB: 'Inglés',
+      tariffPerMinute: 0.12,
+      pais: 'Dominican Republic',
+      metodoPago: 'Payoneer',
+      emailCorporativo: 'miguel@freeinterpreters.com',
     },
   ];
 
