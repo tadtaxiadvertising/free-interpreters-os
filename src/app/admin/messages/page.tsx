@@ -1,24 +1,18 @@
 import React from 'react';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth/actions';
 import { redirect } from 'next/navigation';
 import { ChatSystem } from '@/components/ChatSystem';
-import prismaClient from '@/lib/prisma';
-
-const prisma = prismaClient;
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminMessagesPage() {
-  const { userId, user } = await auth();
-  if (!userId || !user) redirect('/login');
+  const userData = await getCurrentUser();
+  if (!userData) redirect('/login');
 
-  // Verify that the user is actually an admin
-  const profile = await prisma.userProfile.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  });
+  const profile = userData.profile;
 
-  if (!profile || profile.role !== 'admin') {
+  // Case-insensitive role check
+  if (profile?.role?.toLowerCase() !== 'admin') {
     redirect('/unauthorized');
   }
 
@@ -31,7 +25,7 @@ export default async function AdminMessagesPage() {
         </p>
       </div>
 
-      <ChatSystem currentUserId={userId} currentUserRole="admin" />
+      <ChatSystem currentUserId={userData.id} currentUserRole="admin" />
     </div>
   );
 }

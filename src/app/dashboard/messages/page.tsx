@@ -1,23 +1,18 @@
 import React from 'react';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth/actions';
 import { redirect } from 'next/navigation';
 import { ChatSystem } from '@/components/ChatSystem';
-import prismaClient from '@/lib/prisma';
-
-const prisma = prismaClient;
 
 export const dynamic = 'force-dynamic';
 
 export default async function InterpreterMessagesPage() {
-  const { userId, user } = await auth();
-  if (!userId || !user) redirect('/login');
+  const userData = await getCurrentUser();
+  if (!userData) redirect('/login');
 
-  const profile = await prisma.userProfile.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  });
+  const profile = userData.profile;
 
-  if (!profile || profile.role !== 'interpreter') {
+  // Case-insensitive role check
+  if (profile?.role?.toLowerCase() !== 'interpreter') {
     redirect('/unauthorized');
   }
 
@@ -30,7 +25,7 @@ export default async function InterpreterMessagesPage() {
         </p>
       </div>
 
-      <ChatSystem currentUserId={userId} currentUserRole="interpreter" />
+      <ChatSystem currentUserId={userData.id} currentUserRole="interpreter" />
     </div>
   );
 }

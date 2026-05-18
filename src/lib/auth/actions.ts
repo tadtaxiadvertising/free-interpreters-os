@@ -28,6 +28,47 @@ export const getCurrentUser = cache(async () => {
           interpreterId: true
         }
       });
+
+      // Self-healing: if the user exists in Supabase but has no userProfile record in the public schema
+      if (!supabaseProfile && user.email) {
+        console.log(`🔧 [AUTH] Self-healing profile auto-creation for user: ${user.email}`);
+        
+        // Determine default role based on email matches
+        const emailLower = user.email.toLowerCase();
+        let role = 'interpreter';
+        if (
+          emailLower === 'interpretersfree@gmail.com' ||
+          emailLower === 'melvinramonduranmesa@gmail.com' ||
+          emailLower === 'admin@freeinterpreters.com' ||
+          emailLower.includes('admin')
+        ) {
+          role = 'admin';
+        }
+
+        // Link with an interpreter profile if the email matches
+        const interpreter = await prisma.interpreter.findUnique({
+          where: { emailCorporativo: user.email },
+          select: { id: true }
+        });
+
+        // Safe creation of the profile
+        supabaseProfile = await prisma.userProfile.create({
+          data: {
+            id: user.id,
+            email: user.email,
+            displayName: user.user_metadata?.display_name || user.email.split('@')[0],
+            role: role,
+            interpreterId: interpreter?.id || null
+          },
+          select: {
+            id: true,
+            role: true,
+            displayName: true,
+            email: true,
+            interpreterId: true
+          }
+        });
+      }
     }
   } catch (error) {
     // Supabase variables might be missing in RBAC-only environments (e.g. interpreters subproject)

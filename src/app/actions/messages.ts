@@ -1,6 +1,7 @@
 'use server';
 
 import { auth } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth/actions';
 import prismaClient from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 
@@ -107,25 +108,23 @@ export async function markMessagesAsRead(senderId: string) {
  */
 export async function getChatList() {
   try {
-    const currentUserId = await getAuthenticatedUser();
+    const userData = await getCurrentUser();
+    if (!userData) {
+      return { success: false, error: 'No autorizado' };
+    }
     
-    // Get current user profile to determine role
-    const profile = await prisma.userProfile.findUnique({
-      where: { id: currentUserId },
-      select: { role: true },
-    });
-
+    const profile = userData.profile;
     if (!profile) {
       return { success: false, error: 'Perfil no encontrado' };
     }
 
-    const isCurrentAdmin = profile.role === 'admin';
+    const isCurrentAdmin = profile.role?.toLowerCase() === 'admin';
 
     // Find all users with profiles
     const usersWithProfiles = await prisma.userProfile.findMany({
       where: isCurrentAdmin 
-        ? { id: { not: currentUserId } } // Admin sees everyone except themselves
-        : { role: 'admin' }, // Interpreter sees only Admins
+        ? { id: { not: userData.id } } // Admin sees everyone except themselves
+        : { role: { in: ['admin', 'ADMIN'] } }, // Interpreter sees only Admins (case-insensitive safe)
       select: {
         id: true,
         displayName: true,
@@ -140,8 +139,8 @@ export async function getChatList() {
         const lastMessage = await prisma.message.findFirst({
           where: {
             OR: [
-              { senderId: currentUserId, receiverId: user.id },
-              { senderId: user.id, receiverId: currentUserId },
+              { senderId: userData.id, receiverId: user.id },
+              { senderId: user.id, receiverId: userData.id },
             ],
           },
           orderBy: {
@@ -152,7 +151,7 @@ export async function getChatList() {
         const unreadCount = await prisma.message.count({
           where: {
             senderId: user.id,
-            receiverId: currentUserId,
+            receiverId: userData.id,
             isRead: false,
           },
         });

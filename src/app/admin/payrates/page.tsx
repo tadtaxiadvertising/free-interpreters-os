@@ -3,22 +3,19 @@ import { redirect } from 'next/navigation';
 import { DollarSign, Layers } from 'lucide-react';
 import { PayrateEditor } from '@/components/PayrateEditor';
 import { AccountManager } from '@/components/AccountManager';
-import { auth } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth/actions';
 import { cn } from '@/lib/utils';
 import React from 'react';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PayratesPage(props: { searchParams: Promise<{ manageAccounts?: string }> }) {
-  const { userId } = await auth();
-  if (!userId) redirect('/login');
+  const userData = await getCurrentUser();
+  if (!userData) redirect('/login');
 
-  const profile = await (prisma as any).userProfile.findFirst({
-    where: { id: userId },
-    select: { role: true }
-  });
+  const profile = userData.profile;
 
-  if (profile?.role !== 'admin') redirect('/login');
+  if (profile?.role?.toLowerCase() !== 'admin') redirect('/login');
 
   const accounts = await (prisma as any).account.findMany({
     orderBy: { name: 'asc' }
