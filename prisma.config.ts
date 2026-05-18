@@ -1,9 +1,5 @@
 import "dotenv/config";
-import { defineConfig } from "prisma/config";
-
-if (!process.env["DIRECT_URL"] && !process.env["DATABASE_URL"]) {
-  console.warn("[PRISMA CONFIG] WARNING: Neither DIRECT_URL nor DATABASE_URL are set in the environment.");
-}
+import { defineConfig, env } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -11,9 +7,9 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    // DIRECT_URL for migrations (bypasses pgBouncer)
-    // DATABASE_URL for the pooled runtime connection
-    url: process.env["DIRECT_URL"] || process.env["DATABASE_URL"]!,
+    // DIRECT_URL bypasses pgBouncer for migrations (direct connection).
+    // Falls back to DATABASE_URL (pooled) if DIRECT_URL is not set.
+    // Both are injected at runtime by Easypanel — not available during `docker build`.
+    url: env("DIRECT_URL") || env("DATABASE_URL"),
   },
 });
-
