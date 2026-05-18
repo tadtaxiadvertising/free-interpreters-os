@@ -45,6 +45,7 @@ export const adminMenu: MenuItem[] = [
   { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
   { icon: DollarSign, label: 'Payroll & Rates', href: '/payroll' },
   { icon: Clock, label: 'Registro Manual', href: '/admin/production/manual' },
+  { icon: MessageSquare, label: 'Mensajería', href: '/admin/messages' },
   { icon: Settings, label: 'System Settings', href: '/settings' },
 ];
 
@@ -53,6 +54,7 @@ export const interpreterMenu: MenuItem[] = [
   { icon: Clock, label: 'Calendario de Metas', href: '/dashboard/calendar' },
   { icon: Trophy, label: 'Mi Ranking', href: '/dashboard/ranking' },
   { icon: DollarSign, label: 'Mis Ganancias', href: '/dashboard/earnings' },
+  { icon: MessageSquare, label: 'Mensajería', href: '/dashboard/messages' },
   { icon: Settings, label: 'Configuración', href: '/dashboard/settings' },
 ];
 
