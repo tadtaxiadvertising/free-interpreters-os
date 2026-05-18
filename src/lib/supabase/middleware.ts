@@ -53,6 +53,7 @@ export async function updateSession(request: NextRequest) {
     '/login', 
     '/register',
     '/api/health', 
+    '/health',
     '/forgot-password', 
     '/reset-password', 
     '/auth',            // Supabase auth callback
