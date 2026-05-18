@@ -1,4 +1,5 @@
 import { createClient } from './supabase/server';
+import prisma from './prisma';
 
 /**
  * AUTH BRIDGE
@@ -7,10 +8,20 @@ import { createClient } from './supabase/server';
  */
 export async function auth() {
   const supabase = await createClient();
-  let user = null;
+  let user: any = null;
   try {
     const { data: { user: currentUser } } = await supabase.auth.getUser();
-    user = currentUser;
+    if (currentUser) {
+      const profile = await prisma.userProfile.findUnique({
+        where: { id: currentUser.id },
+        select: { role: true, displayName: true }
+      });
+      user = {
+        ...currentUser,
+        role: profile?.role || 'interpreter',
+        displayName: profile?.displayName || currentUser.email?.split('@')[0]
+      };
+    }
   } catch {
     // Ignore auth errors for the bridge
   }

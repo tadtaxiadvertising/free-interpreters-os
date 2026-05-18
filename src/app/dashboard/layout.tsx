@@ -12,6 +12,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!userId) redirect('/login');
 
   const profile = await getCurrentProfile();
+  
+  if (profile && profile.role === 'admin') {
+    redirect('/admin');
+  }
 
   const notificationUserIds = [userId];
   if (profile?.id && profile.id !== userId) {
