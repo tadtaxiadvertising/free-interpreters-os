@@ -165,3 +165,75 @@ export async function getAllInterpretersList() {
     }
   });
 }
+
+export async function syncAllSupabaseUsers() {
+  try {
+    const { user } = await auth();
+    if (!user || user.role !== 'admin') {
+      throw new Error('Unauthorized');
+    }
+
+    const supabaseAdmin = createAdminClient();
+    
+    // Fetch all users from Supabase Auth
+    const { data: { users: supabaseUsers }, error } = await supabaseAdmin.auth.admin.listUsers({
+      perPage: 1000
+    });
+
+    if (error) {
+      console.error('Error listing Supabase users:', error);
+      return { success: false, error: error.message };
+    }
+
+    let syncedCount = 0;
+    
+    for (const sUser of supabaseUsers) {
+      if (!sUser.email) continue;
+      
+      // Check if profile already exists in public.user_profiles
+      const existing = await prisma.userProfile.findUnique({
+        where: { id: sUser.id }
+      });
+
+      if (!existing) {
+        // Auto-detect role
+        const emailLower = sUser.email.toLowerCase();
+        let role = 'interpreter';
+        
+        if (
+          emailLower === 'interpretersfree@gmail.com' ||
+          emailLower === 'melvinramonduranmesa@gmail.com' ||
+          emailLower === 'admin@freeinterpreters.com' ||
+          emailLower.includes('admin')
+        ) {
+          role = 'admin';
+        }
+
+        // Auto-link to matching physical interpreter by email
+        const interpreter = await prisma.interpreter.findUnique({
+          where: { emailCorporativo: sUser.email },
+          select: { id: true }
+        });
+
+        await prisma.userProfile.create({
+          data: {
+            id: sUser.id,
+            email: sUser.email,
+            displayName: sUser.user_metadata?.display_name || sUser.email.split('@')[0],
+            role: role,
+            interpreterId: interpreter ? interpreter.id : null,
+            onboardingComplete: true
+          }
+        });
+        
+        syncedCount++;
+      }
+    }
+
+    revalidatePath('/admin/users');
+    return { success: true, syncedCount };
+  } catch (error: any) {
+    console.error('Sync Users Exception:', error);
+    return { success: false, error: error.message || 'Error al sincronizar' };
+  }
+}

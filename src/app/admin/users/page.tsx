@@ -3,6 +3,7 @@ import { getAdminUsers } from '@/app/actions/admin-users';
 import { Shield, User, Link as LinkIcon, Edit, Trash2, Mail } from 'lucide-react';
 import { RoleBadge } from '../../../components/RoleBadge';
 import { UserActions } from '../../../components/admin/UserActions';
+import { SyncUsersButton } from '../../../components/admin/SyncUsersButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,11 +12,12 @@ export default async function AdminUsersPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      <header className="flex justify-between items-center">
+      <header className="flex justify-between items-center bg-slate-950/20 p-6 rounded-3xl border border-white/5 backdrop-blur-md">
         <div>
           <h2 className="text-3xl font-bold text-white tracking-tight">Gestión de Usuarios</h2>
-          <p className="text-slate-400">Administra los roles y vinculaciones de acceso del sistema</p>
+          <p className="text-slate-400 text-sm mt-1">Administra los roles y vinculaciones de acceso del sistema</p>
         </div>
+        <SyncUsersButton />
       </header>
 
       <div className="glass rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl">
