@@ -29,7 +29,6 @@ const USER_SELECT = {
     role: true,
     createdAt: true,
     updatedAt: true,
-    interpreterId: true,
 };
 /**
  * GET /api/v1/users
@@ -42,14 +41,14 @@ export async function listUsers(req, res) {
     const skip = (page - 1) * limit;
     const where = role ? { role: role } : {};
     const [users, total] = await Promise.all([
-        prisma.user.findMany({
+        prisma.rbacUser.findMany({
             where,
             select: USER_SELECT,
             skip,
             take: limit,
             orderBy: { createdAt: 'desc' },
         }),
-        prisma.user.count({ where }),
+        prisma.rbacUser.count({ where }),
     ]);
     res.json({
         success: true,
@@ -68,7 +67,7 @@ export async function listUsers(req, res) {
  */
 export async function getUserById(req, res) {
     const { id } = req.params;
-    const user = await prisma.user.findUnique({
+    const user = await prisma.rbacUser.findUnique({
         where: { id },
         select: USER_SELECT,
     });
@@ -86,12 +85,12 @@ export async function createUser(req, res) {
     const { email, password, name, role } = req.body;
     // Hash password — bcrypt with cost factor 10 (balanced for VPS CPU)
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({
+    const user = await prisma.rbacUser.create({
         data: {
             email: email.toLowerCase().trim(),
             password: hashedPassword,
             name: name.trim(),
-            role,
+            role: role,
         },
         select: USER_SELECT,
     });
@@ -106,14 +105,14 @@ export async function updateUser(req, res) {
     const { id } = req.params;
     const updateData = req.body;
     // Verify user exists before update (explicit 404 vs Prisma's P2025)
-    const existing = await prisma.user.findUnique({
+    const existing = await prisma.rbacUser.findUnique({
         where: { id },
         select: { id: true },
     });
     if (!existing) {
         throw AppError.notFound(`User with ID ${id} not found`);
     }
-    const user = await prisma.user.update({
+    const user = await prisma.rbacUser.update({
         where: { id },
         data: updateData,
         select: USER_SELECT,
@@ -128,7 +127,7 @@ export async function updateUser(req, res) {
  */
 export async function deleteUser(req, res) {
     const { id } = req.params;
-    await prisma.user.delete({
+    await prisma.rbacUser.delete({
         where: { id },
     });
     res.status(204).send();

@@ -55,28 +55,27 @@ router.post('/manual', asyncHandler(async (req, res) => {
     // 3. Verify interpreter existence (using externalId)
     const interpreter = await prisma.interpreter.findUnique({
         where: { externalId: interpreterId },
-        select: { externalId: true },
+        select: { id: true },
     });
     if (!interpreter) {
         throw AppError.notFound(`Interpreter with externalId ${interpreterId} not found`);
     }
-    const callLog = await prisma.callLog.create({
+    const callSession = await prisma.callSession.create({
         data: {
-            interpreterId,
-            startTime: finalStartTime,
-            endTime: finalEndTime,
+            interpreterId: interpreter.id,
+            startedAt: finalStartTime,
+            endedAt: finalEndTime,
             durationSeconds,
-            isManualEntry: true,
+            tariffSnapshot: 0,
             notes: notes || 'Manual entry recorded from UI',
         },
-        // LEAN QUERY: only return what the client needs
         select: {
             id: true,
             interpreterId: true,
-            startTime: true,
-            endTime: true,
+            startedAt: true,
+            endedAt: true,
             durationSeconds: true,
-            isManualEntry: true,
+            tariffSnapshot: true,
             notes: true,
             createdAt: true,
         },
@@ -84,7 +83,7 @@ router.post('/manual', asyncHandler(async (req, res) => {
     res.status(201).json({
         success: true,
         message: 'Manual call log recorded successfully',
-        data: callLog,
+        data: callSession,
     });
 }));
 export default router;

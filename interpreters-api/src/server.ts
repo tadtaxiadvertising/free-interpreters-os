@@ -55,6 +55,16 @@ server.requestTimeout = 30_000;
 
 // ── 3. Startup Sequence ──────────────────────────────────────
 async function bootstrap(): Promise<void> {
+  // Catch listen-time errors (e.g. EADDRINUSE) before they reach uncaughtException
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`🔴 FATAL: Port ${PORT} is already in use. Exiting.`);
+    } else {
+      console.error('🔴 FATAL: HTTP server error:', err.message);
+    }
+    process.exit(1);
+  });
+
   // 1. Listen immediately so Easypanel/Healthcheck sees the service as UP
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Interpreters API running on http://0.0.0.0:${PORT}`);
