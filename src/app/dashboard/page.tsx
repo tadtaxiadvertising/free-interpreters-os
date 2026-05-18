@@ -336,20 +336,33 @@ export default async function InterpreterDashboard() {
               <p suppressHydrationWarning className="text-xs text-slate-200 mt-2 text-right font-medium">{mtdProgress.toFixed(1)}% de la meta mensual</p>
             </div>
 
-            {/* QA Score — IMPROVED CONTRAST */}
-            <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm flex flex-col justify-center">
-              <div className="flex justify-between items-center mb-2">
-                <p className="text-sm text-white font-semibold">QA Score</p>
-                <div className={cn("p-2 rounded-xl", isQaExcellent ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-200")}>
-                  <ShieldCheck size={20} />
+            {/* Meta Diaria Progress */}
+            <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 backdrop-blur-sm">
+              <div className="flex justify-between items-end mb-4">
+                <div>
+                  <p className="text-sm text-white font-semibold mb-1">Meta Diaria</p>
+                  <p className="text-3xl font-bold text-white">
+                    <span suppressHydrationWarning>{Math.round(todayMinutes)}</span>
+                    <span className="text-lg text-slate-300"> / {Math.round(dailyGoal)} min</span>
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
+                  <TrendingUp size={24} />
                 </div>
               </div>
-              <div className="flex items-baseline gap-2">
-                <p className={cn("text-4xl font-bold", isQaExcellent ? "text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "text-white")}>
-                  {latestQaScore}%
-                </p>
-                {isQaExcellent && <span className="text-sm font-medium text-emerald-400">¡Excelente!</span>}
+              
+              <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full relative"
+                  style={{ width: `${todayProgress}%` }}
+                >
+                  <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                </div>
               </div>
+              
+              <p suppressHydrationWarning className="text-xs text-slate-200 mt-2 text-right font-medium">
+                {todayProgress.toFixed(1)}% completado (Faltan {Math.max(0, Math.round(dailyGoal - todayMinutes))} min)
+              </p>
             </div>
 
             {/* Earnings — IMPROVED CONTRAST */}
@@ -372,7 +385,7 @@ export default async function InterpreterDashboard() {
         </div>
 
         {/* Quick Tools & Production Registry */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Call Timer */}
           <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-16 bg-blue-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
@@ -394,55 +407,6 @@ export default async function InterpreterDashboard() {
                 } : null}
                 currentRate={Number(interpreter.tariffPerMinute)}
               />
-            </div>
-          </div>
-
-          {/* Daily Goal Progress */}
-          <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-16 bg-emerald-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
-            <div className="flex items-center justify-between mb-6 relative z-10">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
-                  <TrendingUp size={22} />
-                </div>
-                <h3 className="text-xl font-bold text-white tracking-tight">Meta Diaria</h3>
-              </div>
-              <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md uppercase tracking-wider border border-emerald-500/20">Daily Target</span>
-            </div>
-            <div className="relative z-10">
-              <div className="flex justify-between items-end mb-4">
-                <div>
-                  <p className="text-sm text-slate-400 font-medium mb-1">Producción de hoy</p>
-                  <p className="text-3xl font-bold text-white">
-                    <span suppressHydrationWarning>{Math.round(todayMinutes)}</span>
-                    <span className="text-lg text-slate-400"> / {Math.round(dailyGoal)} min</span>
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-slate-400 font-medium mb-1">Restante</p>
-                  <p className="text-xl font-bold text-emerald-400">
-                    {Math.max(0, Math.round(dailyGoal - todayMinutes))} min
-                  </p>
-                </div>
-              </div>
-              
-              <div className="w-full h-4 bg-slate-800/50 rounded-full overflow-hidden border border-white/5">
-                <div 
-                  className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full relative transition-all duration-1000 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-                  style={{ width: `${todayProgress}%` }}
-                >
-                  <div className="absolute inset-0 bg-white/20 animate-pulse" />
-                </div>
-              </div>
-              
-              <div className="flex justify-between mt-3">
-                <p className="text-xs text-slate-500 font-medium">{todayProgress.toFixed(1)}% completado</p>
-                {todayProgress >= 100 && (
-                  <p className="text-xs text-emerald-400 font-bold flex items-center gap-1">
-                    <ShieldCheck size={12} /> ¡Meta lograda!
-                  </p>
-                )}
-              </div>
             </div>
           </div>
 
