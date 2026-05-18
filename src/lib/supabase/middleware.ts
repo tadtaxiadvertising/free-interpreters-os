@@ -70,13 +70,36 @@ export async function updateSession(request: NextRequest) {
   // 4. Fetch profile and role ONCE if authenticated
   let role = 'interpreter';
   if (user) {
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-    
-    role = profile?.role || 'interpreter';
+    try {
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (serviceKey) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseAdmin = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceKey
+        );
+        const { data: profile, error } = await supabaseAdmin
+          .from('user_profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        
+        if (error) {
+          console.error('🔴 [MIDDLEWARE] Error fetching role with service client:', error);
+        } else {
+          role = profile?.role || 'interpreter';
+        }
+      } else {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        role = profile?.role || 'interpreter';
+      }
+    } catch (err) {
+      console.error('🔴 [MIDDLEWARE] Exception fetching user role:', err);
+    }
   }
 
   // 5. Handle logged-in users on public pages (like login)
