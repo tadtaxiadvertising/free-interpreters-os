@@ -41,6 +41,20 @@ export function DashboardShell({ children, role, userName, notifications = [], r
   useEffect(() => {
     if (role !== 'interpreter') return;
 
+    const setOnline = async () => {
+      try {
+        await fetch('/api/presence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'Online' }),
+        });
+      } catch (err) {
+        console.error('Failed to set online status', err);
+      }
+    };
+
+    setOnline();
+
     const setOffline = () => {
       // Use keepalive to ensure the request completes during unload
       fetch('/api/presence', {
@@ -48,7 +62,7 @@ export function DashboardShell({ children, role, userName, notifications = [], r
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'Offline' }),
         keepalive: true
-      });
+      }).catch(() => {});
     };
 
     window.addEventListener('beforeunload', setOffline);
@@ -59,7 +73,7 @@ export function DashboardShell({ children, role, userName, notifications = [], r
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'heartbeat' }),
-      });
+      }).catch(() => {});
     }, 60000);
 
 

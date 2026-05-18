@@ -385,7 +385,7 @@ export default async function InterpreterDashboard() {
         </div>
 
         {/* Quick Tools & Production Registry */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="w-full">
           {/* Call Timer */}
           <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-16 bg-blue-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
@@ -407,87 +407,6 @@ export default async function InterpreterDashboard() {
                 } : null}
                 currentRate={Number(interpreter.tariffPerMinute)}
               />
-            </div>
-          </div>
-
-          {/* Ranking / Leaderboard */}
-          <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-16 bg-amber-500/5 blur-[50px] rounded-full -mr-8 -mt-8 pointer-events-none" />
-            <div className="flex items-center justify-between mb-6 relative z-10">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
-                  <Trophy size={22} />
-                </div>
-                <h3 className="text-xl font-bold text-white tracking-tight">Tabla de Posiciones</h3>
-              </div>
-              <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-1 rounded-md uppercase tracking-wider border border-amber-500/20">Monthly</span>
-            </div>
-            
-            <div className="relative z-10 space-y-4">
-              {rankings.slice(0, 3).map((entry: any, i: number) => {
-                const isMe = entry.id === interpreter.id;
-                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
-                return (
-                  <div 
-                    key={entry.id} 
-                    className={cn(
-                      "flex items-center justify-between p-2 rounded-xl transition-all",
-                      isMe ? "bg-blue-500/10 border border-blue-500/20" : "hover:bg-white/5"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold w-6 text-center text-slate-400">
-                        {medal || `#${i + 1}`}
-                      </span>
-                      <div>
-                        <p className={cn("text-sm font-bold", isMe ? "text-blue-400" : "text-white")}>
-                          {entry.name} {isMe && <span className="text-[10px] text-blue-400">(Tú)</span>}
-                        </p>
-                        <p className="text-[10px] text-slate-500">{entry.campaign || 'General'}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-slate-200">{(entry.totalMinutes / 60).toFixed(1)} hrs</p>
-                      {entry.qaScore > 0 && (
-                        <p className="text-[9px] font-bold text-emerald-400">QA: {entry.qaScore}%</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              
-              {/* If user is not in top 3, show their position row */}
-              {myRankIdx >= 3 && (
-                <>
-                  <div className="border-t border-dashed border-white/10 my-2" />
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold w-6 text-center text-blue-400">
-                        #{myRankIdx + 1}
-                      </span>
-                      <div>
-                        <p className="text-sm font-bold text-blue-400">
-                          {rankings[myRankIdx]?.name} <span className="text-[10px]">(Tú)</span>
-                        </p>
-                        <p className="text-[10px] text-slate-500">{rankings[myRankIdx]?.campaign || 'General'}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-blue-400">{(rankings[myRankIdx]?.totalMinutes / 60).toFixed(1)} hrs</p>
-                      {rankings[myRankIdx]?.qaScore > 0 && (
-                        <p className="text-[9px] font-bold text-emerald-400">QA: {rankings[myRankIdx]?.qaScore}%</p>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <Link 
-                href="/dashboard/ranking"
-                className="block text-center text-xs text-blue-400 hover:text-blue-300 font-bold mt-4 pt-2 hover:underline transition-all"
-              >
-                Ver Ranking Completo
-              </Link>
             </div>
           </div>
         </div>
