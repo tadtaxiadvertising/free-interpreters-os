@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { StatusToggle } from '@/components/StatusToggle';
 import { CallTimer } from '@/components/CallTimer';
 import { CallHistory } from '@/components/CallHistory';
+import { AccessActionsRail } from '@/components/AccessActionsRail';
 import { OnboardingGate } from '@/components/OnboardingGate';
 import { getCurrentProfile } from '@/app/actions/auth';
 import prismaClient from '@/lib/prisma';
@@ -407,6 +408,8 @@ export default async function InterpreterDashboard() {
                 } : null}
                 currentRate={Number(interpreter.tariffPerMinute)}
               />
+              {/* Access Actions Rail injected here for seamless platform navigation */}
+              <AccessActionsRail userId={userId} />
             </div>
           </div>
         </div>
