@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
+import { MobileBottomNav } from './MobileBottomNav';
 import type { UserRole } from '@/lib/types';
 
 interface RankingData {
@@ -95,12 +96,15 @@ export function DashboardShell({ children, role, userName, notifications = [], r
       <div className="flex flex-col flex-1 h-screen overflow-hidden">
         <Navbar email={userName} notifications={notifications} />
         
-        <main className="flex-1 p-8 overflow-y-auto custom-scrollbar transition-all duration-500 relative">
-          <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto custom-scrollbar transition-all duration-500 relative">
+          <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700 pb-24 md:pb-20">
             {children}
           </div>
         </main>
       </div>
+      
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav role={role} />
     </div>
   );
 }

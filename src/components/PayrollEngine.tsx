@@ -103,7 +103,74 @@ export function PayrollEngine({ initialRecords }: { initialRecords: any[] }) {
 
       {/* Tabla Transaccional */}
       <div className="glass rounded-3xl overflow-hidden border border-white/5 bg-slate-900/40">
-        <div className="overflow-x-auto">
+        {/* Mobile View (Cards) */}
+        <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
+          {filteredRecords.length === 0 ? (
+            <div className="py-8 text-center text-gray-500">No se encontraron registros.</div>
+          ) : filteredRecords.map(record => {
+            const isPaid = record.status === 'Paid' || record.status === 'PAID';
+            const isApproved = record.status === 'Approved';
+            
+            return (
+              <div key={record.id} className="bg-slate-800/50 rounded-2xl p-4 border border-white/5 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-bold text-white text-sm">{record.interpreter?.name || 'Desconocido'}</p>
+                    <p className="text-[10px] text-gray-500 font-mono">{record.interpreter?.metodoPago}</p>
+                  </div>
+                  <span className={cn(
+                    "px-2 py-1 rounded-lg text-[10px] font-black uppercase border",
+                    isPaid ? "bg-green-500/10 text-green-400 border-green-500/20" :
+                    isApproved ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                    "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                  )}>
+                    {isPaid ? 'PAID' : isApproved ? 'APPROVED' : 'DRAFT'}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-white/5">
+                  <div>
+                    <p className="text-xs text-gray-500">Período</p>
+                    <p className="text-gray-300 text-[10px]">{new Date(record.periodStart).toLocaleDateString()} - {new Date(record.periodEnd).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Minutos</p>
+                    <div className="flex items-center gap-1">
+                      <p className="text-white">{record.verifiedMinutes || record.totalMinutes}</p>
+                      {record.verifiedMinutes ? <span className="text-[9px] text-emerald-400 font-bold uppercase">Verificado</span> : <span className="text-[9px] text-orange-400 font-bold uppercase">Reportado</span>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                  <div>
+                    <p className="text-xs text-gray-500">Neto (RD$)</p>
+                    <p className="text-sm font-bold text-green-400">RD${Number(record.netTotal).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!isPaid && (
+                      <>
+                        <button onClick={() => openModal('ADJUST', record)} className="p-2 bg-white/5 hover:bg-white/10 rounded-md text-gray-400 transition-colors" title="Ajustes">
+                          <Edit3 size={16} />
+                        </button>
+                        <button onClick={() => openModal('VERIFY', record)} className="p-2 bg-blue-500/10 hover:bg-blue-500/20 rounded-md text-blue-400 transition-colors" title="Verificar Minutos">
+                          <ShieldCheck size={16} />
+                        </button>
+                      </>
+                    )}
+                    {isApproved && !isPaid && (
+                      <button onClick={() => openModal('PAY', record)} className="p-2 bg-green-500/10 hover:bg-green-500/20 rounded-md text-green-400 transition-colors" title="Marcar Pagado">
+                        <DollarSign size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full text-left">
             <thead className="bg-white/[0.02] text-gray-400 text-xs uppercase tracking-wider">
               <tr>

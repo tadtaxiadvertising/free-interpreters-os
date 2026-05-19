@@ -440,7 +440,95 @@ export default function PayrollAdjustment() {
       ) : (
         /* ── Records Table ── */
         <div className="overflow-x-auto rounded-[2rem] border border-white/10 bg-white/[0.02]">
-          <table className="w-full text-sm">
+          {/* Mobile Cards View */}
+          <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
+            {records.map(r => {
+              const isActing = actionLoading === r.id;
+              const isPaid = r.status === 'PAID' || r.status === 'Pagado';
+              return (
+                <div key={r.id} className="bg-slate-800/50 rounded-2xl p-4 border border-white/5 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-white text-sm">{r.interpreter.name}</p>
+                      <p className="text-[10px] text-gray-500 font-mono">{r.interpreter.externalId}</p>
+                    </div>
+                    <StatusBadge status={r.status} />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-white/5">
+                    <div>
+                      <p className="text-xs text-gray-500">Period</p>
+                      <p className="text-gray-300 text-[10px]">{fmtDate(r.periodStart)} — {fmtDate(r.periodEnd)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Net</p>
+                      <p className="text-sm font-bold text-white font-mono">{fmt(r.netTotal)}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t border-white/5">
+                    <div>
+                      <p className="text-gray-500">System Min.</p>
+                      <p className="text-gray-300 font-mono">{minutesToHM(r.totalMinutes)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Verified</p>
+                      {isPaid ? (
+                        <span className="text-green-400 font-mono">
+                          {r.verifiedMinutes != null ? minutesToHM(r.verifiedMinutes) : '—'}
+                        </span>
+                      ) : (
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder={String(r.verifiedMinutes ?? r.totalMinutes)}
+                          value={verifyInputs[r.id] ?? ''}
+                          onChange={(e) =>
+                            setVerifyInputs({ ...verifyInputs, [r.id]: e.target.value })
+                          }
+                          className="w-full max-w-[80px] bg-white/5 border border-white/10 rounded-lg py-1 px-2 text-right text-white text-[10px] focus:border-blue-500/50 transition-colors outline-none"
+                        />
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-gray-500">Incentive</p>
+                      <p className={`font-mono ${parseFloat(r.incentivesTotal) > 0 ? 'text-emerald-400' : 'text-gray-600'}`}>{fmt(r.incentivesTotal)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                    <div className="flex items-center gap-2 w-full justify-end">
+                      {!isPaid && (
+                        <>
+                          <button
+                            onClick={() => handleVerify(r.id)}
+                            disabled={isActing}
+                            title="Verify minutes"
+                            className="flex items-center gap-1 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-40"
+                          >
+                            {isActing ? <Loader2 className="animate-spin" size={12} /> : <Clock size={12} />} Verify
+                          </button>
+                          <button
+                            onClick={() => handleMarkPaid(r.id)}
+                            disabled={isActing}
+                            title="Mark as paid"
+                            className="flex items-center gap-1 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-40"
+                          >
+                            {isActing ? <Loader2 className="animate-spin" size={12} /> : <DollarSign size={12} />} Pay
+                          </button>
+                        </>
+                      )}
+                      {isPaid && (
+                        <span className="text-[11px] text-gray-500">Paid {fmtDate(r.paidAt)}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <table className="w-full text-sm hidden md:table">
             <thead>
               <tr className="border-b border-white/5">
                 <th className="px-5 py-4 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">

@@ -58,7 +58,38 @@ export function CallHistory({ calls }: { calls: Call[] }) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left">
+        {/* Mobile View (Cards) */}
+        <div className="grid grid-cols-1 gap-4 md:hidden">
+          {filteredCalls.map((call) => (
+            <div key={call.id} className="bg-slate-900/50 border border-white/10 rounded-2xl p-4 space-y-3">
+              <div className="flex justify-between items-start">
+                <div className="flex flex-col">
+                  <span suppressHydrationWarning className="text-white font-semibold text-sm">{formatDate(call.started_at)}</span>
+                  <span suppressHydrationWarning className="text-slate-400 text-xs">{formatTime(call.started_at)}</span>
+                </div>
+                <span className="text-emerald-400 font-bold tracking-tight bg-emerald-500/10 px-2 py-1 rounded-lg text-sm">
+                  RD${call.call_cost ? Number(call.call_cost).toFixed(2) : '0.00'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-3 border-t border-white/5">
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Duration</p>
+                  <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 text-white text-xs font-mono">
+                    <Clock size={12} className="text-slate-400" />
+                    {call.duration_seconds ? formatDuration(call.duration_seconds) : '—'}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Rate</p>
+                  <p className="text-slate-300 text-xs font-medium">RD${(Number(call.tariff_snapshot) * 60).toFixed(2)}/hr</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop View (Table) */}
+        <table className="w-full text-left hidden md:table">
           <thead>
             <tr className="text-slate-500 text-xs uppercase tracking-wider border-b border-white/5">
               <th className="pb-4 px-2 font-semibold">Date & Time</th>
