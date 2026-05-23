@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, isSupabaseConfigError } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import type { UserProfile, UserRole } from '@/lib/types';
 import prismaClient from '@/lib/prisma';
@@ -28,7 +28,7 @@ export async function login(formData: FormData) {
 
     if (error) {
       console.error(`🔴 [AUTH_LOGIN] Failed for ${email}:`, error.message);
-      return { error: 'Credenciales inválidas o error de autenticación.' };
+      return { success: false, error: 'Credenciales inválidas o error de autenticación.' };
     }
 
     // Fetch minimal profile via Prisma
@@ -39,9 +39,20 @@ export async function login(formData: FormData) {
 
     return { success: true, role: profile?.role || 'interpreter' };
   } catch (err: unknown) {
-    if (err instanceof z.ZodError) return { error: 'Email o contraseña inválidos.' };
+    if (err instanceof z.ZodError) {
+      return { success: false, error: 'Email o contraseña inválidos.' };
+    }
+
+    if (isSupabaseConfigError(err)) {
+      console.error('🔴 [AUTH_LOGIN] Supabase configuration error:', err);
+      return {
+        success: false,
+        error: 'Servicio de autenticación temporalmente no disponible (Falta configuración).',
+      };
+    }
+
     console.error('🔴 [AUTH_LOGIN] Unexpected error:', err);
-    return { error: 'Error interno del sistema.' };
+    return { success: false, error: 'Error interno del sistema.' };
   }
 }
 
