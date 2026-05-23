@@ -91,12 +91,14 @@ export function ChatSystem({ currentUserId, currentUserRole }: ChatSystemProps) 
   useEffect(() => {
     if (pollingInterval.current) clearInterval(pollingInterval.current);
 
-    if (activeContact) {
-      loadMessages(activeContact.id);
+    const activeContactId = activeContact?.id;
+
+    if (activeContactId) {
+      loadMessages(activeContactId);
       
       // Poll messages every 4 seconds for a fast, responsive chat feel
       pollingInterval.current = setInterval(() => {
-        loadMessages(activeContact.id, true);
+        loadMessages(activeContactId, true);
       }, 4000);
     } else {
       setMessages([]);

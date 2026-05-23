@@ -296,12 +296,14 @@ export async function updateInterpreterStatusAction(data: unknown): Promise<{ su
 
     revalidatePath('/admin/roster');
 
+    const normalizedInterpreter = {
+      id: updatedInterpreter.id,
+      status: updatedInterpreter.status ?? 'Activo',
+    };
+
     return {
       success: true,
-      data: {
-        ...updatedInterpreter,
-        status: updatedInterpreter.status ?? 'Activo',
-      },
+      data: normalizedInterpreter,
     };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'No se pudo actualizar el estado del intérprete';
