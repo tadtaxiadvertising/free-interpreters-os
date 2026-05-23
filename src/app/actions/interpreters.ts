@@ -7,6 +7,7 @@ import { ActionResult } from '@/lib/types';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Interpreter, Prisma } from '@prisma/client';
 import { validateAction } from '@/lib/auth/actions';
+import { UpdateInterpreterStatusSchema } from '@/lib/validators/interpreters';
 
 const db = prisma;
 
@@ -278,3 +279,26 @@ export async function updateRealtimeStatus(id: number, status: 'Online' | 'Offli
 }
 
 
+
+
+export async function updateInterpreterStatusAction(data: unknown): Promise<{ success: boolean; data?: { id: number; status: string }; error?: string }> {
+  const auth = await validateAction('admin');
+  if ('error' in auth) return { success: false, error: auth.error };
+
+  try {
+    const parsedData = UpdateInterpreterStatusSchema.parse(data);
+
+    const updatedInterpreter = await db.interpreter.update({
+      where: { id: parsedData.id },
+      data: { status: parsedData.status },
+      select: { id: true, status: true },
+    });
+
+    revalidatePath('/admin/roster');
+
+    return { success: true, data: updatedInterpreter };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'No se pudo actualizar el estado del intérprete';
+    return { success: false, error: message };
+  }
+}
