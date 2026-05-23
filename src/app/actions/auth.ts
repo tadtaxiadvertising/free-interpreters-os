@@ -17,9 +17,9 @@ const AuthSchema = z.object({
  * ACTION: User Login
  */
 export async function login(formData: FormData) {
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
-  
+  const email = ((formData.get('email') as string) || '').toLowerCase().trim();
+  const password = (formData.get('password') as string) || '';
+
   try {
     const validated = AuthSchema.parse({ email, password });
     const supabase = await createClient();
@@ -34,7 +34,7 @@ export async function login(formData: FormData) {
     // Fetch minimal profile via Prisma
     const profile = await prisma.userProfile.findUnique({
       where: { id: data.user.id },
-      select: { role: true }
+      select: { role: true },
     });
 
     return { success: true, role: profile?.role || 'interpreter' };
@@ -62,8 +62,8 @@ export async function login(formData: FormData) {
  * ACTION: User Registration
  */
 export async function register(formData: FormData) {
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
+  const email = ((formData.get('email') as string) || '').toLowerCase().trim();
+  const password = (formData.get('password') as string) || '';
   const name = (formData.get('name') as string) || email.split('@')[0];
   const role = (formData.get('role') as string) || 'interpreter';
 
@@ -83,7 +83,7 @@ export async function register(formData: FormData) {
     // Sync Profile via Prisma
     const interpreter = await prisma.interpreter.findUnique({
       where: { emailCorporativo: email },
-      select: { id: true }
+      select: { id: true },
     });
 
     await prisma.userProfile.upsert({
@@ -91,25 +91,28 @@ export async function register(formData: FormData) {
       update: {
         email,
         displayName: name,
-        role: role,
+        role,
         interpreterId: interpreter?.id ?? null,
       },
       create: {
         id: data.user.id,
         email,
         displayName: name,
-        role: role,
+        role,
         interpreterId: interpreter?.id ?? null,
-      }
+      },
     });
 
     return { success: true, role };
   } catch (err: unknown) {
     if (err instanceof z.ZodError) return { success: false, error: 'Datos de registro inválidos.' };
-    
+
     if (isSupabaseConfigError(err)) {
       console.warn('⚠️ [AUTH_REGISTER] Configuración de Supabase omitida.');
-      return { success: false, error: 'El servicio de registro está temporalmente deshabilitado por falta de configuración.' };
+      return {
+        success: false,
+        error: 'El servicio de registro está temporalmente deshabilitado por falta de configuración.',
+      };
     }
 
     console.error('🔴 [AUTH_REGISTER] Error:', err);
@@ -123,10 +126,12 @@ export async function register(formData: FormData) {
 export async function getCurrentProfile(): Promise<UserProfile | null> {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     let profile = null;
-    
+
     if (user) {
       profile = await prisma.userProfile.findUnique({
         where: { id: user.id },
@@ -152,10 +157,10 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
               status: true,
               realtimeStatus: true,
               tariffPerMinute: true,
-              emailCorporativo: true
-            }
-          } 
-        }
+              emailCorporativo: true,
+            },
+          },
+        },
       });
     }
 
@@ -177,7 +182,6 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
       created_at: profile.createdAt?.toISOString() || new Date().toISOString(),
     };
   } catch (error: unknown) {
-    // Ya no logueamos como error crítico si es por falta de variables en el build
     if (isSupabaseConfigError(error)) {
       console.warn('⚠️ [AUTH] Profile fetch omitido por falta de configuración.');
       return null;
@@ -194,9 +198,73 @@ export async function logout() {
 }
 
 export async function requestPasswordReset(formData: FormData) {
-  const email = formData.get('email') as string;
+  const email = ((formData.get('email') as string) || '').toLowerCase().trim();
   if (!email) return { success: false, error: 'Email is required' };
 
   try {
     const headersList = await (await import('next/headers')).headers();
-    const host
+    const host = headersList.get('x-forwarded-host') || headersList.get('host');
+    const proto = headersList.get('x-forwarded-proto') || 'https';
+    const origin = host ? `${proto}://${host}` : '';
+
+    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
+
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('SUPABASE_CONFIG_MISSING');
+    }
+
+    const supabaseAdmin = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    );
+
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      options: {
+        redirectTo: `${origin}/auth/callback?next=/reset-password`,
+      },
+    });
+
+    if (error) {
+      console.error('🔴 [AUTH_RESET] Error generating link:', error.message);
+      return { success: false, error: error.message };
+    }
+
+    console.log('\n======================================================');
+    console.log('🔐 [ZERO-COST RECOVERY] PASSWORD RESET LINK GENERATED');
+    console.log(`👤 User: ${email}`);
+    console.log(`🔗 Link: ${data.properties?.action_link}`);
+    console.log('======================================================\n');
+
+    return { success: true };
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'SUPABASE_CONFIG_MISSING') {
+      console.warn('⚠️ [AUTH_RESET] Request password omitido por falta de configuración.');
+      return { success: false, error: 'Servicio deshabilitado temporalmente.' };
+    }
+    console.error('🔴 [AUTH_RESET] Unexpected error:', err);
+    return { success: false, error: 'Error al solicitar el reset de contraseña.' };
+  }
+}
+
+export async function updatePassword(formData: FormData) {
+  const password = formData.get('password') as string;
+  const confirmPassword = formData.get('confirmPassword') as string;
+
+  if (!password || password !== confirmPassword) {
+    return { success: false, error: 'Las contraseñas no coinciden o están vacías.' };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err: unknown) {
+    if (isSupabaseConfigError(err)) {
+      return { success: false, error: 'Servicio deshabilitado temporalmente.' };
+    }
+    return { success: false, error: 'Error al actualizar la contraseña.' };
+  }
+}
