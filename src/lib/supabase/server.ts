@@ -1,15 +1,26 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-export async function createClient() {
-  const cookieStore = await cookies();
+const SUPABASE_CONFIG_ERROR = 'SUPABASE_CONFIG_MISSING';
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+function getSupabasePublicConfig() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
   if (!url || !key) {
-    throw new Error(`Your project's URL and Key are required! (URL: ${url ? 'set' : 'missing'}, Key: ${key ? 'set' : 'missing'})`);
+    throw new Error(SUPABASE_CONFIG_ERROR);
   }
+
+  return { url, key };
+}
+
+export function isSupabaseConfigError(error: unknown): boolean {
+  return error instanceof Error && error.message === SUPABASE_CONFIG_ERROR;
+}
+
+export async function createClient() {
+  const cookieStore = await cookies();
+  const { url, key } = getSupabasePublicConfig();
 
   return createServerClient(
     url,
