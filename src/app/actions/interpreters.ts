@@ -286,7 +286,7 @@ export async function updateInterpreterStatusAction(data: unknown): Promise<{ su
   if ('error' in auth) return { success: false, error: auth.error };
 
   try {
-    const parsedData = UpdateInterpreterStatusSchema.parse(data);
+    const parsedData = UpdateInterpreterStatusSchema.strict().parse(data);
 
     const updatedInterpreter = await db.interpreter.update({
       where: { id: parsedData.id },
@@ -296,7 +296,13 @@ export async function updateInterpreterStatusAction(data: unknown): Promise<{ su
 
     revalidatePath('/admin/roster');
 
-    return { success: true, data: updatedInterpreter };
+    return {
+      success: true,
+      data: {
+        ...updatedInterpreter,
+        status: updatedInterpreter.status ?? 'Activo',
+      },
+    };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'No se pudo actualizar el estado del intérprete';
     return { success: false, error: message };
