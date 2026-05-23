@@ -43,14 +43,16 @@ export async function login(formData: FormData) {
       return { success: false, error: 'Email o contraseña inválidos.' };
     }
 
+    // Degradación Elegante: Controlamos el error de falta de variables sin crashear
     if (isSupabaseConfigError(err)) {
-      console.error('🔴 [AUTH_LOGIN] Supabase configuration error:', err);
+      console.warn('⚠️ [AUTH_LOGIN] Configuración de Supabase omitida.');
       return {
         success: false,
-        error: 'Servicio de autenticación temporalmente no disponible (Falta configuración).',
+        error: 'El servicio de autenticación está temporalmente deshabilitado por falta de configuración.',
       };
     }
 
+    // Atrapamos cualquier otro error interno real
     console.error('🔴 [AUTH_LOGIN] Unexpected error:', err);
     return { success: false, error: 'Error interno del sistema.' };
   }
@@ -75,8 +77,8 @@ export async function register(formData: FormData) {
       options: { data: { display_name: name } },
     });
 
-    if (error) return { error: error.message };
-    if (!data.user) return { error: 'No se pudo crear el usuario.' };
+    if (error) return { success: false, error: error.message };
+    if (!data.user) return { success: false, error: 'No se pudo crear el usuario.' };
 
     // Sync Profile via Prisma
     const interpreter = await prisma.interpreter.findUnique({
@@ -103,9 +105,15 @@ export async function register(formData: FormData) {
 
     return { success: true, role };
   } catch (err: unknown) {
-    if (err instanceof z.ZodError) return { error: 'Datos de registro inválidos.' };
+    if (err instanceof z.ZodError) return { success: false, error: 'Datos de registro inválidos.' };
+    
+    if (isSupabaseConfigError(err)) {
+      console.warn('⚠️ [AUTH_REGISTER] Configuración de Supabase omitida.');
+      return { success: false, error: 'El servicio de registro está temporalmente deshabilitado por falta de configuración.' };
+    }
+
     console.error('🔴 [AUTH_REGISTER] Error:', err);
-    return { error: 'Error interno durante el registro.' };
+    return { success: false, error: 'Error interno durante el registro.' };
   }
 }
 
@@ -169,6 +177,11 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
       created_at: profile.createdAt?.toISOString() || new Date().toISOString(),
     };
   } catch (error: unknown) {
+    // Ya no logueamos como error crítico si es por falta de variables en el build
+    if (isSupabaseConfigError(error)) {
+      console.warn('⚠️ [AUTH] Profile fetch omitido por falta de configuración.');
+      return null;
+    }
     console.error('🔴 [AUTH] Profile fetch failed:', error);
     return null;
   }
@@ -182,64 +195,8 @@ export async function logout() {
 
 export async function requestPasswordReset(formData: FormData) {
   const email = formData.get('email') as string;
-  if (!email) return { error: 'Email is required' };
+  if (!email) return { success: false, error: 'Email is required' };
 
   try {
     const headersList = await (await import('next/headers')).headers();
-    const host = headersList.get('x-forwarded-host') || headersList.get('host');
-    const proto = headersList.get('x-forwarded-proto') || 'https';
-    const origin = host ? `${proto}://${host}` : '';
-
-    // Create an admin client to generate the recovery link directly (SMTP-less)
-    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
-    const supabaseAdmin = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-      options: {
-        redirectTo: `${origin}/auth/callback?next=/reset-password`,
-      }
-    });
-
-    if (error) {
-      console.error('🔴 [AUTH_RESET] Error generating link:', error.message);
-      return { error: error.message };
-    }
-
-    // AUDIT-FIRST RECOVERY: Log the token securely to the server console
-    console.log('\n======================================================');
-    console.log('🔐 [ZERO-COST RECOVERY] PASSWORD RESET LINK GENERATED');
-    console.log(`👤 User: ${email}`);
-    console.log(`🔗 Link: ${data.properties?.action_link}`);
-    console.log('======================================================\n');
-
-    return { success: true };
-  } catch (err) {
-    console.error('🔴 [AUTH_RESET] Unexpected error:', err);
-    return { error: 'Error al solicitar el reset de contraseña.' };
-  }
-}
-
-export async function updatePassword(formData: FormData) {
-  const password = formData.get('password') as string;
-  const confirmPassword = formData.get('confirmPassword') as string;
-
-  if (!password || password !== confirmPassword) {
-    return { error: 'Las contraseñas no coinciden o están vacías.' };
-  }
-
-  try {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) return { error: error.message };
-    return { success: true };
-  } catch (err) {
-    return { error: 'Error al actualizar la contraseña.' };
-  }
-}
-
-
+    const host
