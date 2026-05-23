@@ -18,80 +18,94 @@ const ManualLogSchema = z.object({
 
 /**
  * ACTION: Create Manual Production Log
+ *
+ * Nota de arquitectura:
+ * - En Docker/Easypanel evitamos llamadas HTTP al propio dominio público para prevenir fallos DNS intermitentes.
+ * - Persistimos directamente con Prisma y devolvemos errores controlados (degradación elegante).
  */
-export async function createManualLog(data: any): Promise<ActionResult<{ id: number }>> {
-  const auth = await validateAction('admin');
-  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+export async function createManualLog(data: unknown): Promise<ActionResult<{ id: number }>> {
+  const auth = await validateAction("admin");
+  if ("error" in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
     const validated = ManualLogSchema.parse(data);
     const { interpreterId, date, startTime, endTime, totalMinutes } = validated;
 
-    // 1. Get Interpreter details for the API call
     const interpreter = await db.interpreter.findUnique({
       where: { id: interpreterId },
-      select: { id: true, externalId: true }
+      select: { id: true, tariffPerMinute: true },
     });
 
     if (!interpreter) {
-      return { success: false, error: "Intérprete no encontrado.", code: 'NOT_FOUND' };
+      return { success: false, error: "Intérprete no encontrado.", code: "NOT_FOUND" };
     }
 
     const startDateTime = new Date(`${date}T${startTime}:00`);
     const endDateTime = new Date(`${date}T${endTime}:00`);
     const now = new Date();
 
+    if (Number.isNaN(startDateTime.getTime()) || Number.isNaN(endDateTime.getTime())) {
+      return { success: false, error: "Fecha u hora inválida.", code: "VALIDATION_ERROR" };
+    }
+
+    if (endDateTime <= startDateTime) {
+      return {
+        success: false,
+        error: "La hora de fin debe ser mayor que la hora de inicio.",
+        code: "VALIDATION_ERROR",
+      };
+    }
+
     if (startDateTime > now || endDateTime > now) {
-      return { success: false, error: "No se puede registrar tiempos en el futuro.", code: 'VALIDATION_ERROR' };
+      return {
+        success: false,
+        error: "No se puede registrar tiempos en el futuro.",
+        code: "VALIDATION_ERROR",
+      };
     }
 
-    // 2. Call the External API (Securely from Server)
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-    const apiKey = process.env.API_SECRET_KEY || process.env.NEXT_PUBLIC_API_SECRET_KEY; // Secure server-side key
+    const durationSeconds = Math.max(0, Math.round(totalMinutes * 60));
+    const tariffSnapshot = Number(interpreter.tariffPerMinute ?? 0);
+    const callCost = (durationSeconds / 60) * tariffSnapshot;
 
-    const apiResponse = await fetch(`${apiUrl}/api/v1/calls/manual`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        interpreterId: interpreter.externalId,
-        startTime: startDateTime.toISOString(),
-        endTime: endDateTime.toISOString(),
-        notes: "Manual entry via Server Action"
-      })
-    });
+    const result = await db.$transaction(async (tx) => {
+      await tx.callSession.create({
+        data: {
+          interpreterId: interpreter.id,
+          startedAt: startDateTime,
+          endedAt: endDateTime,
+          durationSeconds,
+          tariffSnapshot,
+          callCost,
+          notes: "Manual entry via Admin Server Action",
+        },
+      });
 
-    if (!apiResponse.ok) {
-      const apiError = await apiResponse.json().catch(() => ({}));
-      console.error("🔴 API ERROR:", apiError);
-      return { success: false, error: "La API externa rechazó el registro.", code: 'INTERNAL_ERROR' };
-    }
+      const newLog = await tx.productionLog.create({
+        data: {
+          interpreterId: interpreter.id,
+          date: new Date(date),
+          loginTime: startDateTime,
+          logoutTime: endDateTime,
+          interpretedMinutes: totalMinutes,
+          verifiedMinutes: totalMinutes,
+          status: "Completed",
+          observaciones: "Manual Sync (sin llamada de red interna)",
+        },
+        select: { id: true },
+      });
 
-    // 3. Create local ProductionLog for the Dashboard
-    const newLog = await db.productionLog.create({
-      data: {
-        interpreterId: interpreter.id,
-        date: new Date(date),
-        loginTime: startDateTime,
-        logoutTime: endDateTime,
-        interpretedMinutes: totalMinutes,
-        verifiedMinutes: totalMinutes,
-        status: "Completed",
-        observaciones: "Manual Sync with API",
-      },
-      select: { id: true }
+      return newLog;
     });
 
     revalidatePath("/admin/production");
-    return { success: true, data: { id: newLog.id } };
+    return { success: true, data: { id: result.id } };
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return { success: false, error: "Datos de entrada inválidos", code: 'VALIDATION_ERROR' };
+      return { success: false, error: "Datos de entrada inválidos", code: "VALIDATION_ERROR" };
     }
     console.error("🔴 ERROR [createManualLog]:", error);
-    return { success: false, error: "Error interno al crear el log manual.", code: 'INTERNAL_ERROR' };
+    return { success: false, error: "Error interno al crear el log manual.", code: "INTERNAL_ERROR" };
   }
 }
 
@@ -100,7 +114,7 @@ export async function createManualLog(data: any): Promise<ActionResult<{ id: num
  */
 export async function getInterpretersForSelect(): Promise<ActionResult<{ id: number; name: string; externalId: string }[]>> {
   const auth = await validateAction();
-  if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+  if ("error" in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
     const interpreters = await db.interpreter.findMany({
@@ -113,11 +127,10 @@ export async function getInterpretersForSelect(): Promise<ActionResult<{ id: num
         name: "asc",
       },
     });
-    
+
     return { success: true, data: interpreters };
   } catch (error: unknown) {
     console.error("🔴 ERROR [getInterpretersForSelect]:", error);
-    return { success: false, error: "Error obteniendo la lista de intérpretes.", code: 'INTERNAL_ERROR' };
+    return { success: false, error: "Error obteniendo la lista de intérpretes.", code: "INTERNAL_ERROR" };
   }
 }
-
