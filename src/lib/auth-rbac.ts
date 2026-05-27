@@ -1,19 +1,20 @@
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import type { JWT } from "next-auth/jwt";
+import type { Session } from "next-auth";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     CredentialsProvider({
       credentials: { email: {}, password: {} },
-      async authorize(credentials) {
+      async authorize(credentials: unknown) {
         const { email, password } = z
           .object({ email: z.string().email(), password: z.string() })
           .parse(credentials);
         
-        // @ts-ignore: Prisma client cache delay in IDE
         const user = await prisma.rbacUser.findUnique({ where: { email } });
         if (!user || !(await bcrypt.compare(password, user.password))) {
           throw new Error("Invalid credentials");
@@ -29,11 +30,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     })
   ],
   callbacks: {
-    jwt({ token, user }) {
-      if (user) token.role = (user as any).role;
+    jwt({ token, user }: { token: JWT; user?: any }) {
+      if (user) token.role = user.role;
       return token;
     },
-    session({ session, token }) {
+    session({ session, token }: { session: Session; token: JWT }) {
       if (session.user) {
         (session.user as any).role = token.role;
       }
@@ -43,4 +44,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/portal-rbac/login",
   }
-});
+}) as any;
