@@ -42,6 +42,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }
   },
   pages: {
-    signIn: "/portal-rbac/login",
+    signIn: "/login",
   }
 }) as any;
