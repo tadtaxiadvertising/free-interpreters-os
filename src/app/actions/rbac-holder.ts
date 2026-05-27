@@ -12,7 +12,7 @@ export async function uploadAccount(data: z.infer<typeof AccountSchema>) {
   }
   
   const parsed = AccountSchema.parse(data);
-  // @ts-ignore: Prisma client cache delay in IDE
+  // @ts-expect-error: Prisma client cache delay in IDE
   return prisma.vaultAccount.create({ 
     data: { ...parsed, holderId: session.user.id as string } 
   });
@@ -25,7 +25,7 @@ export async function sendMessage(data: z.infer<typeof MessageSchema>) {
   }
   
   const parsed = MessageSchema.parse(data);
-  // @ts-ignore: Prisma client cache delay in IDE
+  // @ts-expect-error: Prisma client cache delay in IDE
   return prisma.vaultMessage.create({ 
     data: { ...parsed, authorId: session.user.id as string } 
   });

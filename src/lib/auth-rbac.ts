@@ -13,7 +13,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           .object({ email: z.string().email(), password: z.string() })
           .parse(credentials);
         
-        // @ts-ignore: Prisma client cache delay in IDE
+        // @ts-expect-error: Prisma client cache delay in IDE
         const user = await prisma.rbacUser.findUnique({ where: { email } });
         if (!user || !(await bcrypt.compare(password, user.password))) {
           throw new Error("Invalid credentials");
