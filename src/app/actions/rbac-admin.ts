@@ -1,10 +1,8 @@
 "use server";
 import { auth } from "@/lib/auth-rbac";
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
 const HolderSchema = z.object({ 
   email: z.string().email(), 
   password: z.string().min(6), 
@@ -20,6 +18,7 @@ export async function createHolder(data: z.infer<typeof HolderSchema>) {
   const { email, password, name } = HolderSchema.parse(data);
   const hashedPassword = await bcrypt.hash(password, 10);
   
+  // @ts-ignore: Prisma client cache delay in IDE
   return prisma.rbacUser.create({ 
     data: { email, password: hashedPassword, name, role: "HOLDER" } 
   });

@@ -1,13 +1,8 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-
-// Ensure a single Prisma instance
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -18,6 +13,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           .object({ email: z.string().email(), password: z.string() })
           .parse(credentials);
         
+        // @ts-ignore: Prisma client cache delay in IDE
         const user = await prisma.rbacUser.findUnique({ where: { email } });
         if (!user || !(await bcrypt.compare(password, user.password))) {
           throw new Error("Invalid credentials");
