@@ -78,11 +78,23 @@ export async function middleware(req: NextRequest) {
   }
 
   // ── 2. SUPABASE SESSION REFRESH ───────────────────────────
-  // Conditionally imported to prevent crashes when env vars are
-  // missing during `next build` static generation phase.
+  // Only run Supabase refresh when a Supabase cookie exists or the route is
+  // protected by Supabase. This avoids repeated refresh-token errors for
+  // NextAuth-only sessions (e.g. RBAC credentials login).
   let response: NextResponse;
 
-  if (HAS_SUPABASE_ENV) {
+  const hasSupabaseCookie =
+    req.cookies.has('sb-access-token') ||
+    req.cookies.has('sb-refresh-token') ||
+    Array.from(req.cookies.getAll()).some(
+      (cookie) => cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')
+    );
+
+  const isSupabaseSecureRoute = SUPABASE_SECURE_PREFIXES.some(
+    (prefix) => pathname.startsWith(prefix)
+  );
+
+  if (HAS_SUPABASE_ENV && (hasSupabaseCookie || isSupabaseSecureRoute)) {
     try {
       const { updateSession } = await import('@/lib/supabase/middleware');
       response = await updateSession(req);
@@ -99,21 +111,8 @@ export async function middleware(req: NextRequest) {
 
   // ── 3. SUPABASE AUTH PROTECTION ───────────────────────────
   // Dashboard/Admin/Payroll/QA routes require a Supabase session.
-  const isSupabaseSecureRoute = SUPABASE_SECURE_PREFIXES.some(
-    (prefix) => pathname.startsWith(prefix)
-  );
-
   if (isSupabaseSecureRoute) {
-    // Check for Supabase auth cookies (multiple possible naming patterns)
-    const hasSupabaseSession =
-      req.cookies.has('sb-access-token') ||
-      // Supabase SSR uses project-ref based cookie names
-      Array.from(req.cookies.getAll()).some(
-        (cookie) =>
-          cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')
-      );
-
-    if (!hasSupabaseSession) {
+    if (!hasSupabaseCookie) {
       const loginUrl = req.nextUrl.clone();
       loginUrl.pathname = '/login';
       return NextResponse.redirect(loginUrl);
