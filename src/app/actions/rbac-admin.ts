@@ -18,7 +18,6 @@ export async function createHolder(data: z.infer<typeof HolderSchema>) {
   const { email, password, name } = HolderSchema.parse(data);
   const hashedPassword = await bcrypt.hash(password, 10);
   
-  // @ts-expect-error: Prisma client cache delay in IDE
   return prisma.rbacUser.create({ 
     data: { email, password: hashedPassword, name, role: "HOLDER" } 
   });
