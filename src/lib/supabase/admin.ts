@@ -1,17 +1,40 @@
 import { createClient } from '@supabase/supabase-js';
 
-export function createAdminClient() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set in environment variables.');
-  }
-  
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set in environment variables. This is required for admin operations.');
+const SERVICE_ROLE_ENV_NAMES = ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_KEY'] as const;
+
+export function getSupabaseServiceRoleKey() {
+  for (const envName of SERVICE_ROLE_ENV_NAMES) {
+    const value = process.env[envName]?.trim();
+    if (value) return value;
   }
 
+  return null;
+}
+
+export function getSupabaseAdminConfig() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (!url) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set in environment variables.');
+  }
+
+  const serviceRoleKey = getSupabaseServiceRoleKey();
+  if (!serviceRoleKey) {
+    throw new Error(
+      'SUPABASE_SERVICE_ROLE_KEY is not set in environment variables. ' +
+      'This is required for admin operations like creating users. ' +
+      'Set it to the Supabase service_role secret key in your server runtime environment.'
+    );
+  }
+
+  return { url, serviceRoleKey };
+}
+
+export function createAdminClient() {
+  const { url, serviceRoleKey } = getSupabaseAdminConfig();
+
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    url,
+    serviceRoleKey,
     {
       auth: {
         autoRefreshToken: false,

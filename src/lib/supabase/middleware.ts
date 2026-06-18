@@ -72,7 +72,8 @@ export async function updateSession(request: NextRequest) {
   let role = 'interpreter';
   if (user) {
     try {
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const { getSupabaseServiceRoleKey } = await import('@/lib/supabase/admin');
+      const serviceKey = getSupabaseServiceRoleKey();
       if (serviceKey) {
         const { createClient } = await import('@supabase/supabase-js');
         const supabaseAdmin = createClient(
