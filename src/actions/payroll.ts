@@ -127,7 +127,7 @@ export async function calculateInterpreterPayrollAction(
     });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return { success: false, error: 'Invalid input data: ' + error.errors[0].message };
+      return { success: false, error: 'Invalid input data: ' + (error as any).errors[0].message };
     }
     console.error('Calculate Payroll Error:', error);
     return { success: false, error: error.message || 'An unexpected error occurred during calculation.' };
