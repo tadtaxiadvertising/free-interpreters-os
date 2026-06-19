@@ -94,6 +94,7 @@ export const getCurrentUser = cache(async () => {
         role: (session.user as any).role || 'interpreter',
         displayName: session.user.name,
         email: session.user.email,
+        interpreterId: (session.user as any).interpreterId || null,
       }
     };
   }
