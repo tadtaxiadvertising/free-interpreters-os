@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
 import { ActionResult, UserRole } from '@/lib/types';
 import { cache } from 'react';
+import { auth } from '@/lib/auth-rbac';
 
 /**
  * CACHED AUTH HELPER
@@ -79,6 +80,21 @@ export const getCurrentUser = cache(async () => {
     return {
       ...supabaseUser,
       profile: supabaseProfile
+    };
+  }
+  
+  // Fallback to NextAuth (Auth.js) session
+  const session = await auth();
+  if (session?.user) {
+    return {
+      id: session.user.id,
+      email: session.user.email,
+      profile: {
+        id: session.user.id,
+        role: (session.user as any).role || 'interpreter',
+        displayName: session.user.name,
+        email: session.user.email,
+      }
     };
   }
   
