@@ -84,19 +84,23 @@ export const getCurrentUser = cache(async () => {
   }
   
   // Fallback to NextAuth (Auth.js) session
-  const session = await auth();
-  if (session?.user) {
-    return {
-      id: session.user.id,
-      email: session.user.email,
-      profile: {
+  try {
+    const session = await auth();
+    if (session?.user) {
+      return {
         id: session.user.id,
-        role: (session.user as any).role || 'interpreter',
-        displayName: session.user.name,
         email: session.user.email,
-        interpreterId: (session.user as any).interpreterId || null,
-      }
-    };
+        profile: {
+          id: session.user.id,
+          role: (session.user as any).role || 'interpreter',
+          displayName: session.user.name,
+          email: session.user.email,
+          interpreterId: (session.user as any).interpreterId || null,
+        }
+      };
+    }
+  } catch (authError) {
+    console.error('NextAuth Fallback Error:', authError);
   }
   
   return null;
