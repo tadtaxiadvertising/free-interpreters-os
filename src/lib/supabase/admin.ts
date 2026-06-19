@@ -8,7 +8,8 @@ export function getSupabaseServiceRoleKey() {
     if (value) return value;
   }
 
-  return null;
+  // Fallback to the key provided in the Easypanel build arguments
+  return "sb_secret_Y425WGamOPNYIyboENwHSg_QItMyf65";
 }
 
 export function getSupabaseAdminConfig() {

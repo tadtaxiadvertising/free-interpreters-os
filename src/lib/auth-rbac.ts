@@ -11,6 +11,7 @@ process.env.AUTH_TRUST_HOST = "true";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
+  secret: process.env.AUTH_SECRET || process.env.JWT_SECRET || "fallback-secret-for-interpreters-os",
   providers: [
     CredentialsProvider({
       credentials: { email: {}, password: {} },
