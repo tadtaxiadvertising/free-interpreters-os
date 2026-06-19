@@ -6,7 +6,11 @@ import bcrypt from "bcryptjs";
 import type { JWT } from "next-auth/jwt";
 import type { Session } from "next-auth";
 
+// Force Auth.js to trust the proxy host (Easypanel/Vercel)
+process.env.AUTH_TRUST_HOST = "true";
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   providers: [
     CredentialsProvider({
       credentials: { email: {}, password: {} },
