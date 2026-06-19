@@ -68,17 +68,17 @@ export function PayrollCalculator({ interpreters }: { interpreters: { id: number
           </div>
         </div>
 
-        {state?.error && (
+        {(state as any)?.error && (
           <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-xl text-orange-400 flex items-start gap-3 animate-in fade-in">
             <AlertTriangle className="mt-0.5 shrink-0" size={18} />
-            <p className="text-sm">{state.error}</p>
+            <p className="text-sm">{(state as any).error}</p>
           </div>
         )}
 
         {state?.success && (
           <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl text-green-400 flex items-start gap-3 animate-in fade-in">
             <CheckCircle2 className="mt-0.5 shrink-0" size={18} />
-            <p className="text-sm">{state.message}</p>
+            <p className="text-sm">{(state as any).message}</p>
           </div>
         )}
 
