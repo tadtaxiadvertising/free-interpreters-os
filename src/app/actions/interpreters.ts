@@ -93,10 +93,11 @@ export async function updateInterpreter(id: number, data: Partial<InterpreterInp
 
   try {
     const validated = InterpreterSchema.partial().parse(data);
+    const { password, ...updateData } = validated;
 
     const interpreter = await db.interpreter.update({
       where: { id },
-      data: validated,
+      data: updateData,
       select: { id: true, name: true }
     });
 
