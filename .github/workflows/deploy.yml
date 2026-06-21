@@ -1,119 +1,25 @@
-# =============================================================================
-# CI/CD Pipeline — Free Interpreters OS
-# =============================================================================
-# Trigger: push to main / PR to main
-# Jobs: validate → deploy (via Easypanel webhook)
-# Cost: $0 (GitHub Actions Free Tier)
-# =============================================================================
-
-name: CI/CD Pipeline
+name: 🚀 Auto-Deploy to Easypanel
 
 on:
   push:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "README.md"
-      - "*.md"
-      - ".vscode/**"
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "README.md"
-      - "*.md"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches:
+      - main
 
 jobs:
-  # ── Validate ────────────────────────────────────────────────
-  validate:
-    name: "🔍 Validate"
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-
-      - name: 📦 Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: 📥 Install Dependencies
-        run: npm ci
-
-      - name: 🔧 Generate Prisma Client
-        run: npx prisma generate
-
-      - name: 🔎 TypeScript Typecheck
-        run: npx tsc --noEmit
-
-      - name: 🧹 ESLint
-        run: npm run lint
-
-      - name: 🏗️ Build Test
-        run: npm run build
-        env:
-          DATABASE_URL: "postgresql://postgres:test@localhost:5432/test"
-          JWT_SECRET: "ci-test-secret-not-for-production-use-only-min-32-chars"
-          NEXT_TELEMETRY_DISABLED: "1"
-
-  # ── Deploy ──────────────────────────────────────────────────
   deploy:
-    name: "🚀 Deploy to Easypanel"
+    name: Trigger Easypanel Deployment
     runs-on: ubuntu-latest
-    needs: validate
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    timeout-minutes: 5
+
     steps:
-      - name: 🔔 Trigger Easypanel Deploy
-        env:
-          EASYPANEL_WEBHOOK_URL: ${{ secrets.EASYPANEL_WEBHOOK_URL }}
+      - name: Call Easypanel Webhook
         run: |
-          if [ -z "$EASYPANEL_WEBHOOK_URL" ]; then
-            echo "❌ Error: EASYPANEL_WEBHOOK_URL secret is not configured in GitHub Secrets"
-            exit 1
-          fi
-
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST \
-            "$EASYPANEL_WEBHOOK_URL" \
-            -H "Content-Type: application/json")
-
-          echo "Webhook response: $RESPONSE"
-
-          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 300 ]; then
-            echo "✅ Deploy triggered successfully"
+          echo "Disparando despliegue automático en Easypanel..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.EASYPANEL_DEPLOY_WEBHOOK }}")
+          
+          if [ "$RESPONSE" -eq 200 ] || [ "$RESPONSE" -eq 201 ] || [ "$RESPONSE" -eq 202 ]; then
+            echo "✅ Webhook enviado con éxito. Código HTTP: $RESPONSE"
+            echo "Easypanel está compilando el nuevo build en segundo plano."
           else
-            echo "❌ Deploy webhook failed with status: $RESPONSE"
+            echo "❌ Error al disparar el webhook. Código HTTP recibido: $RESPONSE"
             exit 1
           fi
-
-      - name: ⏳ Wait for Deploy
-        run: |
-          echo "Waiting 90s for Easypanel to build and deploy..."
-          sleep 90
-
-      - name: 🏥 Health Check
-        run: |
-          for i in {1..5}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://app.freeinterpreters.com" \
-              --max-time 10)
-
-            if [ "$STATUS" -eq 200 ]; then
-              echo "✅ Health check passed (attempt $i)"
-              exit 0
-            fi
-
-            echo "⏳ Attempt $i: status $STATUS, retrying in 15s..."
-            sleep 15
-          done
-
-          echo "❌ Health check failed after 5 attempts"
-          exit 1
