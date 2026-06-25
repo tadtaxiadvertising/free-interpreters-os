@@ -190,23 +190,30 @@ function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function Pagination({ currentPage, totalPages }: { currentPage: number; totalPages: number }) {
+function Pagination({ currentPage, totalPages, searchParams }: { currentPage: number; totalPages: number; searchParams: Record<string, string | undefined> }) {
   if (totalPages <= 1) return null;
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
   const visiblePages = pages.filter(
     (p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2
   );
 
+  const baseQuery = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (value && key !== 'page') baseQuery.set(key, value);
+  }
+
   return (
     <div className="flex items-center justify-center gap-2 py-6">
       {visiblePages.map((p, idx) => {
         const prev = visiblePages[idx - 1];
         const showGap = idx > 0 && p - prev > 1;
+        const query = new URLSearchParams(baseQuery.toString());
+        if (p > 1) query.set('page', String(p));
         return (
           <React.Fragment key={p}>
             {showGap && <span className="text-gray-500 px-1">...</span>}
             <a
-              href={`?page=${p}`}
+              href={`?${query.toString()}`}
               className={cn(
                 'px-3 py-1 rounded-lg text-sm font-medium transition',
                 p === currentPage
@@ -327,7 +334,7 @@ export default async function ProductionPage({ searchParams }: { searchParams: P
           </table>
         </div>
 
-        <Pagination currentPage={currentPage} totalPages={totalPages} />
+        <Pagination currentPage={currentPage} totalPages={totalPages} searchParams={resolvedSearchParams as Record<string, string | undefined>} />
 
         {historyRows.length === 0 && <div className="p-20 text-center"><Clock size={48} className="mx-auto text-gray-700 mb-4" /><p className="text-gray-500">No production logs found.</p></div>}
       </div>
