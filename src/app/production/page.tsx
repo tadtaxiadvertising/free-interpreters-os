@@ -35,50 +35,84 @@ interface InterpreterHistoryRow {
   observaciones: string | null;
 }
 
-type ProductionSearchParams = Promise<{ search?: string; filter?: string }>;
+type ProductionSearchParams = Promise<{
+  search?: string;
+  filter?: string;
+  fromDate?: string;
+  toDate?: string;
+  interpreterId?: string;
+  showAll?: string;
+  page?: string;
+}>;
 
 export const dynamic = 'force-dynamic';
 
-async function getProductionHistory(searchParams: { search?: string; filter?: string }): Promise<InterpreterHistoryRow[]> {
+const PAGE_SIZE = 50;
+
+async function getProductionHistory(searchParams: {
+  search?: string;
+  filter?: string;
+  fromDate?: string;
+  toDate?: string;
+  interpreterId?: string;
+  showAll?: string;
+  page?: string;
+}): Promise<{
+  rows: InterpreterHistoryRow[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+}> {
   const search = searchParams.search?.trim();
   const filter = searchParams.filter?.trim();
+  const fromDate = searchParams.fromDate?.trim();
+  const toDate = searchParams.toDate?.trim();
+  const interpreterIdStr = searchParams.interpreterId?.trim();
+  const showAll = searchParams.showAll === 'true';
+  const page = Math.max(1, parseInt(searchParams.page ?? '1', 10) || 1);
+
   const isFiltered = Boolean(filter && filter !== 'all');
-  const searchWhere = search
-    ? {
-        OR: [
-          { status: { contains: search, mode: 'insensitive' as const } },
-          { campaign: { contains: search, mode: 'insensitive' as const } },
-          { interpreter: { name: { contains: search, mode: 'insensitive' as const } } },
-          { interpreter: { externalId: { contains: search, mode: 'insensitive' as const } } },
-        ],
-      }
-    : {};
+
+  const where: Record<string, any> = {};
+
+  if (isFiltered) {
+    where.status = filter;
+  }
+
+  if (fromDate) {
+    where.date = { ...where.date, gte: new Date(fromDate) };
+  }
+  if (toDate) {
+    where.date = { ...where.date, lte: new Date(toDate) };
+  }
+
+  if (interpreterIdStr && interpreterIdStr !== 'all') {
+    where.interpreterId = parseInt(interpreterIdStr, 10);
+  }
+
+  if (search) {
+    where.OR = [
+      { status: { contains: search, mode: 'insensitive' as const } },
+      { campaign: { contains: search, mode: 'insensitive' as const } },
+      { observaciones: { contains: search, mode: 'insensitive' as const } },
+      { interpreter: { name: { contains: search, mode: 'insensitive' as const } } },
+      { interpreter: { externalId: { contains: search, mode: 'insensitive' as const } } },
+    ];
+  }
 
   try {
-    const [logs, interpreters] = await Promise.all([
+    const [totalCount, logs] = await Promise.all([
+      prisma.productionLog.count({ where }),
       prisma.productionLog.findMany({
-        where: {
-          ...(isFiltered ? { status: filter } : {}),
-          ...searchWhere,
-        },
+        where,
         orderBy: { date: 'desc' },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
         include: { interpreter: { select: { id: true, name: true, campaign: true, externalId: true } } },
       }),
-      prisma.interpreter.findMany({
-        where: search
-          ? {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { externalId: { contains: search, mode: 'insensitive' } },
-                { campaign: { contains: search, mode: 'insensitive' } },
-                { status: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {},
-        select: { id: true, name: true, campaign: true, externalId: true },
-        orderBy: { name: 'asc' },
-      }),
     ]);
+
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
     const rows: InterpreterHistoryRow[] = logs.map((log) => {
       const name = log.interpreter?.name || 'Unknown';
@@ -99,29 +133,56 @@ async function getProductionHistory(searchParams: { search?: string; filter?: st
       };
     });
 
-    const interpretersWithVisibleLogs = new Set(logs.map((log) => log.interpreterId).filter((id): id is number => id !== null));
-    const placeholderRows = interpreters
-      .filter((interpreter) => !interpretersWithVisibleLogs.has(interpreter.id))
-      .map((interpreter) => ({
-        key: `interpreter-${interpreter.id}`,
-        log: null,
-        interpreterId: interpreter.id,
-        interpreterName: interpreter.name,
-        interpreterInitial: interpreter.name.charAt(0) || '?',
-        interpreterCampaign: interpreter.campaign,
-        interpreterExternalId: interpreter.externalId,
-        date: null,
-        interpretedMinutes: 0,
-        callsAttended: 0,
-        adherence: 0,
-        status: isFiltered ? `Sin registros ${filter}` : 'Sin registros',
-        observaciones: null,
-      }));
+    if (showAll) {
+      const interpreters = await prisma.interpreter.findMany({
+        where: interpreterIdStr && interpreterIdStr !== 'all'
+          ? { id: parseInt(interpreterIdStr, 10) }
+          : search
+            ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { externalId: { contains: search, mode: 'insensitive' } },
+                { campaign: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+            : {},
+        select: { id: true, name: true, campaign: true, externalId: true },
+        orderBy: { name: 'asc' },
+      });
 
-    return [...rows, ...placeholderRows];
+      const interpretersWithVisibleLogs = new Set(
+        logs.map((log) => log.interpreterId).filter((id): id is number => id !== null)
+      );
+      const placeholderRows: InterpreterHistoryRow[] = interpreters
+        .filter((interpreter) => !interpretersWithVisibleLogs.has(interpreter.id))
+        .map((interpreter) => ({
+          key: `interpreter-${interpreter.id}`,
+          log: null,
+          interpreterId: interpreter.id,
+          interpreterName: interpreter.name || 'Unknown',
+          interpreterInitial: (interpreter.name || 'U').charAt(0),
+          interpreterCampaign: interpreter.campaign,
+          interpreterExternalId: interpreter.externalId,
+          date: null,
+          interpretedMinutes: 0,
+          callsAttended: 0,
+          adherence: 0,
+          status: isFiltered ? `Sin registros ${filter}` : 'Sin registros',
+          observaciones: null,
+        }));
+
+      return {
+        rows: [...rows, ...placeholderRows],
+        totalCount: totalCount + placeholderRows.length,
+        totalPages,
+        currentPage: page,
+      };
+    }
+
+    return { rows, totalCount, totalPages, currentPage: page };
   } catch (error) {
     console.error('Error fetching production history:', error);
-    return [];
+    return { rows: [], totalCount: 0, totalPages: 1, currentPage: 1 };
   }
 }
 
@@ -129,9 +190,42 @@ function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+function Pagination({ currentPage, totalPages }: { currentPage: number; totalPages: number }) {
+  if (totalPages <= 1) return null;
+  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+  const visiblePages = pages.filter(
+    (p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2
+  );
+
+  return (
+    <div className="flex items-center justify-center gap-2 py-6">
+      {visiblePages.map((p, idx) => {
+        const prev = visiblePages[idx - 1];
+        const showGap = idx > 0 && p - prev > 1;
+        return (
+          <React.Fragment key={p}>
+            {showGap && <span className="text-gray-500 px-1">...</span>}
+            <a
+              href={`?page=${p}`}
+              className={cn(
+                'px-3 py-1 rounded-lg text-sm font-medium transition',
+                p === currentPage
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+              )}
+            >
+              {p}
+            </a>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
 export default async function ProductionPage({ searchParams }: { searchParams: ProductionSearchParams }) {
   const resolvedSearchParams = await searchParams;
-  const historyRows = await getProductionHistory(resolvedSearchParams);
+  const { rows: historyRows, totalCount, totalPages, currentPage } = await getProductionHistory(resolvedSearchParams);
   const logs = historyRows.filter((row) => row.log).map((row) => row.log as ProductionLog);
   const avgAdherence = logs.length
     ? logs.reduce((acc, log) => acc + Number(log.adherence ?? 0), 0) / logs.length
@@ -142,7 +236,9 @@ export default async function ProductionPage({ searchParams }: { searchParams: P
       <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-3xl font-bold text-white">Production Logs</h2>
-          <p className="text-gray-400">Daily connection metrics, call statistics and full interpreter history</p>
+          <p className="text-gray-400">
+            Daily connection metrics, call statistics and full interpreter history — {totalCount} records
+          </p>
         </div>
         <Link href="/admin/production/manual" className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-2xl font-bold transition-all glow">
           <Plus size={20} />
@@ -170,18 +266,23 @@ export default async function ProductionPage({ searchParams }: { searchParams: P
 
       <div className="glass rounded-3xl overflow-visible">
         <div className="p-6 border-b border-white/5 space-y-4">
-          <div className="flex flex-col gap-1"><h3 className="text-xl font-bold text-white">Activity History</h3><p className="text-sm text-gray-500">Todos los intérpretes aparecen aquí, incluso si todavía no tienen registros para el filtro actual.</p></div>
+          <div className="flex flex-col gap-1">
+            <h3 className="text-xl font-bold text-white">Activity History</h3>
+            <p className="text-sm text-gray-500">
+              All production records for every interpreter. Use filters to narrow down results.
+            </p>
+          </div>
           <ProductionLogControls />
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead><tr className="text-gray-500 text-xs uppercase tracking-wider border-b border-white/5"><th className="py-6 px-8">Interpreter</th><th className="py-6 px-4">Date</th><th className="py-6 px-4">Minutes</th><th className="py-6 px-4">Calls</th><th className="py-6 px-4">Adherence</th><th className="py-6 px-4 text-right">Actions</th></tr></thead>
+            <thead><tr className="text-gray-500 text-xs uppercase tracking-wider border-b border-white/5"><th className="py-6 px-8">Interpreter</th><th className="py-6 px-4">Date</th><th className="py-6 px-4">Minutes</th><th className="py-6 px-4">Calls</th><th className="py-6 px-4">Status</th><th className="py-6 px-4">Adherence</th><th className="py-6 px-4 text-right">Actions</th></tr></thead>
             <tbody className="divide-y divide-white/5">
               {historyRows.map((row) => {
                 const isPlaceholder = !row.log;
                 return (
-                  <tr key={row.key} className="group hover:bg-white/5 transition-colors">
+                  <tr key={row.key} className={cn("group transition-colors", isPlaceholder ? "opacity-40" : "hover:bg-white/5")}>
                     <td className="py-6 px-8">
                       <div className="flex items-center gap-4">
                         <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center font-bold border border-white/5", isPlaceholder ? "bg-slate-500/10 text-slate-400" : "bg-green-500/10 text-green-400")}>
@@ -193,9 +294,24 @@ export default async function ProductionPage({ searchParams }: { searchParams: P
                         </div>
                       </div>
                     </td>
-                    <td className="py-6 px-4 text-gray-400 text-sm"><span className="flex items-center gap-2"><Calendar size={14} />{row.date ? row.date.toLocaleDateString() : 'Sin historial'}</span></td>
+                    <td className="py-6 px-4 text-gray-400 text-sm"><span className="flex items-center gap-2"><Calendar size={14} />{row.date ? row.date.toLocaleDateString() : '—'}</span></td>
                     <td className="py-6 px-4 text-white font-mono">{row.interpretedMinutes}m</td>
                     <td className="py-6 px-4 text-gray-300">{row.callsAttended}</td>
+                    <td className="py-6 px-4">
+                      <span className={cn(
+                        "rounded-full px-2 py-0.5 text-xs font-semibold",
+                        row.status === 'Completed' ? "bg-green-500/10 text-green-400 border border-green-500/20" :
+                          row.status === 'Importado' ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" :
+                            row.status === 'PROCESSED' ? "bg-purple-500/10 text-purple-400 border border-purple-500/20" :
+                              row.status === 'OK' ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                                row.status === 'Pending' ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20" :
+                                  row.status === 'Inactive' ? "bg-red-500/10 text-red-400 border border-red-500/20" :
+                                    row.status.startsWith('Sin registros') ? "bg-gray-500/10 text-gray-400 border border-gray-500/20" :
+                                      "bg-white/5 text-gray-300 border border-white/10"
+                      )}>
+                        {row.status}
+                      </span>
+                    </td>
                     <td className="py-6 px-4"><div className="flex items-center gap-2"><div className="w-12 bg-white/5 h-1.5 rounded-full overflow-hidden"><div className={cn("h-full rounded-full", row.adherence >= 90 ? "bg-green-500" : row.adherence >= 80 ? "bg-yellow-500" : "bg-red-500")} style={{ width: `${Math.min(row.adherence, 100)}%` }} /></div><span className="text-xs font-bold text-white">{row.adherence.toFixed(2)}%</span></div></td>
                     <td className="py-6 px-4 text-right">
                       {row.log ? (
@@ -210,6 +326,8 @@ export default async function ProductionPage({ searchParams }: { searchParams: P
             </tbody>
           </table>
         </div>
+
+        <Pagination currentPage={currentPage} totalPages={totalPages} />
 
         {historyRows.length === 0 && <div className="p-20 text-center"><Clock size={48} className="mx-auto text-gray-700 mb-4" /><p className="text-gray-500">No production logs found.</p></div>}
       </div>

@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Agent(Explore)",
+      "Bash(mkdir *)",
+      "Bash(npx *)"
     ]
   },
   "$version": 4
