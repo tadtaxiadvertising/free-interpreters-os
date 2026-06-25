@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -12,14 +13,45 @@ jobs:
 
     steps:
       - name: Call Easypanel Webhook
+        env:
+          EASYPANEL_DEPLOY_WEBHOOK: ${{ secrets.EASYPANEL_DEPLOY_WEBHOOK }}
         run: |
+          set -euo pipefail
+
           echo "Disparando despliegue automático en Easypanel..."
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.EASYPANEL_DEPLOY_WEBHOOK }}")
-          
-          if [ "$RESPONSE" -eq 200 ] || [ "$RESPONSE" -eq 201 ] || [ "$RESPONSE" -eq 202 ]; then
-            echo "✅ Webhook enviado con éxito. Código HTTP: $RESPONSE"
-            echo "Easypanel está compilando el nuevo build en segundo plano."
-          else
-            echo "❌ Error al disparar el webhook. Código HTTP recibido: $RESPONSE"
-            exit 1
+
+          WEBHOOK_URL="$(printf '%s' "${EASYPANEL_DEPLOY_WEBHOOK:-}" | tr -d '\r\n')"
+
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "❌ El secret EASYPANEL_DEPLOY_WEBHOOK no está configurado en GitHub Actions."
+            echo "Configúralo con la URL completa del webhook de despliegue de Easypanel."
+            exit 78
           fi
+
+          if ! printf '%s' "$WEBHOOK_URL" | grep -Eq '^https?://'; then
+            echo "❌ EASYPANEL_DEPLOY_WEBHOOK debe ser una URL completa que empiece con http:// o https://."
+            exit 78
+          fi
+
+          RESPONSE=$(curl \
+            --silent \
+            --show-error \
+            --location \
+            --request POST \
+            --output /dev/null \
+            --write-out "%{http_code}" \
+            --retry 3 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            "$WEBHOOK_URL")
+
+          case "$RESPONSE" in
+            200|201|202|204)
+              echo "✅ Webhook enviado con éxito. Código HTTP: $RESPONSE"
+              echo "Easypanel está compilando el nuevo build en segundo plano."
+              ;;
+            *)
+              echo "❌ Error al disparar el webhook. Código HTTP recibido: $RESPONSE"
+              exit 1
+              ;;
+          esac
