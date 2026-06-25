@@ -45,11 +45,11 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
   const dailyStats = new Map<string, number>();
 
   const getLocalDateStr = (d: Date) => {
-    return new Intl.DateTimeFormat('en-CA', { 
-      timeZone: 'America/Santo_Domingo', 
-      year: 'numeric', 
-      month: '2-digit', 
-      day: '2-digit' 
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santo_Domingo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
     }).format(d);
   };
 
@@ -71,21 +71,21 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
   let targetMinutesToDate = 0;
   const today = new Date();
   const todayStr = getLocalDateStr(today);
-  
+
   for (let i = 0; i < 5; i++) {
     const d = new Date(startOfWeek);
     d.setDate(d.getDate() + i);
     const dayStr = getLocalDateStr(d);
     const achieved = dailyStats.get(dayStr) || 0;
     totalMinutesWeek += achieved;
-    
+
     if (dayStr <= todayStr) {
       targetMinutesToDate += dailyGoalMinutes;
     }
   }
 
   const deficit = targetMinutesToDate - totalMinutesWeek;
-  
+
   let recoverySuggestions = null;
   if (deficit > 0) {
     recoverySuggestions = {
@@ -111,9 +111,7 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
 }
 
 export async function getComplianceBoard(year: number, month: number) {
-  const interpreters = await prisma.interpreter.findMany({
-    where: { status: "Activo" }
-  });
+  const interpreters = await prisma.interpreter.findMany();
 
   const startOfMonth = new Date(year, month - 1, 1);
   const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
@@ -137,11 +135,11 @@ export async function getComplianceBoard(year: number, month: number) {
   });
 
   const getLocalDateStr = (d: Date) => {
-    return new Intl.DateTimeFormat('en-CA', { 
-      timeZone: 'America/Santo_Domingo', 
-      year: 'numeric', 
-      month: '2-digit', 
-      day: '2-digit' 
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santo_Domingo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
     }).format(d);
   };
 
@@ -152,7 +150,7 @@ export async function getComplianceBoard(year: number, month: number) {
 
     const daysInMonth = endOfMonth.getDate();
     const days = [];
-    
+
     for (let day = 1; day <= daysInMonth; day++) {
       const d = new Date(year, month - 1, day);
       const isWeekend = d.getDay() === 0 || d.getDay() === 6;

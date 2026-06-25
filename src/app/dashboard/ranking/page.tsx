@@ -42,7 +42,6 @@ export default async function RankingPage() {
   let rankings: any[] = [];
   try {
     const allInterpreters = await prisma.interpreter.findMany({
-      where: { status: 'Activo' },
       select: {
         id: true,
         name: true,
