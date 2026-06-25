@@ -7,51 +7,50 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    name: Trigger Easypanel Deployment
+  deploy-interpreters:
+    name: Deploy interpreters (Next.js)
     runs-on: ubuntu-latest
-
     steps:
-      - name: Call Easypanel Webhook
+      - name: Call Easypanel Webhook — interpreters
         env:
-          EASYPANEL_DEPLOY_WEBHOOK: ${{ secrets.EASYPANEL_DEPLOY_WEBHOOK }}
+          EASYPANEL_WEBHOOK_INTERPRETERS: ${{ secrets.EASYPANEL_WEBHOOK_INTERPRETERS }}
         run: |
           set -euo pipefail
-
-          echo "Disparando despliegue automático en Easypanel..."
-
-          WEBHOOK_URL="$(printf '%s' "${EASYPANEL_DEPLOY_WEBHOOK:-}" | tr -d '\r\n')"
-
+          echo "Deploying interpreters (Next.js) to Easypanel..."
+          WEBHOOK_URL="${EASYPANEL_WEBHOOK_INTERPRETERS:-}"
+          WEBHOOK_URL="$(printf '%s' "$WEBHOOK_URL" | tr -d '\r\n')"
           if [ -z "$WEBHOOK_URL" ]; then
-            echo "❌ El secret EASYPANEL_DEPLOY_WEBHOOK no está configurado en GitHub Actions."
-            echo "Configúralo con la URL completa del webhook de despliegue de Easypanel."
+            echo "ERROR: EASYPANEL_WEBHOOK_INTERPRETERS secret is not configured."
+            echo "Add it in GitHub Settings > Secrets > Actions with the webhook URL from Easypanel."
             exit 78
           fi
-
           if ! printf '%s' "$WEBHOOK_URL" | grep -Eq '^https?://'; then
-            echo "❌ EASYPANEL_DEPLOY_WEBHOOK debe ser una URL completa que empiece con http:// o https://."
+            echo "ERROR: EASYPANEL_WEBHOOK_INTERPRETERS must be a valid URL starting with http:// or https://."
             exit 78
           fi
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --retry 3 --retry-delay 5 --retry-all-errors -X POST "$WEBHOOK_URL")
+          case "$HTTP_CODE" in 200|201|202|204) echo "OK: interpreters deployed (HTTP $HTTP_CODE)";; *) echo "FAIL: interpreters webhook returned HTTP $HTTP_CODE"; exit 1;; esac
 
-          RESPONSE=$(curl \
-            --silent \
-            --show-error \
-            --location \
-            --request POST \
-            --output /dev/null \
-            --write-out "%{http_code}" \
-            --retry 3 \
-            --retry-delay 5 \
-            --retry-all-errors \
-            "$WEBHOOK_URL")
-
-          case "$RESPONSE" in
-            200|201|202|204)
-              echo "✅ Webhook enviado con éxito. Código HTTP: $RESPONSE"
-              echo "Easypanel está compilando el nuevo build en segundo plano."
-              ;;
-            *)
-              echo "❌ Error al disparar el webhook. Código HTTP recibido: $RESPONSE"
-              exit 1
-              ;;
-          esac
+  deploy-interpreters-api:
+    name: Deploy interpreters-api (Backend)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Easypanel Webhook — interpreters-api
+        env:
+          EASYPANEL_WEBHOOK_API: ${{ secrets.EASYPANEL_WEBHOOK_API }}
+        run: |
+          set -euo pipefail
+          echo "Deploying interpreters-api (Backend) to Easypanel..."
+          WEBHOOK_URL="${EASYPANEL_WEBHOOK_API:-}"
+          WEBHOOK_URL="$(printf '%s' "$WEBHOOK_URL" | tr -d '\r\n')"
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "ERROR: EASYPANEL_WEBHOOK_API secret is not configured."
+            echo "Add it in GitHub Settings > Secrets > Actions with the webhook URL from Easypanel."
+            exit 78
+          fi
+          if ! printf '%s' "$WEBHOOK_URL" | grep -Eq '^https?://'; then
+            echo "ERROR: EASYPANEL_WEBHOOK_API must be a valid URL starting with http:// or https://."
+            exit 78
+          fi
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --retry 3 --retry-delay 5 --retry-all-errors -X POST "$WEBHOOK_URL")
+          case "$HTTP_CODE" in 200|201|202|204) echo "OK: interpreters-api deployed (HTTP $HTTP_CODE)";; *) echo "FAIL: interpreters-api webhook returned HTTP $HTTP_CODE"; exit 1;; esac
