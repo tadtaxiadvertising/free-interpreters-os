@@ -25,11 +25,9 @@ type LogRow = {
   interpreterName: string;
 };
 
-/* ── Client-side Zod schema (mirrors server EditRecordSchema) ── */
+/* ── Client-side Zod schema — only editable fields ── */
 
 const EditFormSchema = z.object({
-  id: z.number(),
-  interpreterId: z.number().optional(),
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato inválido (YYYY-MM-DD)'),
@@ -53,10 +51,7 @@ const EditFormSchema = z.object({
     .max(40, { message: 'Máximo 40 caracteres' }),
   observaciones: z
     .string()
-    .trim()
-    .max(1000, { message: 'Máximo 1000 caracteres' })
-    .optional()
-    .nullable(),
+    .max(1000, { message: 'Máximo 1000 caracteres' }),
 });
 
 type EditFormData = z.infer<typeof EditFormSchema>;
@@ -81,8 +76,6 @@ export function ProductionLogActions({ log }: { log: LogRow }) {
   } = useForm<EditFormData>({
     resolver: zodResolver(EditFormSchema),
     defaultValues: {
-      id: log.id,
-      interpreterId: log.interpreterId ?? undefined,
       date: log.date,
       interpretedMinutes: log.interpretedMinutes,
       callsAttended: log.callsAttended,
@@ -97,8 +90,6 @@ export function ProductionLogActions({ log }: { log: LogRow }) {
   useEffect(() => {
     if (editOpen) {
       reset({
-        id: log.id,
-        interpreterId: log.interpreterId ?? undefined,
         date: log.date,
         interpretedMinutes: log.interpretedMinutes,
         callsAttended: log.callsAttended,
@@ -153,7 +144,12 @@ export function ProductionLogActions({ log }: { log: LogRow }) {
   const onEditSubmit = useCallback(
     (data: EditFormData) => {
       startTransition(async () => {
-        const result = await editRecord(data);
+        const result = await editRecord({
+          id: log.id,
+          interpreterId: log.interpreterId ?? undefined,
+          ...data,
+          observaciones: data.observaciones || null,
+        });
         if (result.success) {
           toast.success(result.message ?? 'Registro actualizado.');
           setEditOpen(false);
@@ -163,7 +159,7 @@ export function ProductionLogActions({ log }: { log: LogRow }) {
         }
       });
     },
-    [router],
+    [log.id, log.interpreterId, router],
   );
 
   const onDelete = useCallback(() => {
@@ -274,9 +270,6 @@ export function ProductionLogActions({ log }: { log: LogRow }) {
 
               {/* Form */}
               <form onSubmit={handleSubmit(onEditSubmit)} noValidate>
-                <input type="hidden" {...register('id', { valueAsNumber: true })} />
-                <input type="hidden" {...register('interpreterId', { valueAsNumber: true })} />
-
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {/* Date */}
                   <div>
