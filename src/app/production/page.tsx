@@ -89,7 +89,20 @@ async function getProductionHistory(searchParams: {
   }
 
   try {
-    const [totalCount, logs] = await Promise.all([
+    // Step 1: Fetch ALL interpreters (always, regardless of filters)
+    const interpreterFilter: Record<string, any> = {};
+    if (isSpecificInterpreter) {
+      interpreterFilter.id = parseInt(interpreterIdStr!, 10);
+    }
+
+    const allInterpreters = await prisma.interpreter.findMany({
+      where: interpreterFilter,
+      select: { id: true, name: true, externalId: true, status: true, campaign: true },
+      orderBy: { name: 'asc' },
+    });
+
+    // Step 2: Fetch paginated production logs
+    const [logTotalCount, logs] = await Promise.all([
       prisma.productionLog.count({ where }),
       prisma.productionLog.findMany({
         where,
@@ -100,9 +113,19 @@ async function getProductionHistory(searchParams: {
       }),
     ]);
 
-    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+    // Step 3: Find ALL interpreter IDs that have ANY matching log
+    // (not limited by pagination, using simple findMany + JS Set)
+    const allLogInterpreterIdsRaw = await prisma.productionLog.findMany({
+      where,
+      select: { interpreterId: true },
+    });
+    const idsWithAnyMatchingLog = new Set<number>();
+    for (const row of allLogInterpreterIdsRaw) {
+      if (row.interpreterId !== null) idsWithAnyMatchingLog.add(row.interpreterId);
+    }
 
-    const rows: InterpreterHistoryRow[] = logs.map((log) => {
+    // Step 4: Build log rows from paginated results
+    const logRows: InterpreterHistoryRow[] = logs.map((log) => {
       const name = log.interpreter?.name || 'Unknown';
       return {
         key: `log-${log.id}`,
@@ -121,68 +144,50 @@ async function getProductionHistory(searchParams: {
       };
     });
 
-    // Always include interpreters without matching logs as placeholder rows
-    // Use a distinct query to find ALL interpreter IDs that have matching logs
-    // (not just those on the current page) so placeholders are only added for
-    // interpreters who truly have zero matching records
-    const interpreterIdsWithMatchingLogs = await prisma.productionLog.findMany({
-      where,
-      select: { interpreterId: true },
-      distinct: ['interpreterId'],
-    });
-    const idsWithLogs = new Set(
-      interpreterIdsWithMatchingLogs.map(l => l.interpreterId).filter((id): id is number => id !== null)
-    );
-
-    const interpreterWhere: Record<string, any> = {};
-    if (isSpecificInterpreter) {
-      interpreterWhere.id = parseInt(interpreterIdStr!, 10);
-    }
-    if (search) {
-      interpreterWhere.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { externalId: { contains: search, mode: 'insensitive' } },
-        { campaign: { contains: search, mode: 'insensitive' } },
-      ];
+    // Step 5: Build placeholder rows for interpreters WITHOUT any matching logs
+    // (search filter applied to interpreters when no specific interpreter is selected)
+    let filteredInterpreters = allInterpreters;
+    if (!isSpecificInterpreter && search) {
+      const searchLower = search.toLowerCase();
+      filteredInterpreters = allInterpreters.filter((interp) => {
+        const nameMatch = (interp.name || '').toLowerCase().includes(searchLower);
+        const idMatch = (interp.externalId || '').toLowerCase().includes(searchLower);
+        const campaignMatch = (interp.campaign || '').toLowerCase().includes(searchLower);
+        const hasLogMatch = idsWithAnyMatchingLog.has(interp.id);
+        return nameMatch || idMatch || campaignMatch || hasLogMatch;
+      });
     }
 
-    const interpretersWithoutLogs = await prisma.interpreter.findMany({
-      where: {
-        ...interpreterWhere,
-        id: { notIn: [...idsWithLogs] },
-      },
-      select: { id: true, name: true, campaign: true, externalId: true },
-      orderBy: { name: 'asc' },
-    });
+    const placeholderRows: InterpreterHistoryRow[] = filteredInterpreters
+      .filter((interp) => !idsWithAnyMatchingLog.has(interp.id))
+      .map((interp) => ({
+        key: `interpreter-${interp.id}`,
+        log: null,
+        interpreterId: interp.id,
+        interpreterName: interp.name || 'Unknown',
+        interpreterInitial: (interp.name || 'U').charAt(0),
+        interpreterCampaign: interp.campaign,
+        interpreterExternalId: interp.externalId,
+        date: null,
+        interpretedMinutes: 0,
+        callsAttended: 0,
+        adherence: 0,
+        status: isFiltered ? `Sin registros ${filter}` : 'Sin registros',
+        observaciones: null,
+      }));
 
-    const placeholderRows: InterpreterHistoryRow[] = interpretersWithoutLogs.map((interpreter) => ({
-      key: `interpreter-${interpreter.id}`,
-      log: null,
-      interpreterId: interpreter.id,
-      interpreterName: interpreter.name || 'Unknown',
-      interpreterInitial: (interpreter.name || 'U').charAt(0),
-      interpreterCampaign: interpreter.campaign,
-      interpreterExternalId: interpreter.externalId,
-      date: null,
-      interpretedMinutes: 0,
-      callsAttended: 0,
-      adherence: 0,
-      status: isFiltered ? `Sin registros ${filter}` : 'Sin registros',
-      observaciones: null,
-    }));
-
-    const allRows = [...rows, ...placeholderRows];
-    const totalWithPlaceholders = totalCount + placeholderRows.length;
-    const totalPagesWithPlaceholders = Math.max(1, Math.ceil(totalWithPlaceholders / PAGE_SIZE));
+    const allRows = [...logRows, ...placeholderRows];
+    const totalWithPlaceholders = logTotalCount + placeholderRows.length;
+    const totalPages = Math.max(1, Math.ceil(totalWithPlaceholders / PAGE_SIZE));
 
     return {
       rows: allRows,
       totalCount: totalWithPlaceholders,
-      totalPages: totalPagesWithPlaceholders,
+      totalPages,
       currentPage: page,
     };
   } catch (error) {
-    console.error('Error fetching production history:', error);
+    console.error('[PRODUCTION] Error fetching production history:', error);
     return { rows: [], totalCount: 0, totalPages: 1, currentPage: 1 };
   }
 }
