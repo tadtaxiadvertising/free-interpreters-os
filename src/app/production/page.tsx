@@ -303,7 +303,7 @@ export default async function ProductionPage({ searchParams }: { searchParams: P
                         </div>
                         <div>
                           <p className="font-bold text-white">{row.interpreterName}</p>
-                          <p className="text-xs text-gray-500">{row.interpreterExternalId ?? row.interpreterCampaign ?? 'Sin campaña'}</p>
+                          <p className="text-sm text-gray-500">{row.interpreterExternalId ?? row.interpreterCampaign ?? 'Sin campaña'}}</p>
                         </div>
                       </div>
                     </td>
