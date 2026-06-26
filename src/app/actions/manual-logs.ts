@@ -84,7 +84,7 @@ export async function createManualLog(data: unknown): Promise<ActionResult<{ id:
       const newLog = await tx.productionLog.create({
         data: {
           interpreterId: interpreter.id,
-          date: new Date(date),
+          date: new Date(`${date}T12:00:00Z`),
           loginTime: startDateTime,
           logoutTime: endDateTime,
           interpretedMinutes: totalMinutes,
@@ -99,6 +99,10 @@ export async function createManualLog(data: unknown): Promise<ActionResult<{ id:
     });
 
     revalidatePath("/admin/production");
+    revalidatePath("/admin/calendar");
+    revalidatePath("/dashboard/calendar");
+    revalidatePath('/dashboard', 'layout');
+    revalidatePath('/admin', 'layout');
     return { success: true, data: { id: result.id } };
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {

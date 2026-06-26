@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Search, User, MessageSquare, Clock, Shield, Check, CheckCheck, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getChatList, getMessages, sendMessage, markMessagesAsRead } from '@/app/actions/messages';
@@ -46,57 +46,59 @@ export function ChatSystem({ currentUserId, currentUserRole }: ChatSystemProps) 
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
 
   // Load Contacts list initially
-  const loadContacts = async (showLoading = true) => {
+  const loadContacts = useCallback(async (showLoading = true) => {
     if (showLoading) setLoadingContacts(true);
     const res = await getChatList();
     if (res.success && res.data) {
-      setContacts(res.data as any);
-      
+      setContacts(res.data as Contact[]);
+
       // Update active contact details if already selected
       if (activeContact) {
-        const updated = res.data.find(c => c.id === activeContact.id);
-        if (updated) setActiveContact(updated as any);
+        const updated = (res.data as Contact[]).find((c) => c.id === activeContact.id);
+        if (updated) setActiveContact(updated);
       }
     }
     if (showLoading) setLoadingContacts(false);
-  };
+  }, [activeContact]);
 
   useEffect(() => {
     loadContacts();
-    
+
     // Refresh contacts every 8 seconds
     const interval = setInterval(() => {
       loadContacts(false);
     }, 8000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [loadContacts]);
 
   // Fetch messages for selected contact
-  const loadMessages = async (contactId: string, silent = false) => {
+  const loadMessages = useCallback(async (contactId: string, silent = false) => {
     if (!silent) setLoadingMessages(true);
     const res = await getMessages(contactId);
     if (res.success && res.data) {
-      setMessages(res.data as any);
-      
+      setMessages(res.data as Message[]);
+
       // Mark as read
       await markMessagesAsRead(contactId);
       // Quietly reload contacts count
-      loadContacts(false);
+      await loadContacts(false);
     }
     if (!silent) setLoadingMessages(false);
-  };
+  }, [loadContacts]);
 
   // Poll for new messages if chat is open
   useEffect(() => {
     if (pollingInterval.current) clearInterval(pollingInterval.current);
 
-    if (activeContact) {
-      loadMessages(activeContact.id);
+    const activeContactId = activeContact?.id;
+
+    if (activeContactId) {
+      loadMessages(activeContactId);
       
       // Poll messages every 4 seconds for a fast, responsive chat feel
       pollingInterval.current = setInterval(() => {
-        loadMessages(activeContact.id, true);
+        loadMessages(activeContactId, true);
       }, 4000);
     } else {
       setMessages([]);
@@ -105,7 +107,7 @@ export function ChatSystem({ currentUserId, currentUserRole }: ChatSystemProps) 
     return () => {
       if (pollingInterval.current) clearInterval(pollingInterval.current);
     };
-  }, [activeContact?.id]);
+  }, [activeContact, loadMessages]);
 
   // Scroll to bottom of chat when messages change
   useEffect(() => {
@@ -135,8 +137,8 @@ export function ChatSystem({ currentUserId, currentUserRole }: ChatSystemProps) 
     const res = await sendMessage(activeContact.id, text);
     if (res.success && res.data) {
       // Replace optimistic message with actual data from backend
-      setMessages(prev => prev.map(m => m.id === tempId ? (res.data as any) : m));
-      loadContacts(false);
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? (res.data as Message) : m)));
+      await loadContacts(false);
     } else {
       // Revert optimistic insert on error
       setMessages(prev => prev.filter(m => m.id !== tempId));

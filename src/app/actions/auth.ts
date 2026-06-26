@@ -207,16 +207,8 @@ export async function requestPasswordReset(formData: FormData) {
     const proto = headersList.get('x-forwarded-proto') || 'https';
     const origin = host ? `${proto}://${host}` : '';
 
-    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
-
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('SUPABASE_CONFIG_MISSING');
-    }
-
-    const supabaseAdmin = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    );
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const supabaseAdmin = createAdminClient();
 
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
@@ -239,7 +231,10 @@ export async function requestPasswordReset(formData: FormData) {
 
     return { success: true };
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === 'SUPABASE_CONFIG_MISSING') {
+    if (
+      err instanceof Error &&
+      (err.message.includes('SUPABASE_SERVICE_ROLE_KEY') || err.message.includes('NEXT_PUBLIC_SUPABASE_URL'))
+    ) {
       console.warn('⚠️ [AUTH_RESET] Request password omitido por falta de configuración.');
       return { success: false, error: 'Servicio deshabilitado temporalmente.' };
     }

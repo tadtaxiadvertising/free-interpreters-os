@@ -3,7 +3,8 @@
 import prisma from "@/lib/prisma";
 
 export async function getInterpreterCommitment(interpreterId: number, targetDateStr: string) {
-  const targetDate = new Date(targetDateStr);
+  // Usar 12:00 UTC para evitar que al formatear a Santo Domingo (UTC-4) cambie de día
+  const targetDate = new Date(`${targetDateStr}T12:00:00Z`);
   const interpreter = await prisma.interpreter.findUnique({
     where: { id: interpreterId },
   });
@@ -11,14 +12,14 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
   if (!interpreter) throw new Error("Interpreter not found");
 
   const startOfWeek = new Date(targetDate);
-  const day = startOfWeek.getDay();
-  const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
-  startOfWeek.setDate(diff);
-  startOfWeek.setHours(0, 0, 0, 0);
+  const day = startOfWeek.getUTCDay();
+  const diff = startOfWeek.getUTCDate() - day + (day === 0 ? -6 : 1);
+  startOfWeek.setUTCDate(diff);
+  startOfWeek.setUTCHours(0, 0, 0, 0);
 
   const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(endOfWeek.getDate() + 6);
-  endOfWeek.setHours(23, 59, 59, 999);
+  endOfWeek.setUTCDate(endOfWeek.getUTCDate() + 6);
+  endOfWeek.setUTCHours(23, 59, 59, 999);
 
   const logs = await prisma.productionLog.findMany({
     where: {
@@ -32,24 +33,14 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
 
   const dailyGoalMinutes = Math.floor((interpreter.monthlyGoal || 2000) / 22);
 
-  const sessions = await prisma.callSession.findMany({
-    where: {
-      interpreterId,
-      startedAt: {
-        gte: startOfWeek,
-        lte: endOfWeek,
-      }
-    }
-  });
-
   const dailyStats = new Map<string, number>();
 
   const getLocalDateStr = (d: Date) => {
-    return new Intl.DateTimeFormat('en-CA', { 
-      timeZone: 'America/Santo_Domingo', 
-      year: 'numeric', 
-      month: '2-digit', 
-      day: '2-digit' 
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santo_Domingo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
     }).format(d);
   };
 
@@ -59,33 +50,26 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
     dailyStats.set(dayStr, existing + (log.interpretedMinutes || 0));
   });
 
-  sessions.forEach(session => {
-    if (!session.startedAt) return;
-    const dayStr = getLocalDateStr(session.startedAt);
-    const existing = dailyStats.get(dayStr) || 0;
-    const minutes = session.durationSeconds ? Math.floor(session.durationSeconds / 60) : 0;
-    dailyStats.set(dayStr, existing + minutes);
-  });
-
   let totalMinutesWeek = 0;
   let targetMinutesToDate = 0;
   const today = new Date();
   const todayStr = getLocalDateStr(today);
-  
+
   for (let i = 0; i < 5; i++) {
     const d = new Date(startOfWeek);
-    d.setDate(d.getDate() + i);
+    d.setUTCDate(d.getUTCDate() + i);
+    d.setUTCHours(12, 0, 0, 0); // Mediodía UTC para que al aplicar UTC-4 siga siendo el mismo día
     const dayStr = getLocalDateStr(d);
     const achieved = dailyStats.get(dayStr) || 0;
     totalMinutesWeek += achieved;
-    
+
     if (dayStr <= todayStr) {
       targetMinutesToDate += dailyGoalMinutes;
     }
   }
 
   const deficit = targetMinutesToDate - totalMinutesWeek;
-  
+
   let recoverySuggestions = null;
   if (deficit > 0) {
     recoverySuggestions = {
@@ -111,12 +95,10 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
 }
 
 export async function getComplianceBoard(year: number, month: number) {
-  const interpreters = await prisma.interpreter.findMany({
-    where: { status: "Activo" }
-  });
+  const interpreters = await prisma.interpreter.findMany();
 
-  const startOfMonth = new Date(year, month - 1, 1);
-  const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+  const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
   const logs = await prisma.productionLog.findMany({
     where: {
@@ -127,49 +109,34 @@ export async function getComplianceBoard(year: number, month: number) {
     }
   });
 
-  const sessions = await prisma.callSession.findMany({
-    where: {
-      startedAt: {
-        gte: startOfMonth,
-        lte: endOfMonth
-      }
-    }
-  });
-
   const getLocalDateStr = (d: Date) => {
-    return new Intl.DateTimeFormat('en-CA', { 
-      timeZone: 'America/Santo_Domingo', 
-      year: 'numeric', 
-      month: '2-digit', 
-      day: '2-digit' 
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santo_Domingo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
     }).format(d);
   };
 
   const board = interpreters.map(int => {
     const dailyGoalMinutes = Math.floor((int.monthlyGoal || 2000) / 22);
     const intLogs = logs.filter(l => l.interpreterId === int.id);
-    const intSessions = sessions.filter(s => s.interpreterId === int.id);
 
-    const daysInMonth = endOfMonth.getDate();
+    const daysInMonth = endOfMonth.getUTCDate();
     const days = [];
-    
+
     for (let day = 1; day <= daysInMonth; day++) {
-      const d = new Date(year, month - 1, day);
-      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const d = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0)); // Mediodía UTC para evitar salto de día en UTC-4
+      const isWeekend = d.getUTCDay() === 0 || d.getUTCDay() === 6;
       const dayStr = getLocalDateStr(d);
 
       let logsMinutes = 0;
-      let sessionsMinutes = 0;
 
       intLogs.filter(l => getLocalDateStr(l.date) === dayStr).forEach(l => {
         logsMinutes += l.interpretedMinutes || 0;
       });
 
-      intSessions.filter(s => s.startedAt && getLocalDateStr(s.startedAt) === dayStr).forEach(s => {
-        sessionsMinutes += s.durationSeconds ? Math.floor(s.durationSeconds / 60) : 0;
-      });
-
-      const minutes = logsMinutes + sessionsMinutes;
+      const minutes = logsMinutes;
 
       let status = "Not Needed";
       if (!isWeekend) {
@@ -186,7 +153,7 @@ export async function getComplianceBoard(year: number, month: number) {
         isWeekend,
         minutes,
         logsMinutes,
-        sessionsMinutes,
+        sessionsMinutes: 0,
         status,
         dailyGoalMinutes
       });

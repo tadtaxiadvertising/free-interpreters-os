@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!userId) redirect('/login');
 
   const profile = await getCurrentProfile();
-  
+
   if (profile && profile.role === 'admin') {
     redirect('/admin');
   }
@@ -41,7 +41,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       // Get all interpreters' monthly minutes and latest QA for ranking
       const allInterpreters = await db.interpreter.findMany({
-        where: { status: 'Activo' },
         select: {
           id: true,
           callSessions: {
@@ -74,9 +73,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           (s: number, l: any) => s + (l.interpretedMinutes || 0), 0
         );
         const latestQa = interp.qaScores?.[0]?.totalScore ? Number(interp.qaScores[0].totalScore) : 0;
-        
-        return { 
-          id: interp.id, 
+
+        return {
+          id: interp.id,
           totalMinutes: sessionMin + logMin,
           qaScore: latestQa
         };
@@ -107,8 +106,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <DashboardShell 
-      role="interpreter" 
+    <DashboardShell
+      role="interpreter"
       userName={profile?.display_name || "Interpreter"}
       notifications={notifications}
       ranking={ranking}

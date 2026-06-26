@@ -99,7 +99,7 @@ export async function endCall(sessionId: number): Promise<ActionResult<{ duratio
       const updated = await tx.callSession.update({
         where: { id: sessionId, interpreterId },
         data: { endedAt: new Date() },
-        select: { durationSeconds: true, callCost: true }
+        select: { durationSeconds: true, callCost: true, startedAt: true }
       });
 
       await tx.interpreter.update({
@@ -108,10 +108,61 @@ export async function endCall(sessionId: number): Promise<ActionResult<{ duratio
         select: { id: true }
       });
 
+      // Synchronize live call into ProductionLog so it appears in "Production Logs"
+      if (updated.durationSeconds && updated.durationSeconds > 0) {
+        const getLocalDateStr = (d: Date) => {
+          return new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Santo_Domingo',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).format(d);
+        };
+        const dayStr = getLocalDateStr(updated.startedAt || new Date());
+        const logDate = new Date(`${dayStr}T12:00:00Z`);
+        const minutes = Math.floor(updated.durationSeconds / 60);
+
+        if (minutes > 0) {
+          // Check if there's already a log for today
+          const existingLog = await tx.productionLog.findFirst({
+            where: {
+              interpreterId,
+              date: logDate
+            }
+          });
+
+          if (existingLog) {
+            await tx.productionLog.update({
+              where: { id: existingLog.id },
+              data: {
+                interpretedMinutes: (existingLog.interpretedMinutes || 0) + minutes,
+                callsAttended: (existingLog.callsAttended || 0) + 1,
+              }
+            });
+          } else {
+            await tx.productionLog.create({
+              data: {
+                interpreterId,
+                date: logDate,
+                interpretedMinutes: minutes,
+                callsAttended: 1,
+                status: 'Completed',
+                observaciones: 'Sincronizado automáticamente (Llamada en vivo)',
+                adherence: 100
+              }
+            });
+          }
+        }
+      }
+
       return updated;
     });
 
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard', 'layout');
+    revalidatePath('/admin', 'layout');
+    revalidatePath('/production');
+    revalidatePath('/dashboard/calendar');
+    revalidatePath('/admin/calendar');
     return {
       success: true,
       data: {

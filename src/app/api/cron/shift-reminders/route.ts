@@ -10,10 +10,8 @@ export async function POST(req: Request) {
 
     const today = new Date();
     const dayStr = today.toISOString().split('T')[0];
-    
-    const interpreters = await prisma.interpreter.findMany({
-      where: { status: "Activo" }
-    });
+
+    const interpreters = await prisma.interpreter.findMany();
 
     const activeSessions = await prisma.callSession.findMany({
       where: {
@@ -45,10 +43,10 @@ export async function POST(req: Request) {
       if (currentHour >= startHour) {
         // Send email via some email service
         console.log(`[Notification] Shift reminder for ${interpreter.name} (${interpreter.emailCorporativo})`);
-        
+
         // TODO: Actually dispatch an email using the Email Service
         // await emailService.sendShiftReminder(interpreter.emailCorporativo, shiftStart);
-        
+
         remindersSent.push(interpreter.id);
       }
     }
