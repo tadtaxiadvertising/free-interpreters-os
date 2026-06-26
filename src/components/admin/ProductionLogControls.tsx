@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal, X, CalendarDays, Users, Eye, EyeOff } from "lucide-react";
+import { Search, SlidersHorizontal, X, CalendarDays, Users } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition, useCallback } from "react";
 
 const statusFilters = [
@@ -25,7 +25,6 @@ export function ProductionLogControls() {
   const fromDate = searchParams.get("fromDate") ?? "";
   const toDate = searchParams.get("toDate") ?? "";
   const interpreterId = searchParams.get("interpreterId") ?? "all";
-  const showAll = searchParams.get("showAll") === "true";
 
   const [interpreters, setInterpreters] = useState<{ id: number; name: string }[]>([]);
   const [interpretersLoading, setInterpretersLoading] = useState(false);
@@ -88,14 +87,6 @@ export function ProductionLogControls() {
     const params = new URLSearchParams(searchParams.toString());
     if (value === "all") params.delete("interpreterId");
     else params.set("interpreterId", value);
-    params.delete("page");
-    updateUrl(params);
-  }
-
-  function toggleShowAll() {
-    const params = new URLSearchParams(searchParams.toString());
-    if (showAll) params.delete("showAll");
-    else params.set("showAll", "true");
     params.delete("page");
     updateUrl(params);
   }
@@ -169,8 +160,8 @@ export function ProductionLogControls() {
             >
               <span>
                 {interpreterId !== "all"
-                  ? interpreters.find((i) => String(i.id) === interpreterId)?.name ?? `ID: ${interpreterId}`
-                  : "Todos los intérpretes"}
+                  ? `${interpreters.find((i) => String(i.id) === interpreterId)?.name ?? `ID: ${interpreterId}`} — Historial completo`
+                  : "Todos los intérpretes (resumen)"}
               </span>
               <span className="text-gray-500 ml-2">▾</span>
             </button>
@@ -202,20 +193,6 @@ export function ProductionLogControls() {
             )}
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={toggleShowAll}
-          className={cn(
-            "rounded-xl border px-3 py-2.5 text-sm flex items-center gap-2 transition",
-            showAll
-              ? "border-blue-500/30 bg-blue-500/10 text-blue-400"
-              : "border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"
-          )}
-        >
-          {showAll ? <Eye size={16} /> : <EyeOff size={16} />}
-          {showAll ? "Showing all interpreters" : "Show interpreters without logs"}
-        </button>
       </div>
     </div>
   );

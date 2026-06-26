@@ -68,159 +68,143 @@ async function getProductionHistory(searchParams: {
   const fromDate = searchParams.fromDate?.trim();
   const toDate = searchParams.toDate?.trim();
   const interpreterIdStr = searchParams.interpreterId?.trim();
-  const showAll = searchParams.showAll === 'true';
+  const isSpecificInterpreter = Boolean(interpreterIdStr && interpreterIdStr !== 'all');
   const page = Math.max(1, parseInt(searchParams.page ?? '1', 10) || 1);
 
   const isFiltered = Boolean(filter && filter !== 'all');
 
-  const where: Record<string, any> = {};
-
-  if (isFiltered) {
-    where.status = filter;
-  }
-
-  if (fromDate) {
-    where.date = { ...where.date, gte: new Date(fromDate) };
-  }
-  if (toDate) {
-    where.date = { ...where.date, lte: new Date(toDate) };
-  }
-
-  if (interpreterIdStr && interpreterIdStr !== 'all') {
-    where.interpreterId = parseInt(interpreterIdStr, 10);
-  }
-
-  if (search) {
-    where.OR = [
-      { status: { contains: search, mode: 'insensitive' as const } },
-      { campaign: { contains: search, mode: 'insensitive' as const } },
-      { observaciones: { contains: search, mode: 'insensitive' as const } },
-      { interpreter: { name: { contains: search, mode: 'insensitive' as const } } },
-      { interpreter: { externalId: { contains: search, mode: 'insensitive' as const } } },
-    ];
-  }
+  const logWhere: Record<string, any> = {};
+  if (isFiltered) logWhere.status = filter;
+  if (fromDate) logWhere.date = { ...logWhere.date, gte: new Date(fromDate) };
+  if (toDate) logWhere.date = { ...logWhere.date, lte: new Date(toDate) };
 
   try {
-    const [totalCount, logs] = await Promise.all([
-      prisma.productionLog.count({ where }),
-      prisma.productionLog.findMany({
-        where,
-        orderBy: { date: 'desc' },
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
-        include: { interpreter: { select: { id: true, name: true, campaign: true, externalId: true } } },
-      }),
-    ]);
-
-    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-
-    const rows: InterpreterHistoryRow[] = logs.map((log) => {
-      const name = log.interpreter?.name || 'Unknown';
-      return {
-        key: `log-${log.id}`,
-        log,
-        interpreterId: log.interpreterId,
-        interpreterName: name,
-        interpreterInitial: name.charAt(0) || '?',
-        interpreterCampaign: log.interpreter?.campaign ?? log.campaign,
-        interpreterExternalId: log.interpreter?.externalId ?? null,
-        date: log.date,
-        interpretedMinutes: log.interpretedMinutes ?? 0,
-        callsAttended: log.callsAttended ?? 0,
-        adherence: Number(log.adherence ?? 0),
-        status: log.status,
-        observaciones: log.observaciones,
-      };
-    });
-
-    if (showAll) {
-      const logWhere: Record<string, any> = {};
-      if (isFiltered) logWhere.status = filter;
-      if (fromDate) logWhere.date = { ...logWhere.date, gte: new Date(fromDate) };
-      if (toDate) logWhere.date = { ...logWhere.date, lte: new Date(toDate) };
-
-      const interpreterWhere: Record<string, any> = {};
-      if (interpreterIdStr && interpreterIdStr !== 'all') {
-        interpreterWhere.id = parseInt(interpreterIdStr, 10);
-      }
+    if (isSpecificInterpreter) {
+      logWhere.interpreterId = parseInt(interpreterIdStr!, 10);
       if (search) {
-        interpreterWhere.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { externalId: { contains: search, mode: 'insensitive' } },
-          { campaign: { contains: search, mode: 'insensitive' } },
-          {
-            productionLogs: {
-              some: {
-                OR: [
-                  { status: { contains: search, mode: 'insensitive' } },
-                  { campaign: { contains: search, mode: 'insensitive' } },
-                  { observaciones: { contains: search, mode: 'insensitive' } },
-                ]
-              }
-            }
-          },
+        logWhere.OR = [
+          { status: { contains: search, mode: 'insensitive' as const } },
+          { campaign: { contains: search, mode: 'insensitive' as const } },
+          { observaciones: { contains: search, mode: 'insensitive' as const } },
+          { interpreter: { name: { contains: search, mode: 'insensitive' as const } } },
+          { interpreter: { externalId: { contains: search, mode: 'insensitive' as const } } },
         ];
       }
 
-      const allInterpreters = await prisma.interpreter.findMany({
-        where: interpreterWhere,
-        include: {
-          productionLogs: {
-            where: logWhere,
-            orderBy: { date: 'desc' },
-            take: 1,
-            include: { interpreter: { select: { id: true, name: true, campaign: true, externalId: true } } },
-          },
-        },
-        orderBy: { name: 'asc' },
-      });
+      const [totalCount, logs] = await Promise.all([
+        prisma.productionLog.count({ where: logWhere }),
+        prisma.productionLog.findMany({
+          where: logWhere,
+          orderBy: { date: 'desc' },
+          skip: (page - 1) * PAGE_SIZE,
+          take: PAGE_SIZE,
+          include: { interpreter: { select: { id: true, name: true, campaign: true, externalId: true } } },
+        }),
+      ]);
 
-      const allRows: InterpreterHistoryRow[] = allInterpreters.map((interpreter) => {
-        const latestLog = interpreter.productionLogs[0];
-        const name = interpreter.name || 'Unknown';
-        if (latestLog) {
-          return {
-            key: `log-${latestLog.id}`,
-            log: latestLog as any,
-            interpreterId: interpreter.id,
-            interpreterName: name,
-            interpreterInitial: name.charAt(0) || '?',
-            interpreterCampaign: interpreter.campaign ?? latestLog.campaign,
-            interpreterExternalId: interpreter.externalId ?? null,
-            date: latestLog.date,
-            interpretedMinutes: latestLog.interpretedMinutes ?? 0,
-            callsAttended: latestLog.callsAttended ?? 0,
-            adherence: Number(latestLog.adherence ?? 0),
-            status: latestLog.status,
-            observaciones: latestLog.observaciones,
-          };
-        }
+      const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+      const rows: InterpreterHistoryRow[] = logs.map((log) => {
+        const name = log.interpreter?.name || 'Unknown';
         return {
-          key: `interpreter-${interpreter.id}`,
-          log: null,
-          interpreterId: interpreter.id,
+          key: `log-${log.id}`,
+          log,
+          interpreterId: log.interpreterId,
           interpreterName: name,
           interpreterInitial: name.charAt(0) || '?',
-          interpreterCampaign: interpreter.campaign,
-          interpreterExternalId: interpreter.externalId,
-          date: null,
-          interpretedMinutes: 0,
-          callsAttended: 0,
-          adherence: 0,
-          status: isFiltered ? `Sin registros ${filter}` : 'Sin registros',
-          observaciones: null,
+          interpreterCampaign: log.interpreter?.campaign ?? log.campaign,
+          interpreterExternalId: log.interpreter?.externalId ?? null,
+          date: log.date,
+          interpretedMinutes: log.interpretedMinutes ?? 0,
+          callsAttended: log.callsAttended ?? 0,
+          adherence: Number(log.adherence ?? 0),
+          status: log.status,
+          observaciones: log.observaciones,
         };
       });
 
-      return {
-        rows: allRows,
-        totalCount: allRows.length,
-        totalPages: 1,
-        currentPage: 1,
-      };
+      return { rows, totalCount, totalPages, currentPage: page };
     }
 
-    return { rows, totalCount, totalPages, currentPage: page };
+    const interpreterWhere: Record<string, any> = {};
+    if (isSpecificInterpreter) {
+      interpreterWhere.id = parseInt(interpreterIdStr!, 10);
+    }
+    if (search) {
+      interpreterWhere.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { externalId: { contains: search, mode: 'insensitive' } },
+        { campaign: { contains: search, mode: 'insensitive' } },
+        {
+          productionLogs: {
+            some: {
+              OR: [
+                { status: { contains: search, mode: 'insensitive' } },
+                { campaign: { contains: search, mode: 'insensitive' } },
+                { observaciones: { contains: search, mode: 'insensitive' } },
+              ]
+            }
+          }
+        },
+      ];
+    }
+
+    const allInterpreters = await prisma.interpreter.findMany({
+      where: interpreterWhere,
+      include: {
+        productionLogs: {
+          where: logWhere,
+          orderBy: { date: 'desc' },
+          take: 1,
+          include: { interpreter: { select: { id: true, name: true, campaign: true, externalId: true } } },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const allRows: InterpreterHistoryRow[] = allInterpreters.map((interpreter) => {
+      const latestLog = interpreter.productionLogs[0];
+      const name = interpreter.name || 'Unknown';
+      if (latestLog) {
+        return {
+          key: `log-${latestLog.id}`,
+          log: latestLog as any,
+          interpreterId: interpreter.id,
+          interpreterName: name,
+          interpreterInitial: name.charAt(0) || '?',
+          interpreterCampaign: interpreter.campaign ?? latestLog.campaign,
+          interpreterExternalId: interpreter.externalId ?? null,
+          date: latestLog.date,
+          interpretedMinutes: latestLog.interpretedMinutes ?? 0,
+          callsAttended: latestLog.callsAttended ?? 0,
+          adherence: Number(latestLog.adherence ?? 0),
+          status: latestLog.status,
+          observaciones: latestLog.observaciones,
+        };
+      }
+      return {
+        key: `interpreter-${interpreter.id}`,
+        log: null,
+        interpreterId: interpreter.id,
+        interpreterName: name,
+        interpreterInitial: name.charAt(0) || '?',
+        interpreterCampaign: interpreter.campaign,
+        interpreterExternalId: interpreter.externalId,
+        date: null,
+        interpretedMinutes: 0,
+        callsAttended: 0,
+        adherence: 0,
+        status: isFiltered ? `Sin registros ${filter}` : 'Sin registros',
+        observaciones: null,
+      };
+    });
+
+    return {
+      rows: allRows,
+      totalCount: allRows.length,
+      totalPages: 1,
+      currentPage: 1,
+    };
   } catch (error) {
     console.error('Error fetching production history:', error);
     return { rows: [], totalCount: 0, totalPages: 1, currentPage: 1 };
