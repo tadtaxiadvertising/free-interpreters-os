@@ -3,7 +3,8 @@
 import prisma from "@/lib/prisma";
 
 export async function getInterpreterCommitment(interpreterId: number, targetDateStr: string) {
-  const targetDate = new Date(targetDateStr);
+  // Usar 12:00 UTC para evitar que al formatear a Santo Domingo (UTC-4) cambie de día
+  const targetDate = new Date(`${targetDateStr}T12:00:00Z`);
   const interpreter = await prisma.interpreter.findUnique({
     where: { id: interpreterId },
   });
@@ -11,14 +12,14 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
   if (!interpreter) throw new Error("Interpreter not found");
 
   const startOfWeek = new Date(targetDate);
-  const day = startOfWeek.getDay();
-  const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
-  startOfWeek.setDate(diff);
-  startOfWeek.setHours(0, 0, 0, 0);
+  const day = startOfWeek.getUTCDay();
+  const diff = startOfWeek.getUTCDate() - day + (day === 0 ? -6 : 1);
+  startOfWeek.setUTCDate(diff);
+  startOfWeek.setUTCHours(0, 0, 0, 0);
 
   const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(endOfWeek.getDate() + 6);
-  endOfWeek.setHours(23, 59, 59, 999);
+  endOfWeek.setUTCDate(endOfWeek.getUTCDate() + 6);
+  endOfWeek.setUTCHours(23, 59, 59, 999);
 
   const logs = await prisma.productionLog.findMany({
     where: {
@@ -74,7 +75,8 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
 
   for (let i = 0; i < 5; i++) {
     const d = new Date(startOfWeek);
-    d.setDate(d.getDate() + i);
+    d.setUTCDate(d.getUTCDate() + i);
+    d.setUTCHours(12, 0, 0, 0); // Mediodía UTC para que al aplicar UTC-4 siga siendo el mismo día
     const dayStr = getLocalDateStr(d);
     const achieved = dailyStats.get(dayStr) || 0;
     totalMinutesWeek += achieved;
@@ -113,8 +115,8 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
 export async function getComplianceBoard(year: number, month: number) {
   const interpreters = await prisma.interpreter.findMany();
 
-  const startOfMonth = new Date(year, month - 1, 1);
-  const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+  const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
   const logs = await prisma.productionLog.findMany({
     where: {
@@ -148,12 +150,12 @@ export async function getComplianceBoard(year: number, month: number) {
     const intLogs = logs.filter(l => l.interpreterId === int.id);
     const intSessions = sessions.filter(s => s.interpreterId === int.id);
 
-    const daysInMonth = endOfMonth.getDate();
+    const daysInMonth = endOfMonth.getUTCDate();
     const days = [];
 
     for (let day = 1; day <= daysInMonth; day++) {
-      const d = new Date(year, month - 1, day);
-      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const d = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0)); // Mediodía UTC para evitar salto de día en UTC-4
+      const isWeekend = d.getUTCDay() === 0 || d.getUTCDay() === 6;
       const dayStr = getLocalDateStr(d);
 
       let logsMinutes = 0;
