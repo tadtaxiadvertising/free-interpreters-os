@@ -2,6 +2,8 @@
 
 :root {
   --background: #020617; /* Deeper midnight blue */
+  --background: #020617;
+  /* Deeper midnight blue */
   --foreground: #f8fafc;
   --primary: #3b82f6;
   --primary-glow: rgba(59, 130, 246, 0.5);
@@ -10,11 +12,16 @@
 
   /* ── CONTRAST TOKENS ──────────────────────────────────────────── */
   /* Improved legibility on dark backgrounds (WCAG AA compliant)    */
-  --text-primary: #f1f5f9;       /* slate-100 — main text */
-  --text-secondary: #cbd5e1;     /* slate-300 — secondary text (was slate-400) */
-  --text-tertiary: #94a3b8;      /* slate-400 — labels, hints */
-  --text-muted: #64748b;         /* slate-500 — least important */
-  --text-on-dark-accent: #e2e8f0; /* slate-200 — over dark gradients */
+  --text-primary: #f1f5f9;
+  /* slate-100 — main text */
+  --text-secondary: #cbd5e1;
+  /* slate-300 — secondary text (was slate-400) */
+  --text-tertiary: #94a3b8;
+  /* slate-400 — labels, hints */
+  --text-muted: #64748b;
+  /* slate-500 — least important */
+  --text-on-dark-accent: #e2e8f0;
+  /* slate-200 — over dark gradients */
 
   --font-inter: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-outfit: var(--font-inter);
@@ -22,7 +29,7 @@
 
 body {
   background-color: var(--background);
-  background-image: 
+  background-image:
     radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
     radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.05) 0%, transparent 50%);
   color: var(--foreground);
@@ -35,13 +42,16 @@ body {
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 10px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(59, 130, 246, 0.5);
 }
@@ -66,8 +76,15 @@ body {
 
 /* Dashboard Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-in {
@@ -96,12 +113,14 @@ tr:last-child td {
 }
 
 /* Form Styles */
-input, select, textarea {
+input,
+select,
+textarea {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 input:-webkit-autofill,
-input:-webkit-autofill:hover, 
+input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
   -webkit-text-fill-color: white;
   -webkit-box-shadow: 0 0 0px 1000px #0f172a inset;
@@ -118,7 +137,8 @@ select {
 }
 
 option {
-  background-color: #0f172a; /* matches bg-slate-900 */
+  background-color: #0f172a;
+  /* matches bg-slate-900 */
   color: white;
 }
 
@@ -130,7 +150,17 @@ option {
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;
 }
+
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 10px;
+}
+
+/* ── Light-modal overrides (white bg modals on dark theme) ── */
+.modal-light input:-webkit-autofill,
+.modal-light input:-webkit-autofill:hover,
+.modal-light input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #111827;
+  -webkit-box-shadow: 0 0 0px 1000px #f9fafb inset;
+  transition: background-color 5000s ease-in-out 0s;
 }
