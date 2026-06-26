@@ -73,58 +73,66 @@ async function getProductionHistory(searchParams: {
 
   const isFiltered = Boolean(filter && filter !== 'all');
 
-  const logWhere: Record<string, any> = {};
-  if (isFiltered) logWhere.status = filter;
-  if (fromDate) logWhere.date = { ...logWhere.date, gte: new Date(fromDate) };
-  if (toDate) logWhere.date = { ...logWhere.date, lte: new Date(toDate) };
+  const where: Record<string, any> = {};
+  if (isFiltered) where.status = filter;
+  if (fromDate) where.date = { ...where.date, gte: new Date(fromDate) };
+  if (toDate) where.date = { ...where.date, lte: new Date(toDate) };
+  if (isSpecificInterpreter) where.interpreterId = parseInt(interpreterIdStr!, 10);
+  if (search) {
+    where.OR = [
+      { status: { contains: search, mode: 'insensitive' as const } },
+      { campaign: { contains: search, mode: 'insensitive' as const } },
+      { observaciones: { contains: search, mode: 'insensitive' as const } },
+      { interpreter: { name: { contains: search, mode: 'insensitive' as const } } },
+      { interpreter: { externalId: { contains: search, mode: 'insensitive' as const } } },
+    ];
+  }
 
   try {
-    if (isSpecificInterpreter) {
-      logWhere.interpreterId = parseInt(interpreterIdStr!, 10);
-      if (search) {
-        logWhere.OR = [
-          { status: { contains: search, mode: 'insensitive' as const } },
-          { campaign: { contains: search, mode: 'insensitive' as const } },
-          { observaciones: { contains: search, mode: 'insensitive' as const } },
-          { interpreter: { name: { contains: search, mode: 'insensitive' as const } } },
-          { interpreter: { externalId: { contains: search, mode: 'insensitive' as const } } },
-        ];
-      }
+    const [totalCount, logs] = await Promise.all([
+      prisma.productionLog.count({ where }),
+      prisma.productionLog.findMany({
+        where,
+        orderBy: { date: 'desc' },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+        include: { interpreter: { select: { id: true, name: true, campaign: true, externalId: true } } },
+      }),
+    ]);
 
-      const [totalCount, logs] = await Promise.all([
-        prisma.productionLog.count({ where: logWhere }),
-        prisma.productionLog.findMany({
-          where: logWhere,
-          orderBy: { date: 'desc' },
-          skip: (page - 1) * PAGE_SIZE,
-          take: PAGE_SIZE,
-          include: { interpreter: { select: { id: true, name: true, campaign: true, externalId: true } } },
-        }),
-      ]);
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-      const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+    const rows: InterpreterHistoryRow[] = logs.map((log) => {
+      const name = log.interpreter?.name || 'Unknown';
+      return {
+        key: `log-${log.id}`,
+        log,
+        interpreterId: log.interpreterId,
+        interpreterName: name,
+        interpreterInitial: name.charAt(0) || '?',
+        interpreterCampaign: log.interpreter?.campaign ?? log.campaign,
+        interpreterExternalId: log.interpreter?.externalId ?? null,
+        date: log.date,
+        interpretedMinutes: log.interpretedMinutes ?? 0,
+        callsAttended: log.callsAttended ?? 0,
+        adherence: Number(log.adherence ?? 0),
+        status: log.status,
+        observaciones: log.observaciones,
+      };
+    });
 
-      const rows: InterpreterHistoryRow[] = logs.map((log) => {
-        const name = log.interpreter?.name || 'Unknown';
-        return {
-          key: `log-${log.id}`,
-          log,
-          interpreterId: log.interpreterId,
-          interpreterName: name,
-          interpreterInitial: name.charAt(0) || '?',
-          interpreterCampaign: log.interpreter?.campaign ?? log.campaign,
-          interpreterExternalId: log.interpreter?.externalId ?? null,
-          date: log.date,
-          interpretedMinutes: log.interpretedMinutes ?? 0,
-          callsAttended: log.callsAttended ?? 0,
-          adherence: Number(log.adherence ?? 0),
-          status: log.status,
-          observaciones: log.observaciones,
-        };
-      });
-
-      return { rows, totalCount, totalPages, currentPage: page };
-    }
+    // Always include interpreters without matching logs as placeholder rows
+    // Use a distinct query to find ALL interpreter IDs that have matching logs
+    // (not just those on the current page) so placeholders are only added for
+    // interpreters who truly have zero matching records
+    const interpreterIdsWithMatchingLogs = await prisma.productionLog.findMany({
+      where,
+      select: { interpreterId: true },
+      distinct: ['interpreterId'],
+    });
+    const idsWithLogs = new Set(
+      interpreterIdsWithMatchingLogs.map(l => l.interpreterId).filter((id): id is number => id !== null)
+    );
 
     const interpreterWhere: Record<string, any> = {};
     if (isSpecificInterpreter) {
@@ -135,75 +143,43 @@ async function getProductionHistory(searchParams: {
         { name: { contains: search, mode: 'insensitive' } },
         { externalId: { contains: search, mode: 'insensitive' } },
         { campaign: { contains: search, mode: 'insensitive' } },
-        {
-          productionLogs: {
-            some: {
-              OR: [
-                { status: { contains: search, mode: 'insensitive' } },
-                { campaign: { contains: search, mode: 'insensitive' } },
-                { observaciones: { contains: search, mode: 'insensitive' } },
-              ]
-            }
-          }
-        },
       ];
     }
 
-    const allInterpreters = await prisma.interpreter.findMany({
-      where: interpreterWhere,
-      include: {
-        productionLogs: {
-          where: logWhere,
-          orderBy: { date: 'desc' },
-          take: 1,
-          include: { interpreter: { select: { id: true, name: true, campaign: true, externalId: true } } },
-        },
+    const interpretersWithoutLogs = await prisma.interpreter.findMany({
+      where: {
+        ...interpreterWhere,
+        id: { notIn: [...idsWithLogs] },
       },
+      select: { id: true, name: true, campaign: true, externalId: true },
       orderBy: { name: 'asc' },
     });
 
-    const allRows: InterpreterHistoryRow[] = allInterpreters.map((interpreter) => {
-      const latestLog = interpreter.productionLogs[0];
-      const name = interpreter.name || 'Unknown';
-      if (latestLog) {
-        return {
-          key: `log-${latestLog.id}`,
-          log: latestLog as any,
-          interpreterId: interpreter.id,
-          interpreterName: name,
-          interpreterInitial: name.charAt(0) || '?',
-          interpreterCampaign: interpreter.campaign ?? latestLog.campaign,
-          interpreterExternalId: interpreter.externalId ?? null,
-          date: latestLog.date,
-          interpretedMinutes: latestLog.interpretedMinutes ?? 0,
-          callsAttended: latestLog.callsAttended ?? 0,
-          adherence: Number(latestLog.adherence ?? 0),
-          status: latestLog.status,
-          observaciones: latestLog.observaciones,
-        };
-      }
-      return {
-        key: `interpreter-${interpreter.id}`,
-        log: null,
-        interpreterId: interpreter.id,
-        interpreterName: name,
-        interpreterInitial: name.charAt(0) || '?',
-        interpreterCampaign: interpreter.campaign,
-        interpreterExternalId: interpreter.externalId,
-        date: null,
-        interpretedMinutes: 0,
-        callsAttended: 0,
-        adherence: 0,
-        status: isFiltered ? `Sin registros ${filter}` : 'Sin registros',
-        observaciones: null,
-      };
-    });
+    const placeholderRows: InterpreterHistoryRow[] = interpretersWithoutLogs.map((interpreter) => ({
+      key: `interpreter-${interpreter.id}`,
+      log: null,
+      interpreterId: interpreter.id,
+      interpreterName: interpreter.name || 'Unknown',
+      interpreterInitial: (interpreter.name || 'U').charAt(0),
+      interpreterCampaign: interpreter.campaign,
+      interpreterExternalId: interpreter.externalId,
+      date: null,
+      interpretedMinutes: 0,
+      callsAttended: 0,
+      adherence: 0,
+      status: isFiltered ? `Sin registros ${filter}` : 'Sin registros',
+      observaciones: null,
+    }));
+
+    const allRows = [...rows, ...placeholderRows];
+    const totalWithPlaceholders = totalCount + placeholderRows.length;
+    const totalPagesWithPlaceholders = Math.max(1, Math.ceil(totalWithPlaceholders / PAGE_SIZE));
 
     return {
       rows: allRows,
-      totalCount: allRows.length,
-      totalPages: 1,
-      currentPage: 1,
+      totalCount: totalWithPlaceholders,
+      totalPages: totalPagesWithPlaceholders,
+      currentPage: page,
     };
   } catch (error) {
     console.error('Error fetching production history:', error);
