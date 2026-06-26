@@ -10,7 +10,7 @@ import { z } from 'zod';
 const db = prisma;
 
 const ProductionLogSchema = z.object({
-  date: z.coerce.date(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format").transform(val => new Date(`${val}T12:00:00Z`)),
   interpretedMinutes: z.coerce.number().positive('Minutes must be positive'),
   callsAttended: z.coerce.number().int().nonnegative().default(0),
   observations: z.string().trim().optional(),
@@ -74,8 +74,11 @@ export async function createInterpreterLog(formData: FormData): Promise<ActionRe
     // Refresh payroll record for this period
     await refreshPayrollRecord(profile.interpreterId, validated.date);
 
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard', 'layout');
+    revalidatePath('/admin', 'layout');
     revalidatePath('/production');
+    revalidatePath('/admin/calendar');
+    revalidatePath('/dashboard/calendar');
     
     return { success: true };
   } catch (error) {
