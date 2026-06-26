@@ -33,16 +33,6 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
 
   const dailyGoalMinutes = Math.floor((interpreter.monthlyGoal || 2000) / 22);
 
-  const sessions = await prisma.callSession.findMany({
-    where: {
-      interpreterId,
-      startedAt: {
-        gte: startOfWeek,
-        lte: endOfWeek,
-      }
-    }
-  });
-
   const dailyStats = new Map<string, number>();
 
   const getLocalDateStr = (d: Date) => {
@@ -58,14 +48,6 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
     const dayStr = getLocalDateStr(log.date);
     const existing = dailyStats.get(dayStr) || 0;
     dailyStats.set(dayStr, existing + (log.interpretedMinutes || 0));
-  });
-
-  sessions.forEach(session => {
-    if (!session.startedAt) return;
-    const dayStr = getLocalDateStr(session.startedAt);
-    const existing = dailyStats.get(dayStr) || 0;
-    const minutes = session.durationSeconds ? Math.floor(session.durationSeconds / 60) : 0;
-    dailyStats.set(dayStr, existing + minutes);
   });
 
   let totalMinutesWeek = 0;
@@ -127,15 +109,6 @@ export async function getComplianceBoard(year: number, month: number) {
     }
   });
 
-  const sessions = await prisma.callSession.findMany({
-    where: {
-      startedAt: {
-        gte: startOfMonth,
-        lte: endOfMonth
-      }
-    }
-  });
-
   const getLocalDateStr = (d: Date) => {
     return new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Santo_Domingo',
@@ -148,7 +121,6 @@ export async function getComplianceBoard(year: number, month: number) {
   const board = interpreters.map(int => {
     const dailyGoalMinutes = Math.floor((int.monthlyGoal || 2000) / 22);
     const intLogs = logs.filter(l => l.interpreterId === int.id);
-    const intSessions = sessions.filter(s => s.interpreterId === int.id);
 
     const daysInMonth = endOfMonth.getUTCDate();
     const days = [];
@@ -159,17 +131,12 @@ export async function getComplianceBoard(year: number, month: number) {
       const dayStr = getLocalDateStr(d);
 
       let logsMinutes = 0;
-      let sessionsMinutes = 0;
 
       intLogs.filter(l => getLocalDateStr(l.date) === dayStr).forEach(l => {
         logsMinutes += l.interpretedMinutes || 0;
       });
 
-      intSessions.filter(s => s.startedAt && getLocalDateStr(s.startedAt) === dayStr).forEach(s => {
-        sessionsMinutes += s.durationSeconds ? Math.floor(s.durationSeconds / 60) : 0;
-      });
-
-      const minutes = logsMinutes + sessionsMinutes;
+      const minutes = logsMinutes;
 
       let status = "Not Needed";
       if (!isWeekend) {
@@ -186,7 +153,7 @@ export async function getComplianceBoard(year: number, month: number) {
         isWeekend,
         minutes,
         logsMinutes,
-        sessionsMinutes,
+        sessionsMinutes: 0,
         status,
         dailyGoalMinutes
       });

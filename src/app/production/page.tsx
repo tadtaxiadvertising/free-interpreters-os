@@ -75,8 +75,8 @@ async function getProductionHistory(searchParams: {
 
   const where: Record<string, any> = {};
   if (isFiltered) where.status = filter;
-  if (fromDate) where.date = { ...where.date, gte: new Date(fromDate) };
-  if (toDate) where.date = { ...where.date, lte: new Date(toDate) };
+  if (fromDate) where.date = { ...where.date, gte: new Date(`${fromDate}T00:00:00Z`) };
+  if (toDate) where.date = { ...where.date, lte: new Date(`${toDate}T23:59:59Z`) };
   if (isSpecificInterpreter) where.interpreterId = parseInt(interpreterIdStr!, 10);
   if (search) {
     where.OR = [
