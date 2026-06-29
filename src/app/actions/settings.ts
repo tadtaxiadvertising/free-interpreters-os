@@ -39,7 +39,7 @@ export async function updateSystemConfig(key: string, value: string): Promise<Ac
  * CACHED FETCH: Get system config value
  * Optimized with unstable_cache for high-performance reads.
  */
-export const getSystemConfigCached = unstable_cache(
+const getSystemConfigCached = unstable_cache(
   async (key: string, defaultValue: string = '') => {
     try {
       const config = await db.systemConfig.findUnique({

@@ -14,7 +14,7 @@ export type AdminActionResult = {
 const idSchema = z.coerce.number().int().positive();
 const percentageSchema = z.coerce.number().min(0).max(100);
 
-export const EditRecordSchema = z.object({
+const EditRecordSchema = z.object({
   id: idSchema,
   interpreterId: z.coerce.number().int().positive().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha debe tener formato YYYY-MM-DD."),
@@ -25,7 +25,7 @@ export const EditRecordSchema = z.object({
   observaciones: z.string().trim().max(1000).optional().nullable(),
 });
 
-export const DeleteRecordSchema = z.object({
+const DeleteRecordSchema = z.object({
   id: idSchema,
   interpreterId: z.coerce.number().int().positive().optional(),
 });
