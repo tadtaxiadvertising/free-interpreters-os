@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { validateAction } from '@/lib/auth/actions';
 import type { ActionResult } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 import { CallSession, Prisma } from '@prisma/client';
 import { z } from 'zod';
 
@@ -158,11 +159,7 @@ export async function endCall(sessionId: number): Promise<ActionResult<{ duratio
       return updated;
     });
 
-    revalidatePath('/dashboard', 'layout');
-    revalidatePath('/admin', 'layout');
-    revalidatePath('/production');
-    revalidatePath('/dashboard/calendar');
-    revalidatePath('/admin/calendar');
+    revalidateInterpreterProfileRecords(interpreterId);
     return {
       success: true,
       data: {

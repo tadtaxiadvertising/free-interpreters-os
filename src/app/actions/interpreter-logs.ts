@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 import { validateAction } from '@/lib/auth/actions';
 import { ActionResult } from '@/lib/types';
 import { refreshPayrollRecord } from '@/services/PayrollService';
@@ -74,11 +74,7 @@ export async function createInterpreterLog(formData: FormData): Promise<ActionRe
     // Refresh payroll record for this period
     await refreshPayrollRecord(profile.interpreterId, validated.date);
 
-    revalidatePath('/dashboard', 'layout');
-    revalidatePath('/admin', 'layout');
-    revalidatePath('/production');
-    revalidatePath('/admin/calendar');
-    revalidatePath('/dashboard/calendar');
+    revalidateInterpreterProfileRecords(profile.interpreterId);
     
     return { success: true };
   } catch (error) {

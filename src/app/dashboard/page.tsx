@@ -12,6 +12,7 @@ import { AccessActionsRail } from '@/components/AccessActionsRail';
 import { OnboardingGate } from '@/components/OnboardingGate';
 import { getCurrentProfile } from '@/app/actions/auth';
 import prismaClient from '@/lib/prisma';
+import { getDayBounds, getMonthBounds, sumEffectiveLogMinutes } from '@/lib/interpreter-metrics';
 const prisma = prismaClient;
 
 export const dynamic = 'force-dynamic';
@@ -78,20 +79,17 @@ export default async function InterpreterDashboard() {
     redirect('/admin');
   }
 
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-  const endOfMonth = new Date();
-  endOfMonth.setMonth(endOfMonth.getMonth() + 1, 0);
+  const { startOfMonth, endOfMonth } = getMonthBounds();
+  const { startOfDay: todayStart, endOfDay: todayEnd } = getDayBounds();
 
   const globalGoalHours = parseFloat(await getSystemConfig('standard_monthly_goal_hours', '120'));
 
   // Fetch full data if we have an interpreter link
   let interpreter: any = null;
   let activeCall: any = null;
-  let todayCalls: any[] = [];
   let recentCalls: any[] = [];
-  let monthCalls: any[] = [];
+  let monthLogs: any[] = [];
+  let todayLogs: any[] = [];
   let rankings: any[] = [];
   let myRankIdx = -1;
 
@@ -111,7 +109,7 @@ export default async function InterpreterDashboard() {
           monthlyGoal: true,
           productionLogs: {
             where: { date: { gte: startOfMonth, lte: endOfMonth } },
-            select: { interpretedMinutes: true }
+            select: { interpretedMinutes: true, verifiedMinutes: true }
           },
           qaScores: {
             take: 5,
@@ -122,28 +120,29 @@ export default async function InterpreterDashboard() {
       } as any);
 
       if (interpreter) {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-
-        const [activeCallRes, todayCallsRes, recentCallsRes, monthCallsRes, allInterpreters] = await Promise.all([
+        const [activeCallRes, recentCallsRes, monthLogsRes, todayLogsRes, allInterpreters] = await Promise.all([
           prisma.callSession.findFirst({
             where: { interpreterId: interpreter.id, endedAt: null },
             orderBy: { startedAt: 'desc' }
-          }),
-          prisma.callSession.findMany({
-            where: { interpreterId: interpreter.id, startedAt: { gte: todayStart }, endedAt: { not: null } }
           }),
           prisma.callSession.findMany({
             where: { interpreterId: interpreter.id, endedAt: { not: null } },
             orderBy: { startedAt: 'desc' },
             take: 10
           }),
-          prisma.callSession.findMany({
+          prisma.productionLog.findMany({
             where: {
               interpreterId: interpreter.id,
-              startedAt: { gte: startOfMonth, lte: endOfMonth },
-              endedAt: { not: null }
-            }
+              date: { gte: startOfMonth, lte: endOfMonth },
+            },
+            select: { interpretedMinutes: true, verifiedMinutes: true }
+          }),
+          prisma.productionLog.findMany({
+            where: {
+              interpreterId: interpreter.id,
+              date: { gte: todayStart, lte: todayEnd },
+            },
+            select: { interpretedMinutes: true, verifiedMinutes: true }
           }),
           prisma.interpreter.findMany({
             select: {
@@ -151,16 +150,9 @@ export default async function InterpreterDashboard() {
               name: true,
               campaign: true,
               monthlyGoal: true,
-              callSessions: {
-                where: {
-                  startedAt: { gte: startOfMonth, lte: endOfMonth },
-                  endedAt: { not: null },
-                },
-                select: { durationSeconds: true },
-              },
               productionLogs: {
                 where: { date: { gte: startOfMonth, lte: endOfMonth } },
-                select: { interpretedMinutes: true },
+                select: { interpretedMinutes: true, verifiedMinutes: true },
               },
               qaScores: {
                 orderBy: { createdAt: 'desc' },
@@ -172,20 +164,14 @@ export default async function InterpreterDashboard() {
         ]);
 
         activeCall = activeCallRes;
-        todayCalls = todayCallsRes;
         recentCalls = recentCallsRes;
-        monthCalls = monthCallsRes;
+        monthLogs = monthLogsRes;
+        todayLogs = todayLogsRes;
 
         // Process rankings
         rankings = allInterpreters
           .map((interp: any) => {
-            const sessionMin = Math.round(
-              (interp.callSessions || []).reduce((s: number, c: any) => s + (c.durationSeconds || 0), 0) / 60
-            );
-            const logMin = (interp.productionLogs || []).reduce(
-              (s: number, l: any) => s + (l.interpretedMinutes || 0), 0
-            );
-            const totalMinutes = sessionMin + logMin;
+            const totalMinutes = sumEffectiveLogMinutes(interp.productionLogs);
             const qaScore = interp.qaScores?.[0]?.totalScore ? Number(interp.qaScores[0].totalScore) : 0;
             const monthlyGoalVal = interp.monthlyGoal ?? (globalGoalHours * 60);
             const goalProgress = Math.min((totalMinutes / monthlyGoalVal) * 100, 100);
@@ -213,8 +199,8 @@ export default async function InterpreterDashboard() {
   }
 
   // ── 📊 METRICS CALCULATION ──
-  const todayMinutes = (todayCalls || []).reduce((acc: number, call: any) => acc + (call.durationSeconds || 0), 0) / 60;
-  const mtdMinutes = (monthCalls || []).reduce((acc: number, call: any) => acc + (call.durationSeconds || 0), 0) / 60;
+  const todayMinutes = sumEffectiveLogMinutes(todayLogs);
+  const mtdMinutes = sumEffectiveLogMinutes(monthLogs);
   const monthlyGoal = interpreter?.monthlyGoal || (globalGoalHours * 60);
   const mtdProgress = Math.min((mtdMinutes / monthlyGoal) * 100, 100);
 
@@ -225,7 +211,7 @@ export default async function InterpreterDashboard() {
   const latestQaScore = interpreter?.qaScores?.[0]?.totalScore ? Number(interpreter.qaScores[0].totalScore) : 0;
   const isQaExcellent = latestQaScore >= 95;
 
-  const mtdEarnings = (monthCalls || []).reduce((acc: number, call: any) => acc + Number(call.callCost || 0), 0);
+  const mtdEarnings = mtdMinutes * Number(interpreter?.tariffPerMinute || 0);
   const onboardingComplete = profile?.onboarding_complete || false;
 
   if (!profile || !interpreter) {

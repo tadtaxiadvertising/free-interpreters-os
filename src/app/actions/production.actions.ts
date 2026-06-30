@@ -2,7 +2,7 @@
 
 import prismaClient from '@/lib/prisma';
 import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 
 const prisma = prismaClient;
 
@@ -32,6 +32,7 @@ export async function uploadLogChunk(prevState: any, data: { headers: string, ro
     }
 
     let successCount = 0;
+    const affectedInterpreterIds = new Set<number>();
 
     for (const row of rows) {
       const cols = row.split(',').map(c => c.trim());
@@ -62,10 +63,11 @@ export async function uploadLogChunk(prevState: any, data: { headers: string, ro
           status: 'Importado',
         }
       });
+      affectedInterpreterIds.add(interpreter.id);
       successCount++;
     }
 
-    revalidatePath('/admin');
+    affectedInterpreterIds.forEach((id) => revalidateInterpreterProfileRecords(id));
     return { success: true, count: successCount, error: null };
   } catch (error: any) {
     console.error('❌ ERROR uploadLogChunk:', error);

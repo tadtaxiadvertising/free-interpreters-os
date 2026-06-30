@@ -5,6 +5,7 @@ import { validateAction } from "@/lib/auth/actions";
 import type { ActionResult } from "@/lib/types";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { revalidateInterpreterProfileRecords } from "@/lib/cache/revalidate-interpreter";
 
 const db = prisma;
 
@@ -99,10 +100,7 @@ export async function createManualLog(data: unknown): Promise<ActionResult<{ id:
     });
 
     revalidatePath("/admin/production");
-    revalidatePath("/admin/calendar");
-    revalidatePath("/dashboard/calendar");
-    revalidatePath('/dashboard', 'layout');
-    revalidatePath('/admin', 'layout');
+    revalidateInterpreterProfileRecords(interpreter.id);
     return { success: true, data: { id: result.id } };
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {

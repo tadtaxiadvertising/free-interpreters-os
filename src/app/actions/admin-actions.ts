@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { validateAction } from "@/lib/auth/actions";
@@ -30,9 +31,6 @@ const DeleteRecordSchema = z.object({
   interpreterId: z.coerce.number().int().positive().optional(),
 });
 
-function productionProfilePath(interpreterId?: number | null) {
-  return interpreterId ? `/interpreters/${interpreterId}` : "/interpreters/[id]";
-}
 
 export async function editRecord(input: unknown): Promise<AdminActionResult> {
   const auth = await validateAction("admin");
@@ -63,9 +61,8 @@ export async function editRecord(input: unknown): Promise<AdminActionResult> {
     });
 
     revalidatePath("/admin/production");
-    revalidatePath("/production");
-    revalidatePath(productionProfilePath(existing.interpreterId));
-    revalidatePath(productionProfilePath(updated.interpreterId));
+    revalidateInterpreterProfileRecords(existing.interpreterId);
+    revalidateInterpreterProfileRecords(updated.interpreterId);
 
     return { success: true, message: "Registro actualizado correctamente." };
   } catch (error) {
@@ -93,8 +90,7 @@ export async function deleteRecord(input: unknown): Promise<AdminActionResult> {
     await prisma.productionLog.delete({ where: { id: data.id } });
 
     revalidatePath("/admin/production");
-    revalidatePath("/production");
-    revalidatePath(productionProfilePath(data.interpreterId ?? existing.interpreterId));
+    revalidateInterpreterProfileRecords(data.interpreterId ?? existing.interpreterId);
 
     return { success: true, message: "Registro eliminado correctamente." };
   } catch (error) {
