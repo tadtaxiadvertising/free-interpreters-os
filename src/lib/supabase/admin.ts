@@ -1,5 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Load environment variables if they are not already set (e.g. running in standalone Next.js server locally).
+// Uses dynamic require() to avoid Edge Runtime warnings since this file is imported by middleware.ts.
+if (typeof window === 'undefined' && typeof (globalThis as any).EdgeRuntime === 'undefined') {
+  try {
+    const dotenv = require('dotenv');
+    const path = require('path');
+    const getCwd = () => (process as any)['cwd']();
+    dotenv.config({ path: path.resolve(getCwd(), '.env.local') });
+    dotenv.config({ path: path.resolve(getCwd(), '.env') });
+  } catch {
+    // dotenv may not be available in production standalone builds — that's fine,
+    // env vars are injected by Easypanel at runtime.
+  }
+}
+
 const SERVICE_ROLE_ENV_NAMES = ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_KEY'] as const;
 
 export function getSupabaseServiceRoleKey() {

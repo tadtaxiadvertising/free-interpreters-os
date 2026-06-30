@@ -1,6 +1,21 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+// Load environment variables if they are not already set (e.g. running in standalone Next.js server locally).
+// Uses dynamic require() to avoid Edge Runtime warnings.
+if (typeof window === 'undefined' && typeof (globalThis as any).EdgeRuntime === 'undefined') {
+  try {
+    const dotenv = require('dotenv');
+    const path = require('path');
+    const getCwd = () => (process as any)['cwd']();
+    dotenv.config({ path: path.resolve(getCwd(), '.env.local') });
+    dotenv.config({ path: path.resolve(getCwd(), '.env') });
+  } catch {
+    // dotenv may not be available in production standalone builds — that's fine,
+    // env vars are injected by Easypanel at runtime.
+  }
+}
+
 const SUPABASE_CONFIG_ERROR = 'SUPABASE_CONFIG_MISSING';
 
 function getSupabasePublicConfig() {

@@ -10,10 +10,9 @@ jobs:
   deploy-interpreters:
     name: Deploy interpreters (Next.js)
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Call Easypanel Webhook — interpreters
-        env:
-          EASYPANEL_WEBHOOK_INTERPRETERS: ${{ secrets.EASYPANEL_WEBHOOK_INTERPRETERS }}
         run: |
           set -euo pipefail
           echo "Deploying interpreters (Next.js) to Easypanel..."
@@ -30,14 +29,15 @@ jobs:
           fi
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --retry 3 --retry-delay 5 --retry-all-errors -X POST "$WEBHOOK_URL")
           case "$HTTP_CODE" in 200|201|202|204) echo "OK: interpreters deployed (HTTP $HTTP_CODE)";; *) echo "FAIL: interpreters webhook returned HTTP $HTTP_CODE"; exit 1;; esac
+        env:
+          EASYPANEL_WEBHOOK_INTERPRETERS: ${{ secrets.EASYPANEL_WEBHOOK_INTERPRETERS }}
 
   deploy-interpreters-api:
     name: Deploy interpreters-api (Backend)
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Call Easypanel Webhook — interpreters-api
-        env:
-          EASYPANEL_WEBHOOK_API: ${{ secrets.EASYPANEL_WEBHOOK_API }}
         run: |
           set -euo pipefail
           echo "Deploying interpreters-api (Backend) to Easypanel..."
@@ -54,3 +54,5 @@ jobs:
           fi
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --retry 3 --retry-delay 5 --retry-all-errors -X POST "$WEBHOOK_URL")
           case "$HTTP_CODE" in 200|201|202|204) echo "OK: interpreters-api deployed (HTTP $HTTP_CODE)";; *) echo "FAIL: interpreters-api webhook returned HTTP $HTTP_CODE"; exit 1;; esac
+        env:
+          EASYPANEL_WEBHOOK_API: ${{ secrets.EASYPANEL_WEBHOOK_API }}
