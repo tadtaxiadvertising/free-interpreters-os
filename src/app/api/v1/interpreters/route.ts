@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { InterpreterSchema } from '@/lib/validators';
 import { withSecurity } from '@/lib/api-security';
+import { parseJsonBody } from '@/lib/api-responses';
 import { z } from 'zod';
 
 export async function OPTIONS() {
@@ -45,14 +46,12 @@ export const GET = withSecurity(async (request: NextRequest) => {
 });
 
 export const POST = withSecurity(async (request: NextRequest) => {
-  const body = await request.json();
-  
-  // Validation is already performed by withSecurity wrapper
+  const body = await parseJsonBody(request, InterpreterSchema);
   const { password, ...interpreterData } = body;
 
   if (password && !interpreterData.emailCorporativo) {
     return NextResponse.json(
-      { error: 'Email corporativo is required when creating an account with a password.' },
+      { success: false, error: 'Email corporativo is required when creating an account with a password.' },
       { status: 400 }
     );
   }
@@ -79,7 +78,7 @@ export const POST = withSecurity(async (request: NextRequest) => {
     if (authError) {
       console.error(`[API_INTERPRETERS_POST] ❌ Auth creation failed: ${authError.message}`);
       return NextResponse.json(
-        { error: `Interpreter record created (ID: ${newInterpreter.id}), but Auth creation failed: ${authError.message}` },
+        { success: false, error: `Interpreter record created (ID: ${newInterpreter.id}), but Auth creation failed: ${authError.message}` },
         { status: 400 }
       );
     }
@@ -105,7 +104,7 @@ export const POST = withSecurity(async (request: NextRequest) => {
     }
   }
 
-  return NextResponse.json(newInterpreter, { status: 201 });
+  return NextResponse.json({ success: true, data: newInterpreter }, { status: 201 });
 }, {
   body: InterpreterSchema
 });

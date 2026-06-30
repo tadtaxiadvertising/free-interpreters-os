@@ -2,18 +2,15 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 import { deleteInterpreterDatabaseRecords } from '@/lib/interpreters/delete-interpreter';
+import { InterpreterPatchSchema } from '@/lib/api-schemas';
+import { apiError, numericIdParamSchema, parseJsonBody } from '@/lib/api-responses';
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const interpreterId = parseInt(id);
-
-    if (isNaN(interpreterId)) {
-      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-    }
+    const { id: interpreterId } = numericIdParamSchema.parse(await params);
 
     const { authUserId } = await prisma.$transaction((tx: any) => deleteInterpreterDatabaseRecords(tx, interpreterId));
 
@@ -30,8 +27,10 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting interpreter:', error);
     const message = error instanceof Error ? error.message : 'Error deleting interpreter';
-    const status = message === 'Intérprete no encontrado' ? 404 : 500;
-    return NextResponse.json({ error: message }, { status });
+    if (message === 'Intérprete no encontrado') {
+      return NextResponse.json({ success: false, error: message }, { status: 404 });
+    }
+    return apiError({ error, fallback: 'Error deleting interpreter' });
   }
 }
 
@@ -40,10 +39,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const body = await request.json();
-    const interpreterId = parseInt(id);
-    
+    const { id: interpreterId } = numericIdParamSchema.parse(await params);
+    const body = await parseJsonBody(request, InterpreterPatchSchema);
     const { password, ...updateData } = body;
 
     // 1. If password provided, update Supabase Auth
@@ -79,10 +76,9 @@ export async function PATCH(
     });
 
     revalidateInterpreterProfileRecords(interpreterId);
-    return NextResponse.json(updated);
+    return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     console.error('Error updating interpreter:', error);
-    const message = error instanceof Error ? error.message : 'Error updating interpreter';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: 'Error updating interpreter' });
   }
 }

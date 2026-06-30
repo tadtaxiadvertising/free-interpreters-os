@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { RecruitmentCandidateSchema } from '@/lib/validators';
+import { apiError, parseJsonBody } from '@/lib/api-responses';
 
 export async function OPTIONS() {
   return NextResponse.json({}, {
@@ -43,25 +44,15 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error fetching candidates:', error);
     const message = error instanceof Error ? error.message : 'Error fetching candidates';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: message });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    
-    // Validate input
-    const validationResult = RecruitmentCandidateSchema.safeParse(body);
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: validationResult.error.issues },
-        { status: 400 }
-      );
-    }
-
+    const data = await parseJsonBody(request, RecruitmentCandidateSchema);
     const newCandidate = await prisma.recruitmentCandidate.create({
-      data: validationResult.data,
+      data,
     });
 
     return NextResponse.json(newCandidate, { 
@@ -75,11 +66,11 @@ export async function POST(request: Request) {
     const isPrismaError = error && typeof error === 'object' && 'code' in error;
     if (isPrismaError && error.code === 'P2002') {
       return NextResponse.json(
-        { error: 'Candidate with this email already exists.' },
+        { success: false, error: 'Candidate with this email already exists.' },
         { status: 409 }
       );
     }
     const message = error instanceof Error ? error.message : 'Error creating candidate';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: message });
   }
 }

@@ -1,24 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { PayrollPaySchema } from '@/lib/api-schemas';
+import { apiError, parseJsonBody } from '@/lib/api-responses';
 
 export async function PATCH(request: Request) {
   try {
-    const body = await request.json();
-    const { payrollRecordId, transactionReference } = body;
-
-    if (!payrollRecordId) {
-      return NextResponse.json(
-        { error: 'payrollRecordId is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!transactionReference || transactionReference.trim() === '') {
-      return NextResponse.json(
-        { error: 'transactionReference is required for marking payment as PAID' },
-        { status: 400 }
-      );
-    }
+    const { payrollRecordId, transactionReference } = await parseJsonBody(request, PayrollPaySchema);
 
     // Check if payroll record exists and is in APPROVED state
     const payroll = await prisma.payrollRecord.findUnique({
@@ -26,7 +13,7 @@ export async function PATCH(request: Request) {
     });
 
     if (!payroll) {
-      return NextResponse.json({ error: 'Payroll record not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Payroll record not found' }, { status: 404 });
     }
 
     if (payroll.status !== 'APPROVED') {
@@ -48,7 +35,7 @@ export async function PATCH(request: Request) {
     });
 
     return NextResponse.json({ success: true, data: updatedPayroll });
-  } catch {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  } catch (error) {
+    return apiError({ error, fallback: 'Internal Server Error' });
   }
 }
