@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { validateAction } from "@/lib/auth/actions";
@@ -14,7 +15,7 @@ export type AdminActionResult = {
 const idSchema = z.coerce.number().int().positive();
 const percentageSchema = z.coerce.number().min(0).max(100);
 
-export const EditRecordSchema = z.object({
+const EditRecordSchema = z.object({
   id: idSchema,
   interpreterId: z.coerce.number().int().positive().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha debe tener formato YYYY-MM-DD."),
@@ -25,14 +26,11 @@ export const EditRecordSchema = z.object({
   observaciones: z.string().trim().max(1000).optional().nullable(),
 });
 
-export const DeleteRecordSchema = z.object({
+const DeleteRecordSchema = z.object({
   id: idSchema,
   interpreterId: z.coerce.number().int().positive().optional(),
 });
 
-function productionProfilePath(interpreterId?: number | null) {
-  return interpreterId ? `/interpreters/${interpreterId}` : "/interpreters/[id]";
-}
 
 export async function editRecord(input: unknown): Promise<AdminActionResult> {
   const auth = await validateAction("admin");
@@ -63,9 +61,8 @@ export async function editRecord(input: unknown): Promise<AdminActionResult> {
     });
 
     revalidatePath("/admin/production");
-    revalidatePath("/production");
-    revalidatePath(productionProfilePath(existing.interpreterId));
-    revalidatePath(productionProfilePath(updated.interpreterId));
+    revalidateInterpreterProfileRecords(existing.interpreterId);
+    revalidateInterpreterProfileRecords(updated.interpreterId);
 
     return { success: true, message: "Registro actualizado correctamente." };
   } catch (error) {
@@ -93,8 +90,7 @@ export async function deleteRecord(input: unknown): Promise<AdminActionResult> {
     await prisma.productionLog.delete({ where: { id: data.id } });
 
     revalidatePath("/admin/production");
-    revalidatePath("/production");
-    revalidatePath(productionProfilePath(data.interpreterId ?? existing.interpreterId));
+    revalidateInterpreterProfileRecords(data.interpreterId ?? existing.interpreterId);
 
     return { success: true, message: "Registro eliminado correctamente." };
   } catch (error) {

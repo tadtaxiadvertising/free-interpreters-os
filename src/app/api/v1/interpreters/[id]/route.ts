@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 
 export async function DELETE(
   request: Request,
@@ -39,6 +40,7 @@ export async function DELETE(
       where: { id: interpreterId },
     });
 
+    revalidateInterpreterProfileRecords(interpreterId);
     return NextResponse.json({ success: true });
 
   } catch (error) {
@@ -83,6 +85,7 @@ export async function PATCH(
       data: updateData,
     });
 
+    revalidateInterpreterProfileRecords(interpreterId);
     return NextResponse.json(updated);
   } catch (error) {
     console.error('Error updating interpreter:', error);

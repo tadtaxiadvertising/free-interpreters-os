@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { getCurrentProfile } from '@/app/actions/auth';
 import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { getMonthBounds, sumEffectiveLogMinutes } from '@/lib/interpreter-metrics';
 
 export const dynamic = "force-dynamic";
 
@@ -33,28 +34,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let ranking = null;
   if (profile?.interpreter_id) {
     try {
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-      const endOfMonth = new Date();
-      endOfMonth.setMonth(endOfMonth.getMonth() + 1, 0);
+      const { startOfMonth, endOfMonth } = getMonthBounds();
 
       // Get all interpreters' monthly minutes and latest QA for ranking
       const allInterpreters = await db.interpreter.findMany({
         select: {
           id: true,
-          callSessions: {
-            where: {
-              startedAt: { gte: startOfMonth, lte: endOfMonth },
-              endedAt: { not: null },
-            },
-            select: { durationSeconds: true },
-          },
           productionLogs: {
             where: {
               date: { gte: startOfMonth, lte: endOfMonth },
             },
-            select: { interpretedMinutes: true },
+            select: { interpretedMinutes: true, verifiedMinutes: true },
           },
           qaScores: {
             orderBy: { createdAt: 'desc' },
@@ -66,17 +56,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       // Calculate total minutes and get latest QA for each interpreter
       const rankings = allInterpreters.map((interp: any) => {
-        const sessionMin = Math.round(
-          (interp.callSessions || []).reduce((s: number, c: any) => s + (c.durationSeconds || 0), 0) / 60
-        );
-        const logMin = (interp.productionLogs || []).reduce(
-          (s: number, l: any) => s + (l.interpretedMinutes || 0), 0
-        );
+        const logMin = sumEffectiveLogMinutes(interp.productionLogs);
         const latestQa = interp.qaScores?.[0]?.totalScore ? Number(interp.qaScores[0].totalScore) : 0;
 
         return {
           id: interp.id,
-          totalMinutes: sessionMin + logMin,
+          totalMinutes: logMin,
           qaScore: latestQa
         };
       });

@@ -3,7 +3,7 @@
 import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
 import { validateAction } from '@/lib/auth/actions';
-import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 
 const db = prisma;
 
@@ -50,9 +50,7 @@ export async function updatePayrate(
       select: { id: true }
     });
 
-    revalidatePath('/admin');
-    revalidatePath('/admin/payrates');
-    revalidatePath('/payroll');
+    revalidateInterpreterProfileRecords(interpreterId);
     return { success: true, data: { oldRate, newRate } };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
