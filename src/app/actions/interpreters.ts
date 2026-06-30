@@ -9,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { Interpreter, Prisma } from '@prisma/client';
 import { validateAction } from '@/lib/auth/actions';
 import { UpdateInterpreterStatusSchema } from '@/lib/validators/interpreters';
+import { deleteInterpreterDatabaseRecords } from '@/lib/interpreters/delete-interpreter';
 
 const db = prisma;
 
@@ -98,7 +99,15 @@ export async function updateInterpreter(id: number, data: Partial<InterpreterInp
     const interpreter = await db.interpreter.update({
       where: { id },
       data: updateData,
-      select: { id: true, name: true }
+      select: { id: true, name: true, emailCorporativo: true }
+    });
+
+    await db.userProfile.updateMany({
+      where: { interpreterId: id },
+      data: {
+        displayName: interpreter.name,
+        ...(interpreter.emailCorporativo ? { email: interpreter.emailCorporativo } : {}),
+      },
     });
 
     revalidateInterpreterProfileRecords(id);
@@ -117,30 +126,13 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    await db.$transaction(async (tx) => {
-      // 1. Get interpreter and profile with minimal fields
-      const interpreter = await tx.interpreter.findUnique({
-        where: { id },
-        select: { 
-          id: true,
-          userProfile: { select: { id: true } } 
-        }
-      });
+    const { authUserId } = await db.$transaction((tx: any) => deleteInterpreterDatabaseRecords(tx, id));
 
-      if (!interpreter) throw new Error('Intérprete no encontrado');
-
-      // 2. Delete Supabase Auth user if linked
-      if (interpreter.userProfile) {
-        const supabaseAdmin = createAdminClient();
-        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(interpreter.userProfile.id);
-        if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
-        
-        await tx.userProfile.delete({ where: { id: interpreter.userProfile.id } });
-      }
-
-      // 3. Delete interpreter record
-      await tx.interpreter.delete({ where: { id } });
-    });
+    if (authUserId) {
+      const supabaseAdmin = createAdminClient();
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
+      if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
+    }
 
     revalidateInterpreterProfileRecords(id);
     return { success: true };
