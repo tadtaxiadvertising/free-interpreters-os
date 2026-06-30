@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { recalculateWithVerifiedMinutes } from '@/services/PayrollService';
+import { PayrollVerifySchema } from '@/lib/api-schemas';
+import { apiError, parseJsonBody } from '@/lib/api-responses';
 
 const db = prisma;
 
@@ -23,23 +25,10 @@ const db = prisma;
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { payrollRecordId, action, verifiedMinutes, status } = body;
-
-    // Validación base
-    if (!payrollRecordId || typeof payrollRecordId !== 'string') {
-      return NextResponse.json(
-        { error: 'payrollRecordId is required and must be a string' },
-        { status: 400 }
-      );
-    }
-
-    if (!action || !['verify', 'markPaid', 'updateStatus'].includes(action)) {
-      return NextResponse.json(
-        { error: 'action must be one of: verify, markPaid, updateStatus' },
-        { status: 400 }
-      );
-    }
+    const body = await parseJsonBody(request, PayrollVerifySchema);
+    const { payrollRecordId, action } = body;
+    const verifiedMinutes = action === 'verify' ? body.verifiedMinutes : undefined;
+    const status = action === 'updateStatus' ? body.status : undefined;
 
     // Verificar que el registro existe
     const existing = await db.payrollRecord.findUnique({
@@ -49,7 +38,7 @@ export async function POST(request: Request) {
 
     if (!existing) {
       return NextResponse.json(
-        { error: `PayrollRecord ${payrollRecordId} not found` },
+        { success: false, error: `PayrollRecord ${payrollRecordId} not found` },
         { status: 404 }
       );
     }
@@ -58,7 +47,7 @@ export async function POST(request: Request) {
     if (action === 'verify') {
       if (verifiedMinutes == null || typeof verifiedMinutes !== 'number' || verifiedMinutes < 0) {
         return NextResponse.json(
-          { error: 'verifiedMinutes must be a non-negative number' },
+          { success: false, error: 'verifiedMinutes must be a non-negative number' },
           { status: 400 }
         );
       }
@@ -120,7 +109,7 @@ export async function POST(request: Request) {
       const validStatuses = ['PENDING', 'APPROVED', 'PAID', 'REJECTED'];
       if (!status || !validStatuses.includes(status)) {
         return NextResponse.json(
-          { error: `status must be one of: ${validStatuses.join(', ')}` },
+          { success: false, error: `status must be one of: ${validStatuses.join(', ')}` },
           { status: 400 }
         );
       }
@@ -148,13 +137,9 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json({ error: 'Unhandled action' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Unhandled action' }, { status: 400 });
   } catch (error) {
     console.error('[POST /api/payroll/verify] Error:', error);
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return apiError({ error, fallback: 'Internal server error' });
   }
 }

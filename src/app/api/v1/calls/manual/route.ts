@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/actions';
-import prismaClient from '@/lib/prisma';
-const prisma = prismaClient;
+import prisma from '@/lib/prisma';
+import { ManualCallSchema } from '@/lib/api-schemas';
+import { apiError, parseJsonBody } from '@/lib/api-responses';
 
 export async function POST(req: Request) {
   try {
     const userData = await getCurrentUser();
     if (!userData || !userData.profile || !userData.profile.interpreterId) {
-      return NextResponse.json({ error: 'Unauthorized or no interpreter profile' }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized or no interpreter profile' }, { status: 401 });
     }
 
     const interpreter = await prisma.interpreter.findUnique({
@@ -15,15 +16,11 @@ export async function POST(req: Request) {
     });
 
     if (!interpreter) {
-      return NextResponse.json({ error: 'Interpreter profile not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Interpreter profile not found' }, { status: 404 });
     }
 
-    const { durationMinutes, seconds = 0 } = await req.json();
-    if ((!durationMinutes && durationMinutes !== 0) || isNaN(Number(durationMinutes))) {
-      return NextResponse.json({ error: 'Invalid duration' }, { status: 400 });
-    }
-
-    const totalSeconds = (Number(durationMinutes) * 60) + Number(seconds);
+    const { durationMinutes, seconds } = await parseJsonBody(req, ManualCallSchema);
+    const totalSeconds = Math.round((durationMinutes * 60) + seconds);
     const tariffSnapshot = Number(interpreter.tariffPerMinute);
     const callCost = (totalSeconds / 60) * tariffSnapshot;
 
@@ -40,9 +37,9 @@ export async function POST(req: Request) {
       }
     });
 
-    return NextResponse.json(callSession);
+    return NextResponse.json({ success: true, data: callSession });
   } catch (error) {
     console.error('Error creating manual call log:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return apiError({ error, fallback: 'Internal Server Error' });
   }
 }

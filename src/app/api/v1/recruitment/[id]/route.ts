@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { RecruitmentCandidateSchema } from '@/lib/validators';
+import { RecruitmentCandidatePatchSchema } from '@/lib/api-schemas';
+import { apiError, numericIdParamSchema, parseJsonBody } from '@/lib/api-responses';
 
 export async function OPTIONS() {
   return NextResponse.json({}, {
@@ -17,18 +18,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params;
-    const id = parseInt(resolvedParams.id, 10);
-    if (isNaN(id)) {
-      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-    }
+    const { id } = numericIdParamSchema.parse(await params);
 
     const candidate = await prisma.recruitmentCandidate.findUnique({
       where: { id },
     });
 
     if (!candidate) {
-      return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Candidate not found' }, { status: 404 });
     }
 
     return NextResponse.json(candidate, {
@@ -38,8 +35,7 @@ export async function GET(
     });
   } catch (error) {
     console.error('Error fetching candidate:', error);
-    const message = error instanceof Error ? error.message : 'Error fetching candidate';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: 'Error fetching candidate' });
   }
 }
 
@@ -48,26 +44,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params;
-    const id = parseInt(resolvedParams.id, 10);
-    if (isNaN(id)) {
-      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-    }
+    const { id } = numericIdParamSchema.parse(await params);
 
-    const body = await request.json();
-    
-    // Partial validation
-    const validationResult = RecruitmentCandidateSchema.partial().safeParse(body);
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: validationResult.error.issues },
-        { status: 400 }
-      );
-    }
+    const body = await parseJsonBody(request, RecruitmentCandidatePatchSchema);
 
     const updatedCandidate = await prisma.recruitmentCandidate.update({
       where: { id },
-      data: validationResult.data,
+      data: body,
     });
 
     return NextResponse.json(updatedCandidate, {
@@ -79,10 +62,9 @@ export async function PATCH(
     console.error('Error updating candidate:', error);
     const isPrismaError = error && typeof error === 'object' && 'code' in error;
     if (isPrismaError && error.code === 'P2025') {
-      return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Candidate not found' }, { status: 404 });
     }
-    const message = error instanceof Error ? error.message : 'Error updating candidate';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: 'Error updating candidate' });
   }
 }
 
@@ -91,11 +73,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params;
-    const id = parseInt(resolvedParams.id, 10);
-    if (isNaN(id)) {
-      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-    }
+    const { id } = numericIdParamSchema.parse(await params);
 
     await prisma.recruitmentCandidate.delete({
       where: { id },
@@ -110,9 +88,8 @@ export async function DELETE(
     console.error('Error deleting candidate:', error);
     const isPrismaError = error && typeof error === 'object' && 'code' in error;
     if (isPrismaError && error.code === 'P2025') {
-      return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Candidate not found' }, { status: 404 });
     }
-    const message = error instanceof Error ? error.message : 'Error deleting candidate';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: 'Error deleting candidate' });
   }
 }

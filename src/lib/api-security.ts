@@ -44,16 +44,17 @@ export function withSecurity(
 
       if (error instanceof z.ZodError) {
         return NextResponse.json({ 
+          success: false,
           error: 'Bad Request: Validation failed', 
           details: error.issues 
         }, { status: 400 });
       }
 
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        return NextResponse.json({ error: 'Database conflict or constraint violation' }, { status: 409 });
+        return NextResponse.json({ success: false, error: 'Database conflict or constraint violation' }, { status: 409 });
       }
 
-      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
     }
   };
 }

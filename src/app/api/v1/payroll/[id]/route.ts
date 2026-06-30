@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { PayrollRecordSchema } from '@/lib/validators';
+import { PayrollRecordPatchSchema } from '@/lib/api-schemas';
+import { apiError, parseJsonBody, stringIdParamSchema } from '@/lib/api-responses';
 
 export async function OPTIONS() {
   return NextResponse.json({}, {
@@ -17,10 +18,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    if (!id) {
-      return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
-    }
+    const { id } = stringIdParamSchema.parse(await params);
 
     const record = await prisma.payrollRecord.findUnique({
       where: { id },
@@ -28,7 +26,7 @@ export async function GET(
     });
 
     if (!record) {
-      return NextResponse.json({ error: 'Payroll record not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Payroll record not found' }, { status: 404 });
     }
 
     return NextResponse.json(record, {
@@ -38,8 +36,7 @@ export async function GET(
     });
   } catch (error) {
     console.error('Error fetching payroll record:', error);
-    const message = error instanceof Error ? error.message : 'Error fetching payroll record';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: 'Error fetching payroll record' });
   }
 }
 
@@ -48,25 +45,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    if (!id) {
-      return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
-    }
+    const { id } = stringIdParamSchema.parse(await params);
 
-    const body = await request.json();
-    
-    // Partial validation
-    const validationResult = PayrollRecordSchema.partial().safeParse(body);
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: validationResult.error.issues },
-        { status: 400 }
-      );
-    }
+    const body = await parseJsonBody(request, PayrollRecordPatchSchema);
 
     const updatedRecord = await prisma.payrollRecord.update({
       where: { id },
-      data: validationResult.data,
+      data: body,
     });
 
     return NextResponse.json(updatedRecord, {
@@ -78,10 +63,9 @@ export async function PATCH(
     console.error('Error updating payroll record:', error);
     const isPrismaError = error && typeof error === 'object' && 'code' in error;
     if (isPrismaError && error.code === 'P2025') {
-      return NextResponse.json({ error: 'Payroll record not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Payroll record not found' }, { status: 404 });
     }
-    const message = error instanceof Error ? error.message : 'Error updating payroll record';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: 'Error updating payroll record' });
   }
 }
 
@@ -90,10 +74,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    if (!id) {
-      return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
-    }
+    const { id } = stringIdParamSchema.parse(await params);
 
     await prisma.payrollRecord.delete({
       where: { id },
@@ -108,9 +89,8 @@ export async function DELETE(
     console.error('Error deleting payroll record:', error);
     const isPrismaError = error && typeof error === 'object' && 'code' in error;
     if (isPrismaError && error.code === 'P2025') {
-      return NextResponse.json({ error: 'Payroll record not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Payroll record not found' }, { status: 404 });
     }
-    const message = error instanceof Error ? error.message : 'Error deleting payroll record';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: 'Error deleting payroll record' });
   }
 }
