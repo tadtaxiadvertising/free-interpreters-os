@@ -126,10 +126,23 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
+    // 1. Try to initialize Supabase admin client first to catch configuration errors early
+    // without breaking the database transaction execution.
+    let supabaseAdmin = null;
+    try {
+      supabaseAdmin = createAdminClient();
+    } catch (adminError: unknown) {
+      console.warn(
+        '⚠️ Fallo al inicializar el cliente de Supabase Admin:',
+        adminError instanceof Error ? adminError.message : adminError
+      );
+    }
+
+    // 2. Perform DB deletion
     const { authUserId } = await db.$transaction((tx: any) => deleteInterpreterDatabaseRecords(tx, id));
 
-    if (authUserId) {
-      const supabaseAdmin = createAdminClient();
+    // 3. Delete Supabase Auth user if client is ready and user is linked
+    if (authUserId && supabaseAdmin) {
       const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
       if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
     }
@@ -138,6 +151,14 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
     return { success: true };
   } catch (error: unknown) {
     console.error('🔴 ERROR [deleteInterpreter]:', error);
+
+    // If the interpreter has already been deleted (e.g. from transaction desync in a previous run),
+    // return success: true because the end state (interpreter not in DB) is achieved.
+    const errorMsg = error instanceof Error ? error.message : '';
+    if (errorMsg === 'Intérprete no encontrado') {
+      return { success: true };
+    }
+
     return { success: false, error: 'Error al eliminar el intérprete', code: 'INTERNAL_ERROR' };
   }
 }

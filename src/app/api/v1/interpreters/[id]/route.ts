@@ -12,11 +12,22 @@ export async function DELETE(
   try {
     const { id: interpreterId } = numericIdParamSchema.parse(await params);
 
+    // Initialize Supabase admin client first, catching errors so missing environment
+    // variables or configuration issues do not crash the entire deletion action.
+    let supabaseAdmin = null;
+    try {
+      const { createAdminClient } = await import('@/lib/supabase/admin');
+      supabaseAdmin = createAdminClient();
+    } catch (adminError: unknown) {
+      console.warn(
+        '⚠️ Fallo al inicializar el cliente de Supabase Admin:',
+        adminError instanceof Error ? adminError.message : adminError
+      );
+    }
+
     const { authUserId } = await prisma.$transaction((tx: any) => deleteInterpreterDatabaseRecords(tx, interpreterId));
 
-    if (authUserId) {
-      const { createAdminClient } = await import('@/lib/supabase/admin');
-      const supabaseAdmin = createAdminClient();
+    if (authUserId && supabaseAdmin) {
       const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
       if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
     }
@@ -27,9 +38,12 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting interpreter:', error);
     const message = error instanceof Error ? error.message : 'Error deleting interpreter';
+    
+    // Resolve gracefully if the interpreter is already deleted (e.g. from transaction desync)
     if (message === 'Intérprete no encontrado') {
-      return NextResponse.json({ success: false, error: message }, { status: 404 });
+      return NextResponse.json({ success: true });
     }
+    
     return apiError({ error, fallback: 'Error deleting interpreter' });
   }
 }
