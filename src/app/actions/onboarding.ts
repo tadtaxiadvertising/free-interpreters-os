@@ -2,7 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
-import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 import { validateAction } from '@/lib/auth/actions';
 import { z } from 'zod';
 
@@ -25,6 +25,7 @@ export async function acceptTerms(): Promise<ActionResult> {
   try {
     const now = new Date();
     const isRbacUser = auth.user.id.startsWith('c');
+    let changedInterpreterId = auth.profile?.interpreterId ?? null;
 
     if (isRbacUser) {
       if (auth.profile?.interpreterId) {
@@ -34,6 +35,7 @@ export async function acceptTerms(): Promise<ActionResult> {
         if (interpreter) {
           const currentNotas = interpreter.notas || '';
           if (!currentNotas.includes('[TERMS_ACCEPTED]')) {
+            changedInterpreterId = interpreter.id;
             await db.interpreter.update({
               where: { id: interpreter.id },
               data: {
@@ -55,7 +57,7 @@ export async function acceptTerms(): Promise<ActionResult> {
       });
     }
 
-    revalidatePath('/dashboard');
+    revalidateInterpreterProfileRecords(changedInterpreterId);
     return { success: true };
   } catch (error) {
     console.error('[ONBOARDING] acceptTerms error:', error);
@@ -78,6 +80,7 @@ export async function saveBankingDetails(data: {
   try {
     const validated = BankingDetailsSchema.parse(data);
     const isRbacUser = auth.user.id.startsWith('c');
+    let changedInterpreterId = auth.profile?.interpreterId ?? null;
 
     if (isRbacUser) {
       if (auth.profile?.interpreterId) {
@@ -91,6 +94,7 @@ export async function saveBankingDetails(data: {
           },
           select: { id: true }
         });
+        changedInterpreterId = auth.profile.interpreterId;
       } else {
         return { success: false, error: 'No interpreter profile linked to this RBAC user', code: 'NOT_FOUND' };
       }
@@ -111,6 +115,7 @@ export async function saveBankingDetails(data: {
 
         // 2. Sync with Interpreter record if linked
         if (profile?.interpreterId) {
+          changedInterpreterId = profile.interpreterId;
           await tx.interpreter.update({
             where: { id: profile.interpreterId },
             data: {
@@ -125,7 +130,7 @@ export async function saveBankingDetails(data: {
       });
     }
 
-    revalidatePath('/dashboard');
+    revalidateInterpreterProfileRecords(changedInterpreterId);
     return { success: true };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -145,6 +150,7 @@ export async function completeOnboarding(): Promise<ActionResult> {
 
   try {
     const isRbacUser = auth.user.id.startsWith('c');
+    let changedInterpreterId = auth.profile?.interpreterId ?? null;
 
     if (isRbacUser) {
       if (auth.profile?.interpreterId) {
@@ -157,6 +163,7 @@ export async function completeOnboarding(): Promise<ActionResult> {
           },
           select: { id: true }
         });
+        changedInterpreterId = auth.profile.interpreterId;
       } else {
         return { success: false, error: 'No interpreter profile linked to this RBAC user', code: 'NOT_FOUND' };
       }
@@ -170,6 +177,7 @@ export async function completeOnboarding(): Promise<ActionResult> {
         });
 
         if (profile?.interpreterId) {
+          changedInterpreterId = profile.interpreterId;
           await tx.interpreter.update({
             where: { id: profile.interpreterId },
             data: {
@@ -183,7 +191,7 @@ export async function completeOnboarding(): Promise<ActionResult> {
       });
     }
 
-    revalidatePath('/dashboard');
+    revalidateInterpreterProfileRecords(changedInterpreterId);
     return { success: true };
   } catch (error) {
     console.error('[ONBOARDING] completeOnboarding error:', error);

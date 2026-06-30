@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 import prisma from '@/lib/prisma';
 import { InterpreterSchema, InterpreterInput } from '@/lib/validators';
 import { ActionResult } from '@/lib/types';
@@ -69,8 +70,7 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
       return { id: interpreter.id, name: interpreter.name };
     });
 
-    revalidatePath('/interpreters');
-    revalidatePath('/admin');
+    revalidateInterpreterProfileRecords(result.id);
     return { success: true, data: result };
   } catch (error: unknown) {
     console.error('🔴 ERROR [createInterpreter]:', error);
@@ -101,8 +101,7 @@ export async function updateInterpreter(id: number, data: Partial<InterpreterInp
       select: { id: true, name: true }
     });
 
-    revalidatePath('/interpreters');
-    revalidatePath(`/interpreters/${id}`);
+    revalidateInterpreterProfileRecords(id);
     return { success: true, data: interpreter };
   } catch (error: unknown) {
     console.error('🔴 ERROR [updateInterpreter]:', error);
@@ -143,8 +142,7 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
       await tx.interpreter.delete({ where: { id } });
     });
 
-    revalidatePath('/interpreters');
-    revalidatePath('/admin');
+    revalidateInterpreterProfileRecords(id);
     return { success: true };
   } catch (error: unknown) {
     console.error('🔴 ERROR [deleteInterpreter]:', error);
@@ -244,6 +242,7 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
       if (authError) throw authError;
     }
 
+    revalidateInterpreterProfileRecords(id);
     return { success: true };
   } catch (error: unknown) {
     console.error('🔴 ERROR [resetInterpreterPassword]:', error);
@@ -270,8 +269,7 @@ export async function updateRealtimeStatus(id: number, status: 'Online' | 'Offli
       select: { id: true }
     });
 
-    revalidatePath('/interpreters');
-    revalidatePath('/dashboard');
+    revalidateInterpreterProfileRecords(id);
     return { success: true };
   } catch (error: unknown) {
     console.error('🔴 ERROR [updateRealtimeStatus]:', error);
@@ -296,6 +294,7 @@ export async function updateInterpreterStatusAction(data: unknown): Promise<{ su
     });
 
     revalidatePath('/admin/roster');
+    revalidateInterpreterProfileRecords(parsedData.id);
 
     const normalizedInterpreter = {
       id: updatedInterpreter.id,

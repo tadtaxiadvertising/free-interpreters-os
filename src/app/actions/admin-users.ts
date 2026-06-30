@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { UserRole } from '@/lib/types';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 
 const prisma = prismaClient;
 
@@ -36,12 +37,13 @@ export async function updateUserRole(userId: string, role: UserRole) {
     throw new Error('Unauthorized');
   }
 
-  await prisma.userProfile.update({
+  const updated = await prisma.userProfile.update({
     where: { id: userId },
-    data: { role }
+    data: { role },
+    select: { interpreterId: true }
   });
 
-  revalidatePath('/admin/users');
+  revalidateInterpreterProfileRecords(updated.interpreterId);
   return { success: true };
 }
 
@@ -51,12 +53,18 @@ export async function linkUserToInterpreter(userId: string, interpreterId: numbe
     throw new Error('Unauthorized');
   }
 
+  const previous = await prisma.userProfile.findUnique({
+    where: { id: userId },
+    select: { interpreterId: true }
+  });
+
   await prisma.userProfile.update({
     where: { id: userId },
     data: { interpreterId }
   });
 
-  revalidatePath('/admin/users');
+  revalidateInterpreterProfileRecords(previous?.interpreterId);
+  revalidateInterpreterProfileRecords(interpreterId);
   return { success: true };
 }
 
@@ -111,7 +119,7 @@ export async function updateUserProfile(userId: string, data: { displayName: str
       console.error('Supabase sync warning:', supabaseError);
     }
 
-    revalidatePath('/admin/users');
+    revalidateInterpreterProfileRecords(updated.interpreterId);
     return { success: true, profile: updated };
   } catch (error: any) {
     console.error('Update Profile Exception:', error);
@@ -127,8 +135,9 @@ export async function deleteUserAccess(userId: string) {
     }
 
     // De-link/Delete from local DB first to avoid dependency failures
-    await prisma.userProfile.delete({
-      where: { id: userId }
+    const deleted = await prisma.userProfile.delete({
+      where: { id: userId },
+      select: { interpreterId: true }
     });
 
     // Delete in Supabase Auth
@@ -139,7 +148,7 @@ export async function deleteUserAccess(userId: string) {
       console.error('Supabase delete account warning:', supabaseError);
     }
 
-    revalidatePath('/admin/users');
+    revalidateInterpreterProfileRecords(deleted.interpreterId);
     return { success: true };
   } catch (error: any) {
     console.error('Delete User Exception:', error);

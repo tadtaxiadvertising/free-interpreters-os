@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import { validateAction } from '@/lib/auth/actions';
 import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 
 import { z } from 'zod';
 import type { ActionResult } from '@/lib/types';
@@ -70,9 +71,8 @@ export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Pr
       }
     }
 
-    revalidatePath('/dashboard');
+    revalidateInterpreterProfileRecords(profile.interpreterId);
     revalidatePath('/dashboard/settings');
-    revalidatePath('/dashboard/earnings');
     
     return { success: true };
   } catch (error: unknown) {
