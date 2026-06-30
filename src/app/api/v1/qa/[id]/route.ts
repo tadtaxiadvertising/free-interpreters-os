@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { QAScorePatchSchema } from '@/lib/api-schemas';
-import { apiError, numericIdParamSchema, parseJsonBody } from '@/lib/api-responses';
+import { apiError, isPrismaKnownErrorCode, numericIdParamSchema, parseJsonBody } from '@/lib/api-responses';
 
 export async function OPTIONS() {
   return NextResponse.json({}, {
@@ -118,8 +118,7 @@ export async function DELETE(
     });
   } catch (error) {
     console.error('Error deleting scorecard:', error);
-    const isPrismaError = error && typeof error === 'object' && 'code' in error;
-    if (isPrismaError && error.code === 'P2025') {
+    if (isPrismaKnownErrorCode(error, 'P2025')) {
       return NextResponse.json({ success: false, error: 'Scorecard not found' }, { status: 404 });
     }
     return apiError({ error, fallback: 'Error deleting scorecard' });

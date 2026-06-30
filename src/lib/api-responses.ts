@@ -29,6 +29,16 @@ export async function parseJsonBody<TSchema extends z.ZodTypeAny>(request: Reque
   return schema.parse(body);
 }
 
+
+export function isPrismaKnownErrorCode(error: unknown, code: string) {
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: unknown }).code === code
+  );
+}
+
 export const numericIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 });

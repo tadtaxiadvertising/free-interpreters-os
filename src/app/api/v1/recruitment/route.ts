@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { RecruitmentCandidateSchema } from '@/lib/validators';
-import { apiError, parseJsonBody } from '@/lib/api-responses';
+import { apiError, isPrismaKnownErrorCode, parseJsonBody } from '@/lib/api-responses';
 
 export async function OPTIONS() {
   return NextResponse.json({}, {
@@ -62,8 +62,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('Error creating candidate:', error);
-    const isPrismaError = error && typeof error === 'object' && 'code' in error;
-    if (isPrismaError && error.code === 'P2002') {
+    if (isPrismaKnownErrorCode(error, 'P2002')) {
       return NextResponse.json(
         { success: false, error: 'Candidate with this email already exists.' },
         { status: 409 }
