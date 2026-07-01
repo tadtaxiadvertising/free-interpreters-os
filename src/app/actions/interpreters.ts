@@ -24,6 +24,16 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
     const validated = InterpreterSchema.parse(data);
     const { password, ...interpreterData } = validated;
 
+    // Validar configuración de Supabase si se proporciona password
+    let supabaseAdmin = null;
+    if (password) {
+      try {
+        supabaseAdmin = createAdminClient();
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Error de configuración de Supabase', code: 'INTERNAL_ERROR' };
+      }
+    }
+
     const result = await db.$transaction(async (tx) => {
       // 1. Create interpreter record
       const interpreter = await tx.interpreter.create({
@@ -32,12 +42,11 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
       });
 
       // 2. If password provided, create Auth user and UserProfile
-      if (password) {
+      if (password && supabaseAdmin) {
         if (!interpreter.emailCorporativo) {
           throw new Error('Email corporativo is required for account creation');
         }
 
-        const supabaseAdmin = createAdminClient();
         const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email: interpreter.emailCorporativo,
           password: password,
@@ -126,16 +135,16 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    // 1. Try to initialize Supabase admin client first to catch configuration errors early
-    // without breaking the database transaction execution.
+    // 1. Validar cliente de Supabase Admin
     let supabaseAdmin = null;
     try {
       supabaseAdmin = createAdminClient();
     } catch (adminError: unknown) {
-      console.warn(
-        '⚠️ Fallo al inicializar el cliente de Supabase Admin:',
-        adminError instanceof Error ? adminError.message : adminError
-      );
+      return { 
+        success: false, 
+        error: adminError instanceof Error ? adminError.message : 'Falta configuración de Supabase Admin (SUPABASE_SERVICE_ROLE_KEY).', 
+        code: 'INTERNAL_ERROR' 
+      };
     }
 
     // 2. Perform DB deletion
@@ -152,14 +161,12 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
   } catch (error: unknown) {
     console.error('🔴 ERROR [deleteInterpreter]:', error);
 
-    // If the interpreter has already been deleted (e.g. from transaction desync in a previous run),
-    // return success: true because the end state (interpreter not in DB) is achieved.
-    const errorMsg = error instanceof Error ? error.message : '';
+    const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
     if (errorMsg === 'Intérprete no encontrado') {
-      return { success: true };
+      return { success: false, error: 'El intérprete no se encuentra o ya fue eliminado.', code: 'NOT_FOUND' };
     }
 
-    return { success: false, error: 'Error al eliminar el intérprete', code: 'INTERNAL_ERROR' };
+    return { success: false, error: errorMsg || 'Error al eliminar el intérprete', code: 'INTERNAL_ERROR' };
   }
 }
 

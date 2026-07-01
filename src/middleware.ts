@@ -99,10 +99,28 @@ export async function middleware(req: NextRequest) {
       const { updateSession } = await import('@/lib/supabase/middleware');
       response = await updateSession(req);
     } catch (err) {
-      console.warn(
-        '[MIDDLEWARE] Supabase session refresh failed, passing through:',
-        err instanceof Error ? err.message : err
-      );
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.warn('[MIDDLEWARE] Supabase session refresh failed:', errorMsg);
+      
+      // Capturar excepciones relacionadas con tokens inválidos
+      if (errorMsg.includes('Invalid Refresh Token') || errorMsg.includes('AuthApiError')) {
+        const loginUrl = req.nextUrl.clone();
+        loginUrl.pathname = '/login';
+        const redirectResponse = NextResponse.redirect(loginUrl);
+        
+        // Limpiar las cookies obsoletas
+        redirectResponse.cookies.delete('sb-access-token');
+        redirectResponse.cookies.delete('sb-refresh-token');
+        const allCookies = req.cookies.getAll();
+        allCookies.forEach(cookie => {
+          if (cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')) {
+            redirectResponse.cookies.delete(cookie.name);
+          }
+        });
+        
+        return redirectResponse;
+      }
+
       response = NextResponse.next({ request: req });
     }
   } else {

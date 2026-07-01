@@ -38,14 +38,20 @@ export async function updateSession(request: NextRequest) {
   let user = null;
   try {
     const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      if (userError.message.includes('Invalid Refresh Token') || userError.name === 'AuthApiError') {
+        throw userError;
+      }
+    }
     if (!userError) {
       user = currentUser;
     }
-  } catch {
-    // Suppress logs for auth errors
+  } catch (error: any) {
+    if (error.message?.includes('Invalid Refresh Token') || error.name === 'AuthApiError') {
+      throw error;
+    }
+    // Suppress logs for other auth errors
   }
-
-
   const { pathname } = request.nextUrl;
 
   // 2. Public paths that don't require Supabase auth
