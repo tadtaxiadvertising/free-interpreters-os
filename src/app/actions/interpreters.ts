@@ -284,14 +284,6 @@ export async function updateRealtimeStatus(id: number, status: 'Online' | 'Offli
 
     revalidateInterpreterProfileRecords(id);
     return { success: true };
-  } catch (error: unknown) {
-    console.error('🔴 ERROR [updateRealtimeStatus]:', error);
-    return { success: false, error: 'Error al actualizar estado en tiempo real', code: 'INTERNAL_ERROR' };
-  }
-}
-
-
-
 
 export async function updateInterpreterStatusAction(data: unknown): Promise<{ success: boolean; data?: { id: number; status: string }; error?: string }> {
   const auth = await validateAction('admin');
@@ -307,6 +299,7 @@ export async function updateInterpreterStatusAction(data: unknown): Promise<{ su
     });
 
     revalidatePath('/admin/roster');
+    revalidatePath('/interpreters');
     revalidateInterpreterProfileRecords(parsedData.id);
 
     const normalizedInterpreter = {

@@ -28,6 +28,8 @@ if (typeof window === 'undefined' && typeof (globalThis as any).EdgeRuntime === 
   }
 }
 
+let _serviceKeyWarningLogged = false;
+
 export function getSupabaseServiceRoleKey() {
   const value1 = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (value1) return value1;
@@ -35,9 +37,19 @@ export function getSupabaseServiceRoleKey() {
   const value2 = process.env.SUPABASE_SERVICE_KEY?.trim();
   if (value2) return value2;
 
-  // Let's also check globalThis just in case it's in a weird context
+  // Also check globalThis just in case it's in a weird context
   if (typeof globalThis !== 'undefined' && (globalThis as any).process?.env?.SUPABASE_SERVICE_ROLE_KEY) {
      return (globalThis as any).process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
+  }
+
+  // Log once per process so we can diagnose auth failures in Easypanel
+  if (!_serviceKeyWarningLogged) {
+    _serviceKeyWarningLogged = true;
+    console.warn(
+      '⚠️ [SUPABASE_ADMIN] SUPABASE_SERVICE_ROLE_KEY is not set. ' +
+      'Admin operations (email confirm, user provisioning) will be unavailable. ' +
+      'Set this env var in Easypanel runtime config.'
+    );
   }
 
   return '';

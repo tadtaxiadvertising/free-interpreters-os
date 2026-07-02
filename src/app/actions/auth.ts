@@ -12,7 +12,7 @@ import { z } from 'zod';
 const prisma = prismaClient;
 
 const AuthSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform(val => val.toLowerCase().trim()),
   password: z.string().min(6),
   role: z.enum(['admin', 'interpreter']).default('interpreter'),
 });
@@ -143,7 +143,10 @@ export async function login(formData: FormData) {
     if (error) {
       console.error(`🔴 [AUTH_LOGIN] Failed for ${email}:`, error.message);
 
-      if (isEmailNotConfirmedError(error)) {
+      // Always attempt admin API repair when the service key is available.
+      // "Invalid login credentials" can ALSO indicate an unconfirmed email
+      // in certain Supabase configurations — not just "Email not confirmed".
+      if (getSupabaseServiceRoleKey()) {
         try {
           const repairedLogin = await retryAfterConfirmingAuthEmail({
             supabase,
@@ -152,9 +155,12 @@ export async function login(formData: FormData) {
             requestedRole,
           });
 
-          if (repairedLogin) return repairedLogin;
+          // Only short-circuit on success — on failure, fall through to
+          // the local rbac_users fallback so we don't block users who
+          // have a valid password in the local table.
+          if (repairedLogin?.success) return repairedLogin;
         } catch (repairError) {
-          console.error(`🔴 [AUTH_LOGIN] Email confirmation repair failed for ${email}:`, repairError);
+          console.error(`🔴 [AUTH_LOGIN] Admin API repair failed for ${email}:`, repairError);
         }
       }
 
@@ -196,7 +202,10 @@ export async function login(formData: FormData) {
           };
         }
 
-        const retry = await supabase.auth.signInWithPassword(validated);
+        const retry = await supabase.auth.signInWithPassword({
+          email: validated.email,
+          password: validated.password,
+        });
         if (retry.error || !retry.data.user) {
           return { success: false, error: retry.error?.message || 'Credenciales inválidas o error de autenticación.' };
         }
@@ -236,7 +245,6 @@ export async function login(formData: FormData) {
       return { success: false, error: 'Email o contraseña inválidos.' };
     }
 
-    // Degradación Elegante: Controlamos el error de falta de variables sin crashear
     if (isSupabaseConfigError(err)) {
       console.warn('⚠️ [AUTH_LOGIN] Configuración de Supabase omitida.');
       return {
@@ -245,7 +253,6 @@ export async function login(formData: FormData) {
       };
     }
 
-    // Atrapamos cualquier otro error interno real
     console.error('🔴 [AUTH_LOGIN] Unexpected error:', err);
     return { success: false, error: 'Error interno del sistema.' };
   }
@@ -258,45 +265,89 @@ export async function register(formData: FormData) {
   const email = ((formData.get('email') as string) || '').toLowerCase().trim();
   const password = (formData.get('password') as string) || '';
   const name = (formData.get('name') as string) || email.split('@')[0];
-  const role = (formData.get('role') as string) || 'interpreter';
+  const role = ((formData.get('role') as string) || 'interpreter').toLowerCase() as UserRole;
 
   try {
-    const validated = AuthSchema.parse({ email, password });
+    const validated = AuthSchema.parse({ email, password, role });
     const supabase = await createClient();
+    let userId: string;
 
-    const { data, error } = await supabase.auth.signUp({
-      email: validated.email,
-      password: validated.password,
-      options: { data: { display_name: name } },
-    });
+    const serviceKey = getSupabaseServiceRoleKey();
+    if (serviceKey) {
+      try {
+        const authUser = await upsertConfirmedAuthUser({
+          email: validated.email,
+          password: validated.password,
+          displayName: name,
+        });
 
-    if (error) return { success: false, error: error.message };
-    if (!data.user) return { success: false, error: 'No se pudo crear el usuario.' };
+        if (!authUser) {
+          return { success: false, error: 'No se pudo crear la cuenta.' };
+        }
+        userId = authUser.id;
 
-    // Sync Profile via Prisma
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: validated.email,
+          password: validated.password,
+        });
+        if (signInError) {
+          console.warn(`⚠️ [AUTH_REGISTER] Auto sign-in after create failed for ${validated.email}:`, signInError.message);
+        }
+      } catch (adminError) {
+        console.error(`🔴 [AUTH_REGISTER] Admin API create failed for ${validated.email}:`, adminError);
+        return { success: false, error: 'Error al crear la cuenta. Intente nuevamente.' };
+      }
+    } else {
+      const { data, error } = await supabase.auth.signUp({
+        email: validated.email,
+        password: validated.password,
+        options: { data: { display_name: name } },
+      });
+
+      if (error) return { success: false, error: error.message };
+      if (!data.user) return { success: false, error: 'No se pudo crear el usuario.' };
+      userId = data.user.id;
+    }
+
     const interpreter = await prisma.interpreter.findUnique({
-      where: { emailCorporativo: email },
+      where: { emailCorporativo: validated.email },
       select: { id: true },
     });
 
     await prisma.userProfile.upsert({
-      where: { id: data.user.id },
+      where: { id: userId },
       update: {
-        email,
+        email: validated.email,
         displayName: name,
-        role,
+        role: validated.role,
         interpreterId: interpreter?.id ?? null,
       },
       create: {
-        id: data.user.id,
-        email,
+        id: userId,
+        email: validated.email,
         displayName: name,
-        role,
+        role: validated.role,
         interpreterId: interpreter?.id ?? null,
       },
     });
 
-    return { success: true, role };
+    try {
+      const hashedPassword = await bcrypt.hash(validated.password, 10);
+      await (prisma as any).rbacUser.upsert({
+        where: { email: validated.email },
+        update: { password: hashedPassword, name },
+        create: {
+          email: validated.email,
+          password: hashedPassword,
+          name,
+          role: validated.role.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'INTERPRETER',
+        },
+      });
+    } catch (rbacSyncErr) {
+      console.warn(`⚠️ [AUTH_REGISTER] rbac_users sync skipped for ${validated.email}:`, rbacSyncErr);
+    }
+
+    return { success: true, role: validated.role };
   } catch (err: unknown) {
     if (err instanceof z.ZodError) return { success: false, error: 'Datos de registro inválidos.' };
 
