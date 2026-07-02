@@ -90,6 +90,7 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <input type="hidden" name="role" value={role} />
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-400 mb-2">
                 Email Address
