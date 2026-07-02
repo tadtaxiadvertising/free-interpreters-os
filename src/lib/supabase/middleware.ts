@@ -1,7 +1,43 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-export async function updateSession(request: NextRequest) {
+type UpdateSessionResult = {
+  response: NextResponse;
+  hasValidSession: boolean;
+};
+
+function isInvalidRefreshTokenError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const maybeError = error as {
+    message?: string;
+    code?: string;
+    name?: string;
+    status?: number;
+  };
+
+  return (
+    maybeError.code === 'refresh_token_not_found' ||
+    maybeError.message?.includes('Invalid Refresh Token') ||
+    maybeError.message?.includes('Refresh Token Not Found') ||
+    (maybeError.name === 'AuthApiError' && maybeError.status === 400)
+  );
+}
+
+function clearSupabaseCookies(response: NextResponse, request: NextRequest) {
+  response.cookies.delete('sb-access-token');
+  response.cookies.delete('sb-refresh-token');
+
+  request.cookies.getAll().forEach((cookie) => {
+    if (cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')) {
+      response.cookies.delete(cookie.name);
+    }
+  });
+}
+
+export async function updateSession(request: NextRequest): Promise<UpdateSessionResult> {
   // Guard: if Supabase env vars are missing, let the request pass through
   // instead of crashing the entire server with a 502.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -9,7 +45,7 @@ export async function updateSession(request: NextRequest) {
       '⚠️ MIDDLEWARE: Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
       'Auth middleware is disabled. Set these as runtime env vars in Easypanel.'
     );
-    return NextResponse.next({ request });
+    return { response: NextResponse.next({ request }), hasValidSession: false };
   }
   let supabaseResponse = NextResponse.next({ request });
 
@@ -39,20 +75,21 @@ export async function updateSession(request: NextRequest) {
   try {
     const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
     if (userError) {
-      if (userError.message.includes('Invalid Refresh Token') || userError.name === 'AuthApiError') {
-        throw userError;
+      if (isInvalidRefreshTokenError(userError)) {
+        clearSupabaseCookies(supabaseResponse, request);
       }
-    }
-    if (!userError) {
+    } else {
       user = currentUser;
     }
   } catch (error: any) {
-    if (error.message?.includes('Invalid Refresh Token') || error.name === 'AuthApiError') {
-      throw error;
+    if (isInvalidRefreshTokenError(error)) {
+      clearSupabaseCookies(supabaseResponse, request);
+    } else {
+      console.warn('🔴 [MIDDLEWARE] Unexpected Supabase auth error:', error);
     }
-    // Suppress logs for other auth errors
   }
   const { pathname } = request.nextUrl;
+  const hasValidSession = !!user;
 
   // 2. Public paths that don't require Supabase auth
   const publicPaths = [
@@ -71,7 +108,10 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    return NextResponse.redirect(url);
+    return {
+      response: NextResponse.redirect(url),
+      hasValidSession: false,
+    };
   }
 
   // 4. Fetch profile and role ONCE if authenticated
@@ -114,7 +154,10 @@ export async function updateSession(request: NextRequest) {
   if (user && pathname === '/login') {
     const url = request.nextUrl.clone();
     url.pathname = role === 'admin' ? '/admin' : '/dashboard';
-    return NextResponse.redirect(url);
+    return {
+      response: NextResponse.redirect(url),
+      hasValidSession: true,
+    };
   }
 
   // 6. Role-based route protection
@@ -122,13 +165,19 @@ export async function updateSession(request: NextRequest) {
     if (pathname.startsWith('/admin') && role !== 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/dashboard';
-      return NextResponse.redirect(url);
+      return {
+        response: NextResponse.redirect(url),
+        hasValidSession: true,
+      };
     }
 
     if (pathname.startsWith('/dashboard') && role === 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/admin';
-      return NextResponse.redirect(url);
+      return {
+        response: NextResponse.redirect(url),
+        hasValidSession: true,
+      };
     }
   }
 
@@ -136,8 +185,14 @@ export async function updateSession(request: NextRequest) {
   if (user && pathname === '/') {
     const url = request.nextUrl.clone();
     url.pathname = role === 'admin' ? '/admin' : '/dashboard';
-    return NextResponse.redirect(url);
+    return {
+      response: NextResponse.redirect(url),
+      hasValidSession: true,
+    };
   }
 
-  return supabaseResponse;
+  return {
+    response: supabaseResponse,
+    hasValidSession,
+  };
 }

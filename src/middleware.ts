@@ -70,6 +70,7 @@ export async function middleware(req: NextRequest) {
   // protected by Supabase. This avoids repeated refresh-token errors for
   // NextAuth-only sessions (e.g. RBAC credentials login).
   let response: NextResponse;
+  let hasActiveSupabaseSession = false;
 
   const hasSupabaseCookie =
     req.cookies.has('sb-access-token') ||
@@ -90,31 +91,14 @@ export async function middleware(req: NextRequest) {
   if (HAS_SUPABASE_ENV && (hasSupabaseCookie || isSupabaseSecureRoute)) {
     try {
       const { updateSession } = await import('@/lib/supabase/middleware');
-      response = await updateSession(req);
+      const refreshResult = await updateSession(req);
+      response = refreshResult.response;
+      hasActiveSupabaseSession = refreshResult.hasValidSession;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.warn('[MIDDLEWARE] Supabase session refresh failed:', errorMsg);
-      
-      // Capturar excepciones relacionadas con tokens inválidos
-      if (errorMsg.includes('Invalid Refresh Token') || errorMsg.includes('AuthApiError')) {
-        const loginUrl = req.nextUrl.clone();
-        loginUrl.pathname = '/login';
-        const redirectResponse = NextResponse.redirect(loginUrl);
-        
-        // Limpiar las cookies obsoletas
-        redirectResponse.cookies.delete('sb-access-token');
-        redirectResponse.cookies.delete('sb-refresh-token');
-        const allCookies = req.cookies.getAll();
-        allCookies.forEach(cookie => {
-          if (cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')) {
-            redirectResponse.cookies.delete(cookie.name);
-          }
-        });
-        
-        return redirectResponse;
-      }
-
       response = NextResponse.next({ request: req });
+      hasActiveSupabaseSession = hasSupabaseCookie;
     }
   } else {
     response = NextResponse.next({ request: req });
@@ -123,7 +107,7 @@ export async function middleware(req: NextRequest) {
   // ── 3. SUPABASE AUTH PROTECTION ───────────────────────────
   // Dashboard/Admin/Payroll/QA routes require a Supabase session.
   if (isSupabaseSecureRoute) {
-    if (!hasSupabaseCookie) {
+    if (!hasActiveSupabaseSession) {
       const loginUrl = req.nextUrl.clone();
       loginUrl.pathname = '/login';
       return NextResponse.redirect(loginUrl);
