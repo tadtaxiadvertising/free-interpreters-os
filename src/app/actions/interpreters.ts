@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 import prisma from '@/lib/prisma';
 import { InterpreterSchema, InterpreterInput } from '@/lib/validators';
 import { ActionResult } from '@/lib/types';
@@ -8,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { Interpreter, Prisma } from '@prisma/client';
 import { validateAction } from '@/lib/auth/actions';
 import { UpdateInterpreterStatusSchema } from '@/lib/validators/interpreters';
+import { deleteInterpreterDatabaseRecords } from '@/lib/interpreters/delete-interpreter';
 
 const db = prisma;
 
@@ -22,6 +24,16 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
     const validated = InterpreterSchema.parse(data);
     const { password, ...interpreterData } = validated;
 
+    // Validar configuración de Supabase si se proporciona password
+    let supabaseAdmin = null;
+    if (password) {
+      try {
+        supabaseAdmin = createAdminClient();
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Error de configuración de Supabase', code: 'INTERNAL_ERROR' };
+      }
+    }
+
     const result = await db.$transaction(async (tx) => {
       // 1. Create interpreter record
       const interpreter = await tx.interpreter.create({
@@ -30,12 +42,11 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
       });
 
       // 2. If password provided, create Auth user and UserProfile
-      if (password) {
+      if (password && supabaseAdmin) {
         if (!interpreter.emailCorporativo) {
           throw new Error('Email corporativo is required for account creation');
         }
 
-        const supabaseAdmin = createAdminClient();
         const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email: interpreter.emailCorporativo,
           password: password,
@@ -69,8 +80,7 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
       return { id: interpreter.id, name: interpreter.name };
     });
 
-    revalidatePath('/interpreters');
-    revalidatePath('/admin');
+    revalidateInterpreterProfileRecords(result.id);
     return { success: true, data: result };
   } catch (error: unknown) {
     console.error('🔴 ERROR [createInterpreter]:', error);
@@ -93,15 +103,23 @@ export async function updateInterpreter(id: number, data: Partial<InterpreterInp
 
   try {
     const validated = InterpreterSchema.partial().parse(data);
+    const { password, ...updateData } = validated;
 
     const interpreter = await db.interpreter.update({
       where: { id },
-      data: validated,
-      select: { id: true, name: true }
+      data: updateData,
+      select: { id: true, name: true, emailCorporativo: true }
     });
 
-    revalidatePath('/interpreters');
-    revalidatePath(`/interpreters/${id}`);
+    await db.userProfile.updateMany({
+      where: { interpreterId: id },
+      data: {
+        displayName: interpreter.name,
+        ...(interpreter.emailCorporativo ? { email: interpreter.emailCorporativo } : {}),
+      },
+    });
+
+    revalidateInterpreterProfileRecords(id);
     return { success: true, data: interpreter };
   } catch (error: unknown) {
     console.error('🔴 ERROR [updateInterpreter]:', error);
@@ -117,37 +135,38 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    await db.$transaction(async (tx) => {
-      // 1. Get interpreter and profile with minimal fields
-      const interpreter = await tx.interpreter.findUnique({
-        where: { id },
-        select: { 
-          id: true,
-          userProfile: { select: { id: true } } 
-        }
-      });
+    // 1. Validar cliente de Supabase Admin
+    let supabaseAdmin = null;
+    try {
+      supabaseAdmin = createAdminClient();
+    } catch (adminError: unknown) {
+      return { 
+        success: false, 
+        error: adminError instanceof Error ? adminError.message : 'Falta configuración de Supabase Admin (SUPABASE_SERVICE_ROLE_KEY).', 
+        code: 'INTERNAL_ERROR' 
+      };
+    }
 
-      if (!interpreter) throw new Error('Intérprete no encontrado');
+    // 2. Perform DB deletion
+    const { authUserId } = await db.$transaction((tx: any) => deleteInterpreterDatabaseRecords(tx, id));
 
-      // 2. Delete Supabase Auth user if linked
-      if (interpreter.userProfile) {
-        const supabaseAdmin = createAdminClient();
-        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(interpreter.userProfile.id);
-        if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
-        
-        await tx.userProfile.delete({ where: { id: interpreter.userProfile.id } });
-      }
+    // 3. Delete Supabase Auth user if client is ready and user is linked
+    if (authUserId && supabaseAdmin) {
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
+      if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
+    }
 
-      // 3. Delete interpreter record
-      await tx.interpreter.delete({ where: { id } });
-    });
-
-    revalidatePath('/interpreters');
-    revalidatePath('/admin');
+    revalidateInterpreterProfileRecords(id);
     return { success: true };
   } catch (error: unknown) {
     console.error('🔴 ERROR [deleteInterpreter]:', error);
-    return { success: false, error: 'Error al eliminar el intérprete', code: 'INTERNAL_ERROR' };
+
+    const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+    if (errorMsg === 'Intérprete no encontrado') {
+      return { success: false, error: 'El intérprete no se encuentra o ya fue eliminado.', code: 'NOT_FOUND' };
+    }
+
+    return { success: false, error: errorMsg || 'Error al eliminar el intérprete', code: 'INTERNAL_ERROR' };
   }
 }
 
@@ -243,6 +262,7 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
       if (authError) throw authError;
     }
 
+    revalidateInterpreterProfileRecords(id);
     return { success: true };
   } catch (error: unknown) {
     console.error('🔴 ERROR [resetInterpreterPassword]:', error);
@@ -269,8 +289,7 @@ export async function updateRealtimeStatus(id: number, status: 'Online' | 'Offli
       select: { id: true }
     });
 
-    revalidatePath('/interpreters');
-    revalidatePath('/dashboard');
+    revalidateInterpreterProfileRecords(id);
     return { success: true };
   } catch (error: unknown) {
     console.error('🔴 ERROR [updateRealtimeStatus]:', error);
@@ -286,7 +305,7 @@ export async function updateInterpreterStatusAction(data: unknown): Promise<{ su
   if ('error' in auth) return { success: false, error: auth.error };
 
   try {
-    const parsedData = UpdateInterpreterStatusSchema.parse(data);
+    const parsedData = UpdateInterpreterStatusSchema.strict().parse(data);
 
     const updatedInterpreter = await db.interpreter.update({
       where: { id: parsedData.id },
@@ -295,8 +314,17 @@ export async function updateInterpreterStatusAction(data: unknown): Promise<{ su
     });
 
     revalidatePath('/admin/roster');
+    revalidateInterpreterProfileRecords(parsedData.id);
 
-    return { success: true, data: updatedInterpreter };
+    const normalizedInterpreter = {
+      id: updatedInterpreter.id,
+      status: updatedInterpreter.status ?? 'Activo',
+    };
+
+    return {
+      success: true,
+      data: normalizedInterpreter,
+    };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'No se pudo actualizar el estado del intérprete';
     return { success: false, error: message };

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { IncentiveConfigSchema } from '@/lib/api-schemas';
+import { apiError, parseJsonBody } from '@/lib/api-responses';
 
 const db = prisma;
 
@@ -45,11 +47,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error('[GET /api/config/incentives] Error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to fetch incentive config';
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return apiError({ error, fallback: 'Failed to fetch incentive config' });
   }
 }
 
@@ -68,36 +66,7 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { tiers } = body;
-
-    if (!Array.isArray(tiers) || tiers.length === 0) {
-      return NextResponse.json(
-        { error: 'tiers must be a non-empty array' },
-        { status: 400 }
-      );
-    }
-
-    // Validar cada tier
-    for (const tier of tiers) {
-      if (
-        tier.tierNumber == null ||
-        tier.hours == null ||
-        tier.bonus == null ||
-        typeof tier.tierNumber !== 'number' ||
-        typeof tier.hours !== 'number' ||
-        typeof tier.bonus !== 'number' ||
-        tier.hours < 0 ||
-        tier.bonus < 0
-      ) {
-        return NextResponse.json(
-          {
-            error: `Invalid tier data: each tier must have tierNumber (int), hours (number >= 0), bonus (number >= 0). Got: ${JSON.stringify(tier)}`,
-          },
-          { status: 400 }
-        );
-      }
-    }
+    const { tiers } = await parseJsonBody(request, IncentiveConfigSchema);
 
     // Upsert cada par hours/bonus en SystemConfig
     const results = [];
@@ -144,10 +113,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('[POST /api/config/incentives] Error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to save incentive config';
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return apiError({ error, fallback: 'Failed to save incentive config' });
   }
 }

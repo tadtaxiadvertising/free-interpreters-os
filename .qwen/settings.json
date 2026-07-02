@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Agent(Explore)",
+      "Bash(mkdir *)",
+      "Bash(npx *)",
+      "Bash(gh *)",
+      "computer_use__page",
+      "Bash(winget *)",
+      "Bash(dir *)",
+      "Bash(\"c:\\program files\\github cli\\gh.exe\" *)",
+      "Bash(%programfiles%\\github^ *)",
+      "Bash(c:\\progra~1\\github *)",
+      "Bash(node *)",
+      "Bash(del *)"
+    ]
+  },
+  "$version": 4
+}

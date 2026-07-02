@@ -1,50 +1,50 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
+import { deleteInterpreterDatabaseRecords } from '@/lib/interpreters/delete-interpreter';
+import { InterpreterPatchSchema } from '@/lib/api-schemas';
+import { apiError, numericIdParamSchema, parseJsonBody } from '@/lib/api-responses';
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const interpreterId = parseInt(id);
+    const { id: interpreterId } = numericIdParamSchema.parse(await params);
 
-    if (isNaN(interpreterId)) {
-      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-    }
-
-    // 1. Get interpreter to find associated UserProfile/Auth
-    const interpreter = await prisma.interpreter.findUnique({
-      where: { id: interpreterId },
-      include: { userProfile: true }
-    });
-
-    if (!interpreter) {
-      return NextResponse.json({ error: 'Interpreter not found' }, { status: 404 });
-    }
-
-    // 2. Delete Auth user if exists
-    if (interpreter.userProfile) {
+    // Initialize Supabase admin client first, catching errors so missing environment
+    // variables or configuration issues do not crash the entire deletion action.
+    let supabaseAdmin = null;
+    try {
       const { createAdminClient } = await import('@/lib/supabase/admin');
-      const supabaseAdmin = createAdminClient();
-      await supabaseAdmin.auth.admin.deleteUser(interpreter.userProfile.id);
-      
-      // UserProfile will be deleted automatically if RLS/Prisma CASCADE is set, 
-      // but let's be explicit if needed. Prisma usually needs manual delete if not set in schema.
-      await prisma.userProfile.delete({ where: { id: interpreter.userProfile.id } });
+      supabaseAdmin = createAdminClient();
+    } catch (adminError: unknown) {
+      console.warn(
+        '⚠️ Fallo al inicializar el cliente de Supabase Admin:',
+        adminError instanceof Error ? adminError.message : adminError
+      );
     }
 
-    // 3. Delete interpreter (CASCADE should handle related records in production_logs, etc.)
-    await prisma.interpreter.delete({
-      where: { id: interpreterId },
-    });
+    const { authUserId } = await prisma.$transaction((tx: any) => deleteInterpreterDatabaseRecords(tx, interpreterId));
 
+    if (authUserId && supabaseAdmin) {
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
+      if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
+    }
+
+    revalidateInterpreterProfileRecords(interpreterId);
     return NextResponse.json({ success: true });
 
   } catch (error) {
     console.error('Error deleting interpreter:', error);
     const message = error instanceof Error ? error.message : 'Error deleting interpreter';
-    return NextResponse.json({ error: message }, { status: 500 });
+    
+    // Resolve gracefully if the interpreter is already deleted (e.g. from transaction desync)
+    if (message === 'Intérprete no encontrado') {
+      return NextResponse.json({ success: true });
+    }
+    
+    return apiError({ error, fallback: 'Error deleting interpreter' });
   }
 }
 
@@ -53,10 +53,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const body = await request.json();
-    const interpreterId = parseInt(id);
-    
+    const { id: interpreterId } = numericIdParamSchema.parse(await params);
+    const body = await parseJsonBody(request, InterpreterPatchSchema);
     const { password, ...updateData } = body;
 
     // 1. If password provided, update Supabase Auth
@@ -77,16 +75,24 @@ export async function PATCH(
       }
     }
 
-    // 2. Update Interpreter record
+    // 2. Update Interpreter record and keep the linked user profile in sync
     const updated = await prisma.interpreter.update({
       where: { id: interpreterId },
       data: updateData,
     });
 
-    return NextResponse.json(updated);
+    await prisma.userProfile.updateMany({
+      where: { interpreterId },
+      data: {
+        displayName: updated.name,
+        ...(updated.emailCorporativo ? { email: updated.emailCorporativo } : {}),
+      },
+    });
+
+    revalidateInterpreterProfileRecords(interpreterId);
+    return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     console.error('Error updating interpreter:', error);
-    const message = error instanceof Error ? error.message : 'Error updating interpreter';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: 'Error updating interpreter' });
   }
 }

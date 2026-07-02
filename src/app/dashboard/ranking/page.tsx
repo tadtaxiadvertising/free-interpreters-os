@@ -5,6 +5,7 @@ import { Trophy, TrendingUp, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import prismaClient from '@/lib/prisma';
 import { getSystemConfig } from '@/app/actions/settings';
+import { getMonthBounds, sumEffectiveLogMinutes } from '@/lib/interpreter-metrics';
 const prisma = prismaClient as any;
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic';
  * Ranking Page — Leaderboard of all active interpreters.
  *
  * Sorting criteria:
- *   1. Primary: Total minutes interpreted (session + log, descending)
+ *   1. Primary: Total effective production-log minutes, descending
  *   2. Tiebreaker: QA Score (highest wins)
  *
  * Each entry shows the interpreter's goal progress (MTD vs monthlyGoal).
@@ -22,11 +23,7 @@ export default async function RankingPage() {
   const { userId } = await auth();
   if (!userId) redirect('/login');
 
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-  const endOfMonth = new Date();
-  endOfMonth.setMonth(endOfMonth.getMonth() + 1, 0);
+  const { startOfMonth, endOfMonth } = getMonthBounds();
 
   let profile: any = null;
   try {
@@ -42,22 +39,14 @@ export default async function RankingPage() {
   let rankings: any[] = [];
   try {
     const allInterpreters = await prisma.interpreter.findMany({
-      where: { status: 'Activo' },
       select: {
         id: true,
         name: true,
         campaign: true,
         monthlyGoal: true,
-        callSessions: {
-          where: {
-            startedAt: { gte: startOfMonth, lte: endOfMonth },
-            endedAt: { not: null },
-          },
-          select: { durationSeconds: true },
-        },
         productionLogs: {
           where: { date: { gte: startOfMonth, lte: endOfMonth } },
-          select: { interpretedMinutes: true },
+          select: { interpretedMinutes: true, verifiedMinutes: true },
         },
         qaScores: {
           orderBy: { createdAt: 'desc' },
@@ -69,13 +58,7 @@ export default async function RankingPage() {
 
     rankings = allInterpreters
       .map((interp: any) => {
-        const sessionMin = Math.round(
-          (interp.callSessions || []).reduce((s: number, c: any) => s + (c.durationSeconds || 0), 0) / 60
-        );
-        const logMin = (interp.productionLogs || []).reduce(
-          (s: number, l: any) => s + (l.interpretedMinutes || 0), 0
-        );
-        const totalMinutes = sessionMin + logMin;
+        const totalMinutes = sumEffectiveLogMinutes(interp.productionLogs);
         const qaScore = interp.qaScores?.[0]?.totalScore ? Number(interp.qaScores[0].totalScore) : 0;
         const monthlyGoal = interp.monthlyGoal ?? globalGoalMinutes;
         const goalProgress = Math.min((totalMinutes / monthlyGoal) * 100, 100);

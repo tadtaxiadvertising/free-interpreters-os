@@ -12,6 +12,7 @@ import { AccessActionsRail } from '@/components/AccessActionsRail';
 import { OnboardingGate } from '@/components/OnboardingGate';
 import { getCurrentProfile } from '@/app/actions/auth';
 import prismaClient from '@/lib/prisma';
+import { getDayBounds, getMonthBounds, sumEffectiveLogMinutes } from '@/lib/interpreter-metrics';
 const prisma = prismaClient;
 
 export const dynamic = 'force-dynamic';
@@ -78,20 +79,17 @@ export default async function InterpreterDashboard() {
     redirect('/admin');
   }
 
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-  const endOfMonth = new Date();
-  endOfMonth.setMonth(endOfMonth.getMonth() + 1, 0);
+  const { startOfMonth, endOfMonth } = getMonthBounds();
+  const { startOfDay: todayStart, endOfDay: todayEnd } = getDayBounds();
 
   const globalGoalHours = parseFloat(await getSystemConfig('standard_monthly_goal_hours', '120'));
 
   // Fetch full data if we have an interpreter link
   let interpreter: any = null;
   let activeCall: any = null;
-  let todayCalls: any[] = [];
   let recentCalls: any[] = [];
-  let monthCalls: any[] = [];
+  let monthLogs: any[] = [];
+  let todayLogs: any[] = [];
   let rankings: any[] = [];
   let myRankIdx = -1;
 
@@ -109,59 +107,52 @@ export default async function InterpreterDashboard() {
           languageB: true,
           tariffPerMinute: true,
           monthlyGoal: true,
-          productionLogs: { 
+          productionLogs: {
             where: { date: { gte: startOfMonth, lte: endOfMonth } },
-            select: { interpretedMinutes: true } 
+            select: { interpretedMinutes: true, verifiedMinutes: true }
           },
-          qaScores: { 
-            take: 5, 
+          qaScores: {
+            take: 5,
             orderBy: { createdAt: 'desc' },
-            select: { totalScore: true } 
+            select: { totalScore: true }
           }
         }
       } as any);
 
       if (interpreter) {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-
-        const [activeCallRes, todayCallsRes, recentCallsRes, monthCallsRes, allInterpreters] = await Promise.all([
+        const [activeCallRes, recentCallsRes, monthLogsRes, todayLogsRes, allInterpreters] = await Promise.all([
           prisma.callSession.findFirst({
             where: { interpreterId: interpreter.id, endedAt: null },
             orderBy: { startedAt: 'desc' }
-          }),
-          prisma.callSession.findMany({
-            where: { interpreterId: interpreter.id, startedAt: { gte: todayStart }, endedAt: { not: null } }
           }),
           prisma.callSession.findMany({
             where: { interpreterId: interpreter.id, endedAt: { not: null } },
             orderBy: { startedAt: 'desc' },
             take: 10
           }),
-          prisma.callSession.findMany({
-            where: { 
-              interpreterId: interpreter.id, 
-              startedAt: { gte: startOfMonth, lte: endOfMonth },
-              endedAt: { not: null }
-            }
+          prisma.productionLog.findMany({
+            where: {
+              interpreterId: interpreter.id,
+              date: { gte: startOfMonth, lte: endOfMonth },
+            },
+            select: { interpretedMinutes: true, verifiedMinutes: true }
+          }),
+          prisma.productionLog.findMany({
+            where: {
+              interpreterId: interpreter.id,
+              date: { gte: todayStart, lte: todayEnd },
+            },
+            select: { interpretedMinutes: true, verifiedMinutes: true }
           }),
           prisma.interpreter.findMany({
-            where: { status: 'Activo' },
             select: {
               id: true,
               name: true,
               campaign: true,
               monthlyGoal: true,
-              callSessions: {
-                where: {
-                  startedAt: { gte: startOfMonth, lte: endOfMonth },
-                  endedAt: { not: null },
-                },
-                select: { durationSeconds: true },
-              },
               productionLogs: {
                 where: { date: { gte: startOfMonth, lte: endOfMonth } },
-                select: { interpretedMinutes: true },
+                select: { interpretedMinutes: true, verifiedMinutes: true },
               },
               qaScores: {
                 orderBy: { createdAt: 'desc' },
@@ -173,20 +164,14 @@ export default async function InterpreterDashboard() {
         ]);
 
         activeCall = activeCallRes;
-        todayCalls = todayCallsRes;
         recentCalls = recentCallsRes;
-        monthCalls = monthCallsRes;
+        monthLogs = monthLogsRes;
+        todayLogs = todayLogsRes;
 
         // Process rankings
         rankings = allInterpreters
           .map((interp: any) => {
-            const sessionMin = Math.round(
-              (interp.callSessions || []).reduce((s: number, c: any) => s + (c.durationSeconds || 0), 0) / 60
-            );
-            const logMin = (interp.productionLogs || []).reduce(
-              (s: number, l: any) => s + (l.interpretedMinutes || 0), 0
-            );
-            const totalMinutes = sessionMin + logMin;
+            const totalMinutes = sumEffectiveLogMinutes(interp.productionLogs);
             const qaScore = interp.qaScores?.[0]?.totalScore ? Number(interp.qaScores[0].totalScore) : 0;
             const monthlyGoalVal = interp.monthlyGoal ?? (globalGoalHours * 60);
             const goalProgress = Math.min((totalMinutes / monthlyGoalVal) * 100, 100);
@@ -214,19 +199,19 @@ export default async function InterpreterDashboard() {
   }
 
   // ── 📊 METRICS CALCULATION ──
-  const todayMinutes = (todayCalls || []).reduce((acc: number, call: any) => acc + (call.durationSeconds || 0), 0) / 60;
-  const mtdMinutes = (monthCalls || []).reduce((acc: number, call: any) => acc + (call.durationSeconds || 0), 0) / 60;
+  const todayMinutes = sumEffectiveLogMinutes(todayLogs);
+  const mtdMinutes = sumEffectiveLogMinutes(monthLogs);
   const monthlyGoal = interpreter?.monthlyGoal || (globalGoalHours * 60);
   const mtdProgress = Math.min((mtdMinutes / monthlyGoal) * 100, 100);
-  
+
   // Daily target: monthly goal distributed over 22 working days
   const dailyGoal = monthlyGoal / 22;
   const todayProgress = Math.min((todayMinutes / dailyGoal) * 100, 100);
-  
+
   const latestQaScore = interpreter?.qaScores?.[0]?.totalScore ? Number(interpreter.qaScores[0].totalScore) : 0;
   const isQaExcellent = latestQaScore >= 95;
-  
-  const mtdEarnings = (monthCalls || []).reduce((acc: number, call: any) => acc + Number(call.callCost || 0), 0);
+
+  const mtdEarnings = mtdMinutes * Number(interpreter?.tariffPerMinute || 0);
   const onboardingComplete = profile?.onboarding_complete || false;
 
   if (!profile || !interpreter) {
@@ -234,40 +219,40 @@ export default async function InterpreterDashboard() {
       <div className="flex items-center justify-center min-h-[80vh]">
         <div className="glass p-10 rounded-[2.5rem] text-center max-w-lg border border-white/5 shadow-2xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-32 bg-orange-500/10 blur-[100px] rounded-full -mr-16 -mt-16" />
-          
+
           <div className="relative z-10">
             <div className="w-20 h-20 bg-orange-500/10 rounded-3xl flex items-center justify-center text-orange-400 mx-auto mb-6 border border-orange-500/20">
               <ShieldCheck size={40} />
             </div>
-            
+
             <h2 className="text-3xl font-black text-white mb-4 tracking-tight">Acceso Restringido</h2>
             <p className="text-slate-300 leading-relaxed mb-8">
-              {!profile 
-                ? "No pudimos localizar tu perfil de usuario en el sistema." 
+              {!profile
+                ? "No pudimos localizar tu perfil de usuario en el sistema."
                 : "Tu cuenta de usuario no está vinculada a un perfil de intérprete activo."}
               <br />
               <span className="text-slate-500 text-sm mt-4 block">
                 Por favor, contacta al administrador para completar tu vinculación de ID corporativo.
               </span>
             </p>
-            
+
             <div className="flex flex-col gap-3">
-              <a 
-                href="/dashboard" 
+              <a
+                href="/dashboard"
                 className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white px-6 py-4 rounded-2xl font-bold transition-all border border-white/5"
               >
                 <RefreshCw size={18} />
                 Reintentar Conexión
               </a>
-              <a 
-                href="/login" 
+              <a
+                href="/login"
                 className="flex items-center justify-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium"
               >
                 <LogIn size={14} />
                 Cerrar Sesión e Identificarse
               </a>
             </div>
-            
+
             <div className="mt-10 pt-8 border-t border-white/5">
               <p className="text-[10px] text-orange-500 font-black uppercase tracking-[0.2em]">
                 System Diagnostic: {profile ? 'INTERPRETER_LINK_MISSING' : 'PROFILE_MISSING_IN_DB'}
@@ -282,9 +267,9 @@ export default async function InterpreterDashboard() {
   return (
     <>
       {/* Onboarding gate — shows wizard if not completed */}
-      <OnboardingGate 
-        isComplete={onboardingComplete} 
-        interpreterName={interpreter.name} 
+      <OnboardingGate
+        isComplete={onboardingComplete}
+        interpreterName={interpreter.name}
       />
 
       <div className="space-y-8 animate-in fade-in duration-700">
@@ -292,7 +277,7 @@ export default async function InterpreterDashboard() {
         <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-indigo-900/50 to-slate-900 border border-indigo-500/20 p-8 shadow-2xl">
           <div className="absolute top-0 right-0 p-32 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
           <div className="absolute bottom-0 left-0 p-32 bg-emerald-500/10 blur-[100px] rounded-full pointer-events-none" />
-          
+
           <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
@@ -327,7 +312,7 @@ export default async function InterpreterDashboard() {
                 </div>
               </div>
               <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400 rounded-full relative"
                   style={{ width: `${mtdProgress}%` }}
                 >
@@ -351,16 +336,16 @@ export default async function InterpreterDashboard() {
                   <TrendingUp size={24} />
                 </div>
               </div>
-              
+
               <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full relative"
                   style={{ width: `${todayProgress}%` }}
                 >
                   <div className="absolute inset-0 bg-white/20 animate-pulse" />
                 </div>
               </div>
-              
+
               <p suppressHydrationWarning className="text-xs text-slate-200 mt-2 text-right font-medium">
                 {todayProgress.toFixed(1)}% completado (Faltan {Math.max(0, Math.round(dailyGoal - todayMinutes))} min)
               </p>
@@ -415,7 +400,7 @@ export default async function InterpreterDashboard() {
         </div>
 
         {/* Recent Calls */}
-        <CallHistory 
+        <CallHistory
           calls={recentCalls.map((c: any) => ({
             id: c.id,
             started_at: c.startedAt.toISOString(),
@@ -423,7 +408,7 @@ export default async function InterpreterDashboard() {
             duration_seconds: c.durationSeconds,
             call_cost: Number(c.callCost),
             tariff_snapshot: Number(c.tariffSnapshot)
-          }))} 
+          }))}
         />
       </div>
     </>

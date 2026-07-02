@@ -1,119 +1,58 @@
-# =============================================================================
-# CI/CD Pipeline — Free Interpreters OS
-# =============================================================================
-# Trigger: push to main / PR to main
-# Jobs: validate → deploy (via Easypanel webhook)
-# Cost: $0 (GitHub Actions Free Tier)
-# =============================================================================
-
-name: CI/CD Pipeline
+name: 🚀 Auto-Deploy to Easypanel
 
 on:
   push:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "README.md"
-      - "*.md"
-      - ".vscode/**"
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "README.md"
-      - "*.md"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-  # ── Validate ────────────────────────────────────────────────
-  validate:
-    name: "🔍 Validate"
+  deploy-interpreters:
+    name: Deploy interpreters (Next.js)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+    environment: production
     steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-
-      - name: 📦 Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: 📥 Install Dependencies
-        run: npm ci
-
-      - name: 🔧 Generate Prisma Client
-        run: npx prisma generate
-
-      - name: 🔎 TypeScript Typecheck
-        run: npx tsc --noEmit
-
-      - name: 🧹 ESLint
-        run: npm run lint
-
-      - name: 🏗️ Build Test
-        run: npm run build
+      - name: Call Easypanel Webhook — interpreters
+        run: |
+          set -euo pipefail
+          echo "Deploying interpreters (Next.js) to Easypanel..."
+          WEBHOOK_URL="${EASYPANEL_WEBHOOK_INTERPRETERS:-}"
+          WEBHOOK_URL="$(printf '%s' "$WEBHOOK_URL" | tr -d '\r\n')"
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "⚠️ WARNING: EASYPANEL_WEBHOOK_INTERPRETERS secret is not configured."
+            echo "Skipping deployment. To enable auto-deploy, add the webhook URL from Easypanel in GitHub Settings > Secrets > Actions."
+            exit 0
+          fi
+          if ! printf '%s' "$WEBHOOK_URL" | grep -Eq '^https?://'; then
+            echo "ERROR: EASYPANEL_WEBHOOK_INTERPRETERS must be a valid URL starting with http:// or https://."
+            exit 78
+          fi
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --retry 3 --retry-delay 5 --retry-all-errors -X POST "$WEBHOOK_URL")
+          case "$HTTP_CODE" in 200|201|202|204) echo "OK: interpreters deployed (HTTP $HTTP_CODE)";; *) echo "FAIL: interpreters webhook returned HTTP $HTTP_CODE"; exit 1;; esac
         env:
-          DATABASE_URL: "postgresql://postgres:test@localhost:5432/test"
-          JWT_SECRET: "ci-test-secret-not-for-production-use-only-min-32-chars"
-          NEXT_TELEMETRY_DISABLED: "1"
+          EASYPANEL_WEBHOOK_INTERPRETERS: ${{ secrets.EASYPANEL_WEBHOOK_INTERPRETERS }}
 
-  # ── Deploy ──────────────────────────────────────────────────
-  deploy:
-    name: "🚀 Deploy to Easypanel"
+  deploy-interpreters-api:
+    name: Deploy interpreters-api (Backend)
     runs-on: ubuntu-latest
-    needs: validate
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    timeout-minutes: 5
+    environment: production
     steps:
-      - name: 🔔 Trigger Easypanel Deploy
+      - name: Call Easypanel Webhook — interpreters-api
+        run: |
+          set -euo pipefail
+          echo "Deploying interpreters-api (Backend) to Easypanel..."
+          WEBHOOK_URL="${EASYPANEL_WEBHOOK_API:-}"
+          WEBHOOK_URL="$(printf '%s' "$WEBHOOK_URL" | tr -d '\r\n')"
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "⚠️ WARNING: EASYPANEL_WEBHOOK_API secret is not configured."
+            echo "Skipping deployment. To enable auto-deploy, add the webhook URL from Easypanel in GitHub Settings > Secrets > Actions."
+            exit 0
+          fi
+          if ! printf '%s' "$WEBHOOK_URL" | grep -Eq '^https?://'; then
+            echo "ERROR: EASYPANEL_WEBHOOK_API must be a valid URL starting with http:// or https://."
+            exit 78
+          fi
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --retry 3 --retry-delay 5 --retry-all-errors -X POST "$WEBHOOK_URL")
+          case "$HTTP_CODE" in 200|201|202|204) echo "OK: interpreters-api deployed (HTTP $HTTP_CODE)";; *) echo "FAIL: interpreters-api webhook returned HTTP $HTTP_CODE"; exit 1;; esac
         env:
-          EASYPANEL_WEBHOOK_URL: ${{ secrets.EASYPANEL_WEBHOOK_URL }}
-        run: |
-          if [ -z "$EASYPANEL_WEBHOOK_URL" ]; then
-            echo "❌ Error: EASYPANEL_WEBHOOK_URL secret is not configured in GitHub Secrets"
-            exit 1
-          fi
-
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST \
-            "$EASYPANEL_WEBHOOK_URL" \
-            -H "Content-Type: application/json")
-
-          echo "Webhook response: $RESPONSE"
-
-          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 300 ]; then
-            echo "✅ Deploy triggered successfully"
-          else
-            echo "❌ Deploy webhook failed with status: $RESPONSE"
-            exit 1
-          fi
-
-      - name: ⏳ Wait for Deploy
-        run: |
-          echo "Waiting 90s for Easypanel to build and deploy..."
-          sleep 90
-
-      - name: 🏥 Health Check
-        run: |
-          for i in {1..5}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://app.freeinterpreters.com" \
-              --max-time 10)
-
-            if [ "$STATUS" -eq 200 ]; then
-              echo "✅ Health check passed (attempt $i)"
-              exit 0
-            fi
-
-            echo "⏳ Attempt $i: status $STATUS, retrying in 15s..."
-            sleep 15
-          done
-
-          echo "❌ Health check failed after 5 attempts"
-          exit 1
+          EASYPANEL_WEBHOOK_API: ${{ secrets.EASYPANEL_WEBHOOK_API }}

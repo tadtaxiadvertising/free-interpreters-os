@@ -29,19 +29,7 @@ import type { NextRequest } from 'next/server';
 
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://freeinterpreters.com";
 
-// Pre-check: can we run Supabase middleware?
-const HAS_SUPABASE_ENV = !!(
-  process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
-
-if (!HAS_SUPABASE_ENV) {
-  console.warn(
-    '[MIDDLEWARE] Supabase env vars missing at module load. ' +
-    'Supabase session refresh will be skipped. ' +
-    'This is expected during `next build` static generation.'
-  );
-}
+// Pre-check logic moved inside middleware to avoid missing env vars at module load in dev mode.
 
 /** Routes exclusively managed by Supabase Auth */
 const SUPABASE_SECURE_PREFIXES = ['/dashboard', '/admin', '/payroll', '/qa'] as const;
@@ -78,19 +66,54 @@ export async function middleware(req: NextRequest) {
   }
 
   // ── 2. SUPABASE SESSION REFRESH ───────────────────────────
-  // Conditionally imported to prevent crashes when env vars are
-  // missing during `next build` static generation phase.
+  // Only run Supabase refresh when a Supabase cookie exists or the route is
+  // protected by Supabase. This avoids repeated refresh-token errors for
+  // NextAuth-only sessions (e.g. RBAC credentials login).
   let response: NextResponse;
 
-  if (HAS_SUPABASE_ENV) {
+  const hasSupabaseCookie =
+    req.cookies.has('sb-access-token') ||
+    req.cookies.has('sb-refresh-token') ||
+    Array.from(req.cookies.getAll()).some(
+      (cookie) => cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')
+    );
+
+  const isSupabaseSecureRoute = SUPABASE_SECURE_PREFIXES.some(
+    (prefix) => pathname.startsWith(prefix)
+  );
+
+  const HAS_SUPABASE_ENV = !!(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+
+  if (HAS_SUPABASE_ENV && (hasSupabaseCookie || isSupabaseSecureRoute)) {
     try {
       const { updateSession } = await import('@/lib/supabase/middleware');
       response = await updateSession(req);
     } catch (err) {
-      console.warn(
-        '[MIDDLEWARE] Supabase session refresh failed, passing through:',
-        err instanceof Error ? err.message : err
-      );
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.warn('[MIDDLEWARE] Supabase session refresh failed:', errorMsg);
+      
+      // Capturar excepciones relacionadas con tokens inválidos
+      if (errorMsg.includes('Invalid Refresh Token') || errorMsg.includes('AuthApiError')) {
+        const loginUrl = req.nextUrl.clone();
+        loginUrl.pathname = '/login';
+        const redirectResponse = NextResponse.redirect(loginUrl);
+        
+        // Limpiar las cookies obsoletas
+        redirectResponse.cookies.delete('sb-access-token');
+        redirectResponse.cookies.delete('sb-refresh-token');
+        const allCookies = req.cookies.getAll();
+        allCookies.forEach(cookie => {
+          if (cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')) {
+            redirectResponse.cookies.delete(cookie.name);
+          }
+        });
+        
+        return redirectResponse;
+      }
+
       response = NextResponse.next({ request: req });
     }
   } else {
@@ -99,21 +122,8 @@ export async function middleware(req: NextRequest) {
 
   // ── 3. SUPABASE AUTH PROTECTION ───────────────────────────
   // Dashboard/Admin/Payroll/QA routes require a Supabase session.
-  const isSupabaseSecureRoute = SUPABASE_SECURE_PREFIXES.some(
-    (prefix) => pathname.startsWith(prefix)
-  );
-
   if (isSupabaseSecureRoute) {
-    // Check for Supabase auth cookies (multiple possible naming patterns)
-    const hasSupabaseSession =
-      req.cookies.has('sb-access-token') ||
-      // Supabase SSR uses project-ref based cookie names
-      Array.from(req.cookies.getAll()).some(
-        (cookie) =>
-          cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')
-      );
-
-    if (!hasSupabaseSession) {
+    if (!hasSupabaseCookie) {
       const loginUrl = req.nextUrl.clone();
       loginUrl.pathname = '/login';
       return NextResponse.redirect(loginUrl);
