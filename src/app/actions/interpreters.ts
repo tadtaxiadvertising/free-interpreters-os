@@ -5,13 +5,57 @@ import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-inte
 import prisma from '@/lib/prisma';
 import { InterpreterSchema, InterpreterInput } from '@/lib/validators';
 import { ActionResult } from '@/lib/types';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createAdminClient, getSupabaseServiceRoleKey } from '@/lib/supabase/admin';
 import { Interpreter, Prisma } from '@prisma/client';
 import { validateAction } from '@/lib/auth/actions';
 import { UpdateInterpreterStatusSchema } from '@/lib/validators/interpreters';
 import { deleteInterpreterDatabaseRecords } from '@/lib/interpreters/delete-interpreter';
+import { createClient as createSupabaseJsClient } from '@supabase/supabase-js';
 
 const db = prisma;
+
+function createAnonymousSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+
+  if (!url || !anonKey) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is not set.');
+  }
+
+  return createSupabaseJsClient(url, anonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+}
+
+async function createInterpreterAuthUser(email: string, password: string, displayName: string) {
+  if (getSupabaseServiceRoleKey()) {
+    const supabaseAdmin = createAdminClient();
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { display_name: displayName }
+    });
+
+    if (error) throw error;
+    return data.user ?? null;
+  }
+
+  const supabase = createAnonymousSupabaseClient();
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { display_name: displayName }
+    }
+  });
+
+  if (error) throw error;
+  return data.user ?? null;
+}
 
 /**
  * ACTION: Create Interpreter
@@ -24,16 +68,6 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
     const validated = InterpreterSchema.parse(data);
     const { password, ...interpreterData } = validated;
 
-    // Validar configuración de Supabase si se proporciona password
-    let supabaseAdmin = null;
-    if (password) {
-      try {
-        supabaseAdmin = createAdminClient();
-      } catch (error: any) {
-        return { success: false, error: error.message || 'Error de configuración de Supabase', code: 'INTERNAL_ERROR' };
-      }
-    }
-
     const result = await db.$transaction(async (tx) => {
       // 1. Create interpreter record
       const interpreter = await tx.interpreter.create({
@@ -42,39 +76,38 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
       });
 
       // 2. If password provided, create Auth user and UserProfile
-      if (password && supabaseAdmin) {
+      if (password) {
         if (!interpreter.emailCorporativo) {
           throw new Error('Email corporativo is required for account creation');
         }
 
-        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: interpreter.emailCorporativo,
-          password: password,
-          email_confirm: true,
-          user_metadata: { display_name: interpreter.name }
-        });
+        const authUser = await createInterpreterAuthUser(
+          interpreter.emailCorporativo,
+          password,
+          interpreter.name
+        );
 
-        if (authError) throw authError;
-
-        if (authUser.user) {
-          await tx.userProfile.upsert({
-            where: { id: authUser.user.id },
-            update: {
-              email: interpreter.emailCorporativo,
-              displayName: interpreter.name,
-              interpreterId: interpreter.id,
-              onboardingComplete: true
-            },
-            create: {
-              id: authUser.user.id,
-              email: interpreter.emailCorporativo,
-              displayName: interpreter.name,
-              role: 'interpreter',
-              interpreterId: interpreter.id,
-              onboardingComplete: true
-            }
-          });
+        if (!authUser) {
+          throw new Error('No se pudo crear el usuario de autenticación.');
         }
+
+        await tx.userProfile.upsert({
+          where: { id: authUser.id },
+          update: {
+            email: interpreter.emailCorporativo,
+            displayName: interpreter.name,
+            interpreterId: interpreter.id,
+            onboardingComplete: true
+          },
+          create: {
+            id: authUser.id,
+            email: interpreter.emailCorporativo,
+            displayName: interpreter.name,
+            role: 'interpreter',
+            interpreterId: interpreter.id,
+            onboardingComplete: true
+          }
+        });
       }
 
       return { id: interpreter.id, name: interpreter.name };
