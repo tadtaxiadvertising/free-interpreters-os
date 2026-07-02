@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { getCurrentProfile } from '@/app/actions/auth';
 import prisma from '@/lib/prisma';
-import { updateInterpreterProfile } from '@/app/actions/profile';
+import { updateInterpreterProfileFromForm } from '@/app/actions/profile';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,19 +54,7 @@ export default async function SettingsPage() {
         <p className="text-gray-400 mt-2">Manage your personal information and payment preferences.</p>
       </header>
 
-      <form action={async (formData) => {
-        'use server';
-        const data = {
-          phone: formData.get('phone') as string,
-          country: formData.get('country') as string,
-          bankName: formData.get('bankName') as string,
-          bankAccount: formData.get('bankAccount') as string,
-          bankAccountType: formData.get('bankAccountType') as string,
-          bankCedula: formData.get('bankCedula') as string,
-          notes: formData.get('notes') as string,
-        };
-        await updateInterpreterProfile(data);
-      }} className="space-y-6">
+      <form action={updateInterpreterProfileFromForm} className="space-y-6">
         
         {/* Personal Info */}
         <div className="glass p-8 rounded-3xl border border-white/5 space-y-6">

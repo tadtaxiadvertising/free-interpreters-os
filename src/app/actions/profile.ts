@@ -82,3 +82,15 @@ export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Pr
   }
 }
 
+export async function updateInterpreterProfileFromForm(formData: FormData): Promise<void> {
+  await updateInterpreterProfile({
+    phone: formData.get('phone') as string,
+    country: formData.get('country') as string,
+    bankName: formData.get('bankName') as string,
+    bankAccount: formData.get('bankAccount') as string,
+    bankAccountType: formData.get('bankAccountType') as string,
+    bankCedula: formData.get('bankCedula') as string,
+    notes: formData.get('notes') as string,
+  });
+}
+
