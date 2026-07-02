@@ -6,55 +6,24 @@ import prisma from '@/lib/prisma';
 import { InterpreterSchema, InterpreterInput } from '@/lib/validators';
 import { ActionResult } from '@/lib/types';
 import { createAdminClient, getSupabaseServiceRoleKey } from '@/lib/supabase/admin';
+import { upsertConfirmedAuthUser } from '@/lib/supabase/auth-users';
 import { Interpreter, Prisma } from '@prisma/client';
 import { validateAction } from '@/lib/auth/actions';
 import { UpdateInterpreterStatusSchema } from '@/lib/validators/interpreters';
 import { deleteInterpreterDatabaseRecords } from '@/lib/interpreters/delete-interpreter';
-import { createClient as createSupabaseJsClient } from '@supabase/supabase-js';
 
 const db = prisma;
 
-function createAnonymousSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
-
-  if (!url || !anonKey) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is not set.');
-  }
-
-  return createSupabaseJsClient(url, anonKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  });
-}
-
 async function createInterpreterAuthUser(email: string, password: string, displayName: string) {
-  if (getSupabaseServiceRoleKey()) {
-    const supabaseAdmin = createAdminClient();
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { display_name: displayName }
-    });
-
-    if (error) throw error;
-    return data.user ?? null;
+  if (!getSupabaseServiceRoleKey()) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to create enabled interpreter accounts.');
   }
 
-  const supabase = createAnonymousSupabaseClient();
-  const { data, error } = await supabase.auth.signUp({
+  return upsertConfirmedAuthUser({
     email,
     password,
-    options: {
-      data: { display_name: displayName }
-    }
+    displayName,
   });
-
-  if (error) throw error;
-  return data.user ?? null;
 }
 
 /**
@@ -257,23 +226,11 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
         return { success: false, error: 'No hay cuenta vinculada ni email corporativo configurado.', code: 'VALIDATION_ERROR' };
       }
 
-      // 1. Find or create Auth user
-      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-      let authUser = existingUsers.users.find(u => u.email === interpreter.emailCorporativo);
-
-      if (!authUser) {
-        const { data: newUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: interpreter.emailCorporativo,
-          password: password,
-          email_confirm: true,
-          user_metadata: { display_name: interpreter.name }
-        });
-        if (authError) throw authError;
-        authUser = newUser.user;
-      } else {
-        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, { password });
-        if (updateError) throw updateError;
-      }
+      const authUser = await upsertConfirmedAuthUser({
+        email: interpreter.emailCorporativo,
+        password,
+        displayName: interpreter.name,
+      });
 
       // 2. Link Profile
       if (authUser) {
@@ -291,7 +248,10 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
         });
       }
     } else {
-      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userProfileId, { password });
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userProfileId, {
+        password,
+        email_confirm: true,
+      });
       if (authError) throw authError;
     }
 

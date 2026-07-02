@@ -1,7 +1,8 @@
 'use server';
 
 import { createClient, isSupabaseConfigError } from '@/lib/supabase/server';
-import { createAdminClient, getSupabaseServiceRoleKey } from '@/lib/supabase/admin';
+import { getSupabaseServiceRoleKey } from '@/lib/supabase/admin';
+import { confirmAuthUserEmail, upsertConfirmedAuthUser } from '@/lib/supabase/auth-users';
 import { redirect } from 'next/navigation';
 import type { UserProfile, UserRole } from '@/lib/types';
 import prismaClient from '@/lib/prisma';
@@ -20,6 +21,10 @@ function normalizeRbacRole(role: string | null | undefined): UserRole {
   return role?.toLowerCase() === 'admin' ? 'admin' : 'interpreter';
 }
 
+function isEmailNotConfirmedError(error: { message?: string } | null | undefined) {
+  return error?.message?.toLowerCase().includes('email not confirmed') ?? false;
+}
+
 async function provisionSupabaseUserFromLocalCredentials(params: {
   email: string;
   password: string;
@@ -30,39 +35,13 @@ async function provisionSupabaseUserFromLocalCredentials(params: {
     return null;
   }
 
-  const supabaseAdmin = createAdminClient();
-  const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
-
-  if (listError) {
-    throw listError;
-  }
-
-  const existingUser = users.find((user) => user.email?.toLowerCase() === params.email);
-  const userPayload = {
-    password: params.password,
-    email_confirm: true,
-    user_metadata: { display_name: params.displayName },
-  };
-
-  if (existingUser) {
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, userPayload);
-    if (error) throw error;
-    return existingUser.id;
-  }
-
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+  const authUser = await upsertConfirmedAuthUser({
     email: params.email,
-    ...userPayload,
+    password: params.password,
+    displayName: params.displayName,
   });
 
-  if (error) {
-    throw error;
-  }
-
-  return data.user?.id || null;
+  return authUser?.id || null;
 }
 
 async function syncUserProfileFromAuth(params: {
@@ -99,6 +78,51 @@ async function syncUserProfileFromAuth(params: {
   });
 }
 
+async function retryAfterConfirmingAuthEmail(params: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  email: string;
+  password: string;
+  requestedRole: UserRole;
+}) {
+  if (!getSupabaseServiceRoleKey()) {
+    return null;
+  }
+
+  const confirmedUser = await confirmAuthUserEmail(params.email);
+  if (!confirmedUser) return null;
+
+  const retry = await params.supabase.auth.signInWithPassword({
+    email: params.email,
+    password: params.password,
+  });
+
+  if (retry.error || !retry.data.user) {
+    return {
+      success: false,
+      error: retry.error?.message || 'Credenciales inválidas o error de autenticación.',
+    };
+  }
+
+  const profile = await prisma.userProfile.findUnique({
+    where: { id: retry.data.user.id },
+    select: { role: true },
+  });
+
+  if (!profile) {
+    await syncUserProfileFromAuth({
+      userId: retry.data.user.id,
+      email: params.email,
+      role: params.requestedRole,
+      displayName: confirmedUser.user_metadata?.display_name || params.email.split('@')[0],
+    });
+  }
+
+  return {
+    success: true,
+    role: normalizeRbacRole(profile?.role ?? params.requestedRole),
+  };
+}
+
 /**
  * ACTION: User Login
  */
@@ -118,6 +142,22 @@ export async function login(formData: FormData) {
 
     if (error) {
       console.error(`🔴 [AUTH_LOGIN] Failed for ${email}:`, error.message);
+
+      if (isEmailNotConfirmedError(error)) {
+        try {
+          const repairedLogin = await retryAfterConfirmingAuthEmail({
+            supabase,
+            email,
+            password,
+            requestedRole,
+          });
+
+          if (repairedLogin) return repairedLogin;
+        } catch (repairError) {
+          console.error(`🔴 [AUTH_LOGIN] Email confirmation repair failed for ${email}:`, repairError);
+        }
+      }
+
       const localUser = await prisma.rbacUser.findUnique({
         where: { email },
         select: { id: true, email: true, name: true, role: true, password: true },

@@ -69,7 +69,7 @@ export async function PATCH(
         const supabaseAdmin = createAdminClient();
         const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
           interpreter.userProfile.id,
-          { password }
+          { password, email_confirm: true }
         );
         if (authError) throw authError;
       }

@@ -65,43 +65,49 @@ export const POST = withSecurity(async (request: NextRequest) => {
   // 2. If password provided, create Auth user and UserProfile
   if (password) {
     console.log(`[API_INTERPRETERS_POST] Step 2: Creating Auth user for ${interpreterData.emailCorporativo}`);
-    const { createAdminClient } = await import('@/lib/supabase/admin');
-    const supabaseAdmin = createAdminClient();
+    const { upsertConfirmedAuthUser } = await import('@/lib/supabase/auth-users');
+    let authUser = null;
 
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: interpreterData.emailCorporativo!,
-      password: password,
-      email_confirm: true,
-      user_metadata: { display_name: interpreterData.name }
-    });
-
-    if (authError) {
-      console.error(`[API_INTERPRETERS_POST] ❌ Auth creation failed: ${authError.message}`);
+    try {
+      authUser = await upsertConfirmedAuthUser({
+        email: interpreterData.emailCorporativo!,
+        password,
+        displayName: interpreterData.name,
+      });
+    } catch (authError) {
+      const message = authError instanceof Error ? authError.message : 'Unknown auth error';
+      console.error(`[API_INTERPRETERS_POST] ❌ Auth creation failed: ${message}`);
       return NextResponse.json(
-        { success: false, error: `Interpreter record created (ID: ${newInterpreter.id}), but Auth creation failed: ${authError.message}` },
+        { success: false, error: `Interpreter record created (ID: ${newInterpreter.id}), but Auth creation failed: ${message}` },
         { status: 400 }
       );
     }
 
-    if (authUser.user) {
-      console.log(`[API_INTERPRETERS_POST] Step 3: Upserting UserProfile for Auth ID: ${authUser.user.id}`);
-      await prisma.userProfile.upsert({
-        where: { id: authUser.user.id },
-        update: {
-          email: interpreterData.emailCorporativo!,
-          displayName: interpreterData.name,
-          interpreterId: newInterpreter.id
-        },
-        create: {
-          id: authUser.user.id,
-          email: interpreterData.emailCorporativo!,
-          displayName: interpreterData.name,
-          role: 'interpreter',
-          interpreterId: newInterpreter.id
-        }
-      });
-      console.log('[API_INTERPRETERS_POST] ✅ UserProfile upserted successfully');
+    if (!authUser) {
+      console.error('[API_INTERPRETERS_POST] ❌ Auth creation failed: no user returned');
+      return NextResponse.json(
+        { success: false, error: `Interpreter record created (ID: ${newInterpreter.id}), but Auth creation failed.` },
+        { status: 400 }
+      );
     }
+
+    console.log(`[API_INTERPRETERS_POST] Step 3: Upserting UserProfile for Auth ID: ${authUser.id}`);
+    await prisma.userProfile.upsert({
+      where: { id: authUser.id },
+      update: {
+        email: interpreterData.emailCorporativo!,
+        displayName: interpreterData.name,
+        interpreterId: newInterpreter.id
+      },
+      create: {
+        id: authUser.id,
+        email: interpreterData.emailCorporativo!,
+        displayName: interpreterData.name,
+        role: 'interpreter',
+        interpreterId: newInterpreter.id
+      }
+    });
+    console.log('[API_INTERPRETERS_POST] ✅ UserProfile upserted successfully');
   }
 
   return NextResponse.json({ success: true, data: newInterpreter }, { status: 201 });

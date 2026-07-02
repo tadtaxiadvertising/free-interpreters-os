@@ -77,7 +77,8 @@ export async function updateUserPassword(userId: string, newPassword: string) {
 
     const supabaseAdmin = createAdminClient();
     const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-      password: newPassword
+      password: newPassword,
+      email_confirm: true,
     });
 
     if (error) {
@@ -113,6 +114,7 @@ export async function updateUserProfile(userId: string, data: { displayName: str
       const supabaseAdmin = createAdminClient();
       await supabaseAdmin.auth.admin.updateUserById(userId, {
         email: data.email,
+        email_confirm: true,
         user_metadata: { display_name: data.displayName }
       });
     } catch (supabaseError) {
