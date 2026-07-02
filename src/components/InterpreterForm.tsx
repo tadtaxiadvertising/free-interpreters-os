@@ -45,18 +45,18 @@ export function InterpreterForm({ onSuccess, onCancel, initialData, interpreterI
       let result;
       if (isEditing) {
         result = await updateInterpreter(interpreterId, data as any);
-        if (result.success && password) {
+        if (result?.success && password) {
           const pwdResult = await resetInterpreterPassword(interpreterId, password.toString());
-          if (!pwdResult.success) {
-            throw new Error(pwdResult.error || 'Error al actualizar la contraseña');
+          if (!pwdResult?.success) {
+            throw new Error(pwdResult?.error || 'Error al actualizar la contraseña');
           }
         }
       } else {
         result = await createInterpreter(data as any);
       }
 
-      if (!result.success) {
-        throw new Error(result.error);
+      if (!result || !result.success) {
+        throw new Error(result?.error || 'Error de conexión o respuesta inválida del servidor al guardar el intérprete.');
       }
 
       onSuccess?.();

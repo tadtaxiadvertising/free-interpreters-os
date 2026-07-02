@@ -29,19 +29,7 @@ import type { NextRequest } from 'next/server';
 
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://freeinterpreters.com";
 
-// Pre-check: can we run Supabase middleware?
-const HAS_SUPABASE_ENV = !!(
-  process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
-
-if (!HAS_SUPABASE_ENV) {
-  console.warn(
-    '[MIDDLEWARE] Supabase env vars missing at module load. ' +
-    'Supabase session refresh will be skipped. ' +
-    'This is expected during `next build` static generation.'
-  );
-}
+// Pre-check logic moved inside middleware to avoid missing env vars at module load in dev mode.
 
 /** Routes exclusively managed by Supabase Auth */
 const SUPABASE_SECURE_PREFIXES = ['/dashboard', '/admin', '/payroll', '/qa'] as const;
@@ -92,6 +80,11 @@ export async function middleware(req: NextRequest) {
 
   const isSupabaseSecureRoute = SUPABASE_SECURE_PREFIXES.some(
     (prefix) => pathname.startsWith(prefix)
+  );
+
+  const HAS_SUPABASE_ENV = !!(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
 
   if (HAS_SUPABASE_ENV && (hasSupabaseCookie || isSupabaseSecureRoute)) {
