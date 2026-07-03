@@ -16,7 +16,12 @@
       "Bash(node *)",
       "Bash(del *)",
       "Bash(echo *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(curl *)",
+      "Bash(supabase *)",
+      "Bash(git *)",
+      "Bash(eof)",
+      "Bash(python *)"
     ]
   },
   "$version": 4
