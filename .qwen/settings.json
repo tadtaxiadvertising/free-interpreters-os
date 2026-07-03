@@ -14,7 +14,9 @@
       "Bash(%programfiles%\\github^ *)",
       "Bash(c:\\progra~1\\github *)",
       "Bash(node *)",
-      "Bash(del *)"
+      "Bash(del *)",
+      "Bash(echo *)",
+      "Bash(git push *)"
     ]
   },
   "$version": 4
