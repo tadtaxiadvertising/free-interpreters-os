@@ -13,5 +13,8 @@
   ],
   "markdownlint.exclude": [
     "**/node_modules/**"
-  ]
+  ],
+  "yaml.schemas": {
+    "https://json.schemastore.org/github-workflow": ".github/workflows/*.yml"
+  }
 }
