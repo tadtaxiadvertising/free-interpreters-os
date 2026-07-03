@@ -21,7 +21,8 @@
       "Bash(supabase *)",
       "Bash(git *)",
       "Bash(eof)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(npm run *)"
     ]
   },
   "$version": 4
