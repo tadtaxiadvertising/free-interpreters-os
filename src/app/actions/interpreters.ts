@@ -219,7 +219,12 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
     if (!interpreter) return { success: false, error: 'Intérprete no encontrado', code: 'NOT_FOUND' };
 
     let userProfileId = interpreter.userProfile?.id;
-    const supabaseAdmin = createAdminClient();
+    let supabaseAdmin: ReturnType<typeof createAdminClient> | null = null;
+    try { supabaseAdmin = createAdminClient(); } catch { /* service key not configured */ }
+
+    if (!supabaseAdmin && !userProfileId) {
+      return { success: false, error: 'Falta configuración de Supabase Admin (SUPABASE_SERVICE_ROLE_KEY). No se puede crear cuenta sin clave de servicio.', code: 'CONFIG_ERROR' };
+    }
 
     if (!userProfileId) {
       if (!interpreter.emailCorporativo) {
@@ -248,6 +253,9 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
         });
       }
     } else {
+      if (!supabaseAdmin) {
+        return { success: false, error: 'Falta configuración de Supabase Admin (SUPABASE_SERVICE_ROLE_KEY). No se puede actualizar contraseña.', code: 'CONFIG_ERROR' };
+      }
       const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userProfileId, {
         password,
         email_confirm: true,

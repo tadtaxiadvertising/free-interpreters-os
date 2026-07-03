@@ -17,19 +17,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: { email: {}, password: {} },
       async authorize(credentials: unknown) {
         const { email, password } = z
-          .object({ email: z.string().email(), password: z.string() })
+          .object({ email: z.string().email().toLowerCase().trim(), password: z.string() })
           .parse(credentials);
-        
+
         const user = await prisma.rbacUser.findUnique({ where: { email } });
         if (!user || !(await bcrypt.compare(password, user.password))) {
           throw new Error("Invalid credentials");
         }
-        
-        return { 
-          id: user.id, 
-          email: user.email, 
-          role: user.role, 
-          name: user.name 
+
+        return {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          name: user.name
         };
       }
     })

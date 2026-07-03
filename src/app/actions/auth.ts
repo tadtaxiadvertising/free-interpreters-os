@@ -497,8 +497,21 @@ export async function updatePassword(formData: FormData) {
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase.auth.updateUser({ password });
+    const { data, error } = await supabase.auth.updateUser({ password });
     if (error) return { success: false, error: error.message };
+
+    if (data.user?.email) {
+      try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await (prisma as any).rbacUser.update({
+          where: { email: data.user.email.toLowerCase().trim() },
+          data: { password: hashedPassword },
+        });
+      } catch (rbacSyncErr) {
+        console.warn('⚠️ [AUTH_UPDATE_PASSWORD] rbac_users sync skipped:', rbacSyncErr);
+      }
+    }
+
     return { success: true };
   } catch (err: unknown) {
     if (isSupabaseConfigError(err)) {
