@@ -86,7 +86,7 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
     return { success: true, data: result };
   } catch (error: unknown) {
     console.error('🔴 ERROR [createInterpreter]:', error);
-    
+
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       return { success: false, error: 'Un intérprete con este ID externo o Email ya existe.', code: 'CONFLICT' };
     }
@@ -142,10 +142,10 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
     try {
       supabaseAdmin = createAdminClient();
     } catch (adminError: unknown) {
-      return { 
-        success: false, 
-        error: adminError instanceof Error ? adminError.message : 'Falta configuración de Supabase Admin (SUPABASE_SERVICE_ROLE_KEY).', 
-        code: 'INTERNAL_ERROR' 
+      return {
+        success: false,
+        error: adminError instanceof Error ? adminError.message : 'Falta configuración de Supabase Admin (SUPABASE_SERVICE_ROLE_KEY).',
+        code: 'INTERNAL_ERROR'
       };
     }
 
@@ -208,9 +208,9 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
   try {
     const interpreter = await db.interpreter.findUnique({
       where: { id },
-      select: { 
-        id: true, 
-        name: true, 
+      select: {
+        id: true,
+        name: true,
         emailCorporativo: true,
         userProfile: { select: { id: true } }
       }
@@ -284,6 +284,11 @@ export async function updateRealtimeStatus(id: number, status: 'Online' | 'Offli
 
     revalidateInterpreterProfileRecords(id);
     return { success: true };
+  } catch (error: unknown) {
+    console.error('🔴 ERROR [updateRealtimeStatus]:', error);
+    return { success: false, error: 'Error al actualizar estado realtime', code: 'INTERNAL_ERROR' };
+  }
+}
 
 export async function updateInterpreterStatusAction(data: unknown): Promise<{ success: boolean; data?: { id: number; status: string }; error?: string }> {
   const auth = await validateAction('admin');
