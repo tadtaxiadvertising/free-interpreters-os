@@ -5,7 +5,7 @@ import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-inte
 import prisma from '@/lib/prisma';
 import { InterpreterSchema, InterpreterInput } from '@/lib/validators';
 import { ActionResult } from '@/lib/types';
-import { createAdminClient, getSupabaseServiceRoleKey } from '@/lib/supabase/admin';
+import { supabaseAdmin, isAdminUnavailableError, getSupabaseServiceRoleKey, ADMIN_UNAVAILABLE_MESSAGE } from '@/lib/supabase/admin';
 import { upsertConfirmedAuthUser } from '@/lib/supabase/auth-users';
 import { Interpreter, Prisma } from '@prisma/client';
 import { validateAction } from '@/lib/auth/actions';
@@ -15,15 +15,18 @@ import { deleteInterpreterDatabaseRecords } from '@/lib/interpreters/delete-inte
 const db = prisma;
 
 async function createInterpreterAuthUser(email: string, password: string, displayName: string) {
-  if (!getSupabaseServiceRoleKey()) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to create enabled interpreter accounts.');
+  try {
+    return await upsertConfirmedAuthUser({
+      email,
+      password,
+      displayName,
+    });
+  } catch (error) {
+    if (isAdminUnavailableError(error)) {
+      throw new Error(ADMIN_UNAVAILABLE_MESSAGE);
+    }
+    throw error;
   }
-
-  return upsertConfirmedAuthUser({
-    email,
-    password,
-    displayName,
-  });
 }
 
 /**
@@ -90,8 +93,10 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       return { success: false, error: 'Un intérprete con este ID externo o Email ya existe.', code: 'CONFLICT' };
     }
-
     const errorMsg = error instanceof Error ? error.message : 'Error al crear el intérprete';
+    if (isAdminUnavailableError(error) || errorMsg === ADMIN_UNAVAILABLE_MESSAGE) {
+      return { success: false, error: ADMIN_UNAVAILABLE_MESSAGE, code: 'SERVICE_UNAVAILABLE' };
+    }
     return { success: false, error: errorMsg, code: 'INTERNAL_ERROR' };
   }
 }
@@ -137,23 +142,25 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    // 1. Validar cliente de Supabase Admin
-    let supabaseAdmin = null;
+    // 1. Validar cliente de Supabase Admin access
     try {
-      supabaseAdmin = createAdminClient();
-    } catch (adminError: unknown) {
-      return {
-        success: false,
-        error: adminError instanceof Error ? adminError.message : 'Falta configuración de Supabase Admin (SUPABASE_SERVICE_ROLE_KEY).',
-        code: 'INTERNAL_ERROR'
-      };
+      supabaseAdmin.auth;
+    } catch (err) {
+      if (isAdminUnavailableError(err)) {
+        return {
+          success: false,
+          error: ADMIN_UNAVAILABLE_MESSAGE,
+          code: 'SERVICE_UNAVAILABLE'
+        };
+      }
+      throw err;
     }
 
     // 2. Perform DB deletion
     const { authUserId } = await db.$transaction((tx: any) => deleteInterpreterDatabaseRecords(tx, id));
 
     // 3. Delete Supabase Auth user if client is ready and user is linked
-    if (authUserId && supabaseAdmin) {
+    if (authUserId) {
       const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
       if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
     }
@@ -219,11 +226,13 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
     if (!interpreter) return { success: false, error: 'Intérprete no encontrado', code: 'NOT_FOUND' };
 
     let userProfileId = interpreter.userProfile?.id;
-    let supabaseAdmin: ReturnType<typeof createAdminClient> | null = null;
-    try { supabaseAdmin = createAdminClient(); } catch { /* service key not configured */ }
 
-    if (!supabaseAdmin && !userProfileId) {
-      return { success: false, error: 'Falta configuración de Supabase Admin (SUPABASE_SERVICE_ROLE_KEY). No se puede crear cuenta sin clave de servicio.', code: 'SERVICE_UNAVAILABLE' };
+    try {
+      supabaseAdmin.auth;
+    } catch (err) {
+      if (isAdminUnavailableError(err) && !userProfileId) {
+        return { success: false, error: ADMIN_UNAVAILABLE_MESSAGE, code: 'SERVICE_UNAVAILABLE' };
+      }
     }
 
     if (!userProfileId) {
@@ -253,14 +262,18 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
         });
       }
     } else {
-      if (!supabaseAdmin) {
-        return { success: false, error: 'Falta configuración de Supabase Admin (SUPABASE_SERVICE_ROLE_KEY). No se puede actualizar contraseña.', code: 'SERVICE_UNAVAILABLE' };
+      try {
+        const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userProfileId, {
+          password,
+          email_confirm: true,
+        });
+        if (authError) throw authError;
+      } catch (authErr) {
+        if (isAdminUnavailableError(authErr)) {
+          return { success: false, error: ADMIN_UNAVAILABLE_MESSAGE, code: 'SERVICE_UNAVAILABLE' };
+        }
+        throw authErr;
       }
-      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userProfileId, {
-        password,
-        email_confirm: true,
-      });
-      if (authError) throw authError;
     }
 
     revalidateInterpreterProfileRecords(id);

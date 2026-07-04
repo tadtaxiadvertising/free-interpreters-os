@@ -21,10 +21,18 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Interpreter or user profile not found' }, { status: 404 });
     }
 
-    // 2. Update Supabase Auth user
-    const { createAdminClient } = await import('@/lib/supabase/admin');
-    const supabaseAdmin = createAdminClient();
+    // 2. Attempt to create Supabase Admin client (graceful degradation)
+    const { tryCreateAdminClient, ADMIN_UNAVAILABLE_MESSAGE } = await import('@/lib/supabase/admin');
+    const supabaseAdmin = tryCreateAdminClient();
 
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { success: false, error: ADMIN_UNAVAILABLE_MESSAGE },
+        { status: 503 }
+      );
+    }
+
+    // 3. Update Supabase Auth user
     const { error } = await supabaseAdmin.auth.admin.updateUserById(
       interpreter.userProfile.id,
       { password, email_confirm: true }

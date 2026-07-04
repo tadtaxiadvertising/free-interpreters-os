@@ -28,6 +28,44 @@ if (typeof window === 'undefined' && typeof (globalThis as any).EdgeRuntime === 
   }
 }
 
+// ---------------------------------------------------------------------------
+// Error sentinel for missing SUPABASE_SERVICE_ROLE_KEY
+// Allows consumers to semantically detect this specific failure without
+// relying on fragile string matching on error.message.
+// ---------------------------------------------------------------------------
+
+/** Standardised user-facing message when admin operations are unavailable. */
+export const ADMIN_UNAVAILABLE_MESSAGE =
+  'Admin operation unavailable: Missing SUPABASE_SERVICE_ROLE_KEY in runtime config.';
+
+/**
+ * Semantic error thrown (or detected) when the Supabase Admin client cannot
+ * be initialised because `SUPABASE_SERVICE_ROLE_KEY` is not set.
+ */
+export class SupabaseAdminUnavailableError extends Error {
+  constructor(message?: string) {
+    super(message ?? ADMIN_UNAVAILABLE_MESSAGE);
+    this.name = 'SupabaseAdminUnavailableError';
+  }
+}
+
+/**
+ * Type-guard to check whether an unknown `catch` value is a
+ * `SupabaseAdminUnavailableError`.  Works even across module boundaries
+ * where `instanceof` might fail due to duplicate bundles.
+ */
+export function isAdminUnavailableError(error: unknown): error is SupabaseAdminUnavailableError {
+  if (error instanceof SupabaseAdminUnavailableError) return true;
+  return (
+    error instanceof Error &&
+    error.name === 'SupabaseAdminUnavailableError'
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Service-role key resolution (tolerant — logs once, returns empty string)
+// ---------------------------------------------------------------------------
+
 let _serviceKeyWarningLogged = false;
 
 export function getSupabaseServiceRoleKey() {
@@ -47,43 +85,44 @@ export function getSupabaseServiceRoleKey() {
     _serviceKeyWarningLogged = true;
     console.warn(
       '⚠️ [SUPABASE_ADMIN] SUPABASE_SERVICE_ROLE_KEY is not set. ' +
-      'Admin operations (email confirm, user provisioning) will be unavailable. ' +
-      'Set this env var in Easypanel runtime config.'
+      'Admin operations will be unavailable.'
     );
   }
 
   return '';
 }
 
-export function getSupabaseAdminConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  if (!url) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set in environment variables.');
-  }
+// ---------------------------------------------------------------------------
+// Admin config & client factories
+// ---------------------------------------------------------------------------
 
-  const serviceRoleKey = getSupabaseServiceRoleKey();
-  if (!serviceRoleKey) {
-    throw new Error(
-      'SUPABASE_SERVICE_ROLE_KEY is not set in environment variables. ' +
-      'This is required for admin operations like creating users. ' +
-      'Set it to the Supabase service_role secret key in your server runtime environment.'
-    );
-  }
-
-  return { url, serviceRoleKey };
-}
-
-export function createAdminClient() {
-  const { url, serviceRoleKey } = getSupabaseAdminConfig();
-
-  return createClient(
-    url,
-    serviceRoleKey,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
+function createLazyAdminClient() {
+  let clientInstance: ReturnType<typeof createClient> | null = null;
+  
+  return new Proxy({} as any, {
+    get(target, prop) {
+      if (!clientInstance) {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+        const key = getSupabaseServiceRoleKey();
+        
+        if (!url || !key) {
+           throw new SupabaseAdminUnavailableError();
+        }
+        
+        clientInstance = createClient(url, key, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        });
       }
+      return (clientInstance as any)[prop];
     }
-  );
+  });
 }
+
+/**
+ * A proxy instance of the Supabase Admin client. 
+ * Throws SupabaseAdminUnavailableError on property access if SUPABASE_SERVICE_ROLE_KEY is missing.
+ */
+export const supabaseAdmin = createLazyAdminClient();

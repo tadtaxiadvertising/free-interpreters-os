@@ -451,8 +451,7 @@ export async function requestPasswordReset(formData: FormData) {
     const proto = headersList.get('x-forwarded-proto') || 'https';
     const origin = host ? `${proto}://${host}` : '';
 
-    const { createAdminClient } = await import('@/lib/supabase/admin');
-    const supabaseAdmin = createAdminClient();
+    const { supabaseAdmin } = await import('@/lib/supabase/admin');
 
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
@@ -475,9 +474,11 @@ export async function requestPasswordReset(formData: FormData) {
 
     return { success: true };
   } catch (err: unknown) {
+    const { isAdminUnavailableError } = await import('@/lib/supabase/admin');
     if (
-      err instanceof Error &&
-      (err.message.includes('SUPABASE_SERVICE_ROLE_KEY') || err.message.includes('NEXT_PUBLIC_SUPABASE_URL'))
+      isAdminUnavailableError(err) ||
+      (err instanceof Error &&
+      (err.message.includes('SUPABASE_SERVICE_ROLE_KEY') || err.message.includes('NEXT_PUBLIC_SUPABASE_URL')))
     ) {
       console.warn('⚠️ [AUTH_RESET] Request password omitido por falta de configuración.');
       return { success: false, error: 'Servicio deshabilitado temporalmente.' };

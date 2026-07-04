@@ -14,10 +14,10 @@ export async function DELETE(
 
     // Initialize Supabase admin client first, catching errors so missing environment
     // variables or configuration issues do not crash the entire deletion action.
-    let supabaseAdmin = null;
     try {
-      const { createAdminClient } = await import('@/lib/supabase/admin');
-      supabaseAdmin = createAdminClient();
+      const { supabaseAdmin, isAdminUnavailableError } = await import('@/lib/supabase/admin');
+      // Validate access to trigger error if missing role key
+      supabaseAdmin.auth;
     } catch (adminError: unknown) {
       console.warn(
         '⚠️ Fallo al inicializar el cliente de Supabase Admin:',
@@ -27,9 +27,14 @@ export async function DELETE(
 
     const { authUserId } = await prisma.$transaction((tx: any) => deleteInterpreterDatabaseRecords(tx, interpreterId));
 
-    if (authUserId && supabaseAdmin) {
-      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
-      if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
+    if (authUserId) {
+      try {
+        const { supabaseAdmin } = await import('@/lib/supabase/admin');
+        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
+        if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
+      } catch (err: unknown) {
+        console.warn('⚠️ Fallo al borrar usuario de Auth:', err instanceof Error ? err.message : err);
+      }
     }
 
     revalidateInterpreterProfileRecords(interpreterId);
@@ -65,13 +70,22 @@ export async function PATCH(
       });
 
       if (interpreter?.userProfile) {
-        const { createAdminClient } = await import('@/lib/supabase/admin');
-        const supabaseAdmin = createAdminClient();
-        const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-          interpreter.userProfile.id,
-          { password, email_confirm: true }
-        );
-        if (authError) throw authError;
+        const { supabaseAdmin, ADMIN_UNAVAILABLE_MESSAGE, isAdminUnavailableError } = await import('@/lib/supabase/admin');
+        try {
+          const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+            interpreter.userProfile.id,
+            { password, email_confirm: true }
+          );
+          if (authError) throw authError;
+        } catch (err: unknown) {
+          if (isAdminUnavailableError(err)) {
+            return NextResponse.json(
+              { success: false, error: ADMIN_UNAVAILABLE_MESSAGE },
+              { status: 503 }
+            );
+          }
+          throw err;
+        }
       }
     }
 
