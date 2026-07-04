@@ -1,4 +1,4 @@
-import { createAdminClient } from './src/lib/supabase/admin';
+import { supabaseAdmin } from './src/lib/supabase/admin';
 import prismaClient from './src/lib/prisma';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
@@ -8,7 +8,6 @@ const prisma = prismaClient;
 
 async function check() {
   try {
-    const supabaseAdmin = createAdminClient();
     const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
     if (error) {
       console.error('Error listing users:', error);

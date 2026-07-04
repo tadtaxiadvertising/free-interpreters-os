@@ -144,7 +144,7 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
   try {
     // 1. Validar cliente de Supabase Admin access
     try {
-      supabaseAdmin.auth;
+      void supabaseAdmin.auth;
     } catch (err) {
       if (isAdminUnavailableError(err)) {
         return {
@@ -228,7 +228,7 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
     let userProfileId = interpreter.userProfile?.id;
 
     try {
-      supabaseAdmin.auth;
+      void supabaseAdmin.auth;
     } catch (err) {
       if (isAdminUnavailableError(err) && !userProfileId) {
         return { success: false, error: ADMIN_UNAVAILABLE_MESSAGE, code: 'SERVICE_UNAVAILABLE' };

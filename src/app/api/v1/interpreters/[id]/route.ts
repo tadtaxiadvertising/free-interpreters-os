@@ -17,7 +17,7 @@ export async function DELETE(
     try {
       const { supabaseAdmin, isAdminUnavailableError } = await import('@/lib/supabase/admin');
       // Validate access to trigger error if missing role key
-      supabaseAdmin.auth;
+      void supabaseAdmin.auth;
     } catch (adminError: unknown) {
       console.warn(
         '⚠️ Fallo al inicializar el cliente de Supabase Admin:',

@@ -64,19 +64,6 @@ export async function confirmAuthUserEmail(email: string): Promise<User | null> 
     }
     throw error;
   }
-
-  const existingUser = await findAuthUserByEmail(supabaseAdmin, email);
-
-  if (!existingUser) return null;
-  if (existingUser.email_confirmed_at) return existingUser;
-
-  const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
-    existingUser.id,
-    { email_confirm: true }
-  );
-
-  if (error) throw error;
-  return data.user;
 }
 
 /**

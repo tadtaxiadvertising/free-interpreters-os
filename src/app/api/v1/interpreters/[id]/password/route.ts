@@ -22,23 +22,25 @@ export async function POST(
     }
 
     // 2. Attempt to create Supabase Admin client (graceful degradation)
-    const { tryCreateAdminClient, ADMIN_UNAVAILABLE_MESSAGE } = await import('@/lib/supabase/admin');
-    const supabaseAdmin = tryCreateAdminClient();
-
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { success: false, error: ADMIN_UNAVAILABLE_MESSAGE },
-        { status: 503 }
+    const { supabaseAdmin, ADMIN_UNAVAILABLE_MESSAGE, isAdminUnavailableError } = await import('@/lib/supabase/admin');
+    
+    try {
+      // 3. Update Supabase Auth user
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(
+        interpreter.userProfile.id,
+        { password, email_confirm: true }
       );
+
+      if (error) throw error;
+    } catch (err: unknown) {
+      if (isAdminUnavailableError(err)) {
+        return NextResponse.json(
+          { success: false, error: ADMIN_UNAVAILABLE_MESSAGE },
+          { status: 503 }
+        );
+      }
+      throw err;
     }
-
-    // 3. Update Supabase Auth user
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(
-      interpreter.userProfile.id,
-      { password, email_confirm: true }
-    );
-
-    if (error) throw error;
 
     return NextResponse.json({ success: true, message: 'Password updated successfully' });
 
