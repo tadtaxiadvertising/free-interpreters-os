@@ -9,9 +9,13 @@ import type { Session } from "next-auth";
 // Force Auth.js to trust the proxy host (Easypanel/Vercel)
 process.env.AUTH_TRUST_HOST = "true";
 
+if (!process.env.AUTH_SECRET) {
+  console.error("[AUTH-RBAC] FATAL: AUTH_SECRET is not set. NextAuth sessions will fail.");
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  secret: process.env.AUTH_SECRET || process.env.JWT_SECRET || "fallback-secret-for-interpreters-os",
+  secret: process.env.AUTH_SECRET,
   providers: [
     CredentialsProvider({
       credentials: { email: {}, password: {} },

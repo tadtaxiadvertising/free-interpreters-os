@@ -22,7 +22,19 @@
       "Bash(git *)",
       "Bash(eof)",
       "Bash(python *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(pip *)",
+      "Bash(ffmpeg *)",
+      "Bash(tasklist *)",
+      "Bash(findstr *)",
+      "Bash(wmic *)",
+      "Skill(supabase)",
+      "Bash(::tobase64string *)",
+      "Bash(foreach-object *)",
+      "Bash(-join *)",
+      "Bash(get-random *)",
+      "Bash($r *)",
+      "Bash(type *)"
     ]
   },
   "$version": 4
