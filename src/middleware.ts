@@ -102,7 +102,7 @@ export async function middleware(req: NextRequest) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.warn('[MIDDLEWARE] Supabase session refresh failed:', errorMsg);
       response = NextResponse.next({ request: req });
-      hasActiveSupabaseSession = hasSupabaseCookie;
+      hasActiveSupabaseSession = false;
     }
   } else {
     response = NextResponse.next({ request: req });

@@ -26,15 +26,18 @@ function isInvalidRefreshTokenError(error: unknown) {
   );
 }
 
-function clearSupabaseCookies(response: NextResponse, request: NextRequest) {
-  response.cookies.delete('sb-access-token');
-  response.cookies.delete('sb-refresh-token');
-
+function collectStaleCookieNames(names: Set<string>, request: NextRequest) {
+  names.add('sb-access-token');
+  names.add('sb-refresh-token');
   request.cookies.getAll().forEach((cookie) => {
     if (cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')) {
-      response.cookies.delete(cookie.name);
+      names.add(cookie.name);
     }
   });
+}
+
+function applyCookieDeletions(response: NextResponse, names: Set<string>) {
+  names.forEach((name) => response.cookies.delete(name));
 }
 
 export async function updateSession(request: NextRequest): Promise<UpdateSessionResult> {
@@ -48,6 +51,7 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
     return { response: NextResponse.next({ request }), hasValidSession: false };
   }
   let supabaseResponse = NextResponse.next({ request });
+  const staleCookieNames = new Set<string>();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -76,14 +80,14 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
     const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
     if (userError) {
       if (isInvalidRefreshTokenError(userError)) {
-        clearSupabaseCookies(supabaseResponse, request);
+        collectStaleCookieNames(staleCookieNames, request);
       }
     } else {
       user = currentUser;
     }
   } catch (error: any) {
     if (isInvalidRefreshTokenError(error)) {
-      clearSupabaseCookies(supabaseResponse, request);
+      collectStaleCookieNames(staleCookieNames, request);
     } else {
       console.warn('🔴 [MIDDLEWARE] Unexpected Supabase auth error:', error);
     }
@@ -97,23 +101,28 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
 
   // 2. Public paths that don't require Supabase auth
   const publicPaths = [
-    '/login', 
+    '/login',
     '/register',
-    '/api/health', 
+    '/api/health',
     '/health',
-    '/forgot-password', 
-    '/reset-password', 
+    '/forgot-password',
+    '/reset-password',
     '/auth',            // Supabase auth callback
     '/unauthorized',    // Error/Access Denied page
   ];
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
+  const isApiRoute = pathname.startsWith('/api/');
 
   // 3. Handle non-authenticated users
-  if (!user && !hasNextAuthCookie && !isPublic) {
+  // API routes pass through so route handlers can return proper 401 JSON;
+  // page routes redirect to /login.
+  if (!user && !hasNextAuthCookie && !isPublic && !isApiRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    const redirectResponse = NextResponse.redirect(url);
+    applyCookieDeletions(redirectResponse, staleCookieNames);
     return {
-      response: NextResponse.redirect(url),
+      response: redirectResponse,
       hasValidSession: false,
     };
   }
@@ -135,7 +144,7 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
           .select('role')
           .eq('id', user.id)
           .single();
-        
+
         if (error) {
           console.error('🔴 [MIDDLEWARE] Error fetching role with service client:', error);
         } else {
@@ -162,8 +171,10 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
   if (hasSession && pathname === '/login') {
     const url = request.nextUrl.clone();
     url.pathname = role === 'admin' ? '/admin' : '/dashboard';
+    const redirectResponse = NextResponse.redirect(url);
+    applyCookieDeletions(redirectResponse, staleCookieNames);
     return {
-      response: NextResponse.redirect(url),
+      response: redirectResponse,
       hasValidSession: true,
     };
   }
@@ -173,8 +184,10 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
     if (pathname.startsWith('/admin') && role !== 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/dashboard';
+      const redirectResponse = NextResponse.redirect(url);
+      applyCookieDeletions(redirectResponse, staleCookieNames);
       return {
-        response: NextResponse.redirect(url),
+        response: redirectResponse,
         hasValidSession: true,
       };
     }
@@ -182,8 +195,10 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
     if (pathname.startsWith('/dashboard') && role === 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/admin';
+      const redirectResponse = NextResponse.redirect(url);
+      applyCookieDeletions(redirectResponse, staleCookieNames);
       return {
-        response: NextResponse.redirect(url),
+        response: redirectResponse,
         hasValidSession: true,
       };
     }
@@ -193,12 +208,16 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
   if (hasSession && pathname === '/') {
     const url = request.nextUrl.clone();
     url.pathname = role === 'admin' ? '/admin' : '/dashboard';
+    const redirectResponse = NextResponse.redirect(url);
+    applyCookieDeletions(redirectResponse, staleCookieNames);
     return {
-      response: NextResponse.redirect(url),
+      response: redirectResponse,
       hasValidSession: true,
     };
   }
 
+  // Apply stale cookie deletions to the final supabaseResponse
+  applyCookieDeletions(supabaseResponse, staleCookieNames);
   return {
     response: supabaseResponse,
     hasValidSession,
