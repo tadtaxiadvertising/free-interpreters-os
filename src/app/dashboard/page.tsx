@@ -27,10 +27,14 @@ export default async function InterpreterDashboard() {
   if (!profile) {
     console.warn(`[DASHBOARD] Profile missing for user ${userId}, attempting auto-repair...`);
     try {
-      // Use Prisma for auto-repair to avoid DNS/fetch issues
-      // Try to link to an existing interpreter by email
-      const interpreter = await prisma.interpreter.findUnique({
-        where: { emailCorporativo: user.email },
+      // Use Prisma for auto-repair — broader matching (email or name)
+      const interpreter = await prisma.interpreter.findFirst({
+        where: {
+          OR: [
+            { emailCorporativo: user.email },
+            { name: user.displayName || user.email?.split('@')[0] },
+          ],
+        },
         select: { id: true }
       });
 
@@ -73,6 +77,38 @@ export default async function InterpreterDashboard() {
       console.error('[DASHBOARD] Auto-repair failed via Prisma:', err);
     }
 
+  }
+
+  // ── AUTO-REPAIR: Link interpreter when profile exists but interpreter_id is null ──
+  if (profile && !profile.interpreter_id) {
+    console.warn(`[DASHBOARD] Profile exists for ${userId} but interpreter_id is null, attempting link repair...`);
+    try {
+      const interpreterMatch = await prisma.interpreter.findFirst({
+        where: {
+          OR: [
+            { emailCorporativo: user.email },
+            { name: user.displayName || user.email?.split('@')[0] },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (interpreterMatch) {
+        await prisma.userProfile.update({
+          where: { id: userId },
+          data: { interpreterId: interpreterMatch.id },
+        });
+        profile = {
+          ...profile,
+          interpreter_id: interpreterMatch.id,
+        };
+        console.log(`[DASHBOARD] Interpreter link auto-repaired for ${userId} → interpreter ${interpreterMatch.id}`);
+      } else {
+        console.warn(`[DASHBOARD] No matching interpreter found for email=${user.email} / name=${user.displayName}`);
+      }
+    } catch (err) {
+      console.error('[DASHBOARD] Interpreter link repair failed:', err);
+    }
   }
 
   if (profile && profile.role === 'admin') {

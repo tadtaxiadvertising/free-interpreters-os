@@ -343,8 +343,13 @@ export async function register(formData: FormData) {
       userId = data.user.id;
     }
 
-    const interpreter = await prisma.interpreter.findUnique({
-      where: { emailCorporativo: validated.email },
+    const interpreter = await prisma.interpreter.findFirst({
+      where: {
+        OR: [
+          { emailCorporativo: validated.email },
+          { name: name },
+        ],
+      },
       select: { id: true },
     });
 
@@ -467,6 +472,34 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
     }
 
     if (!profile) return null;
+
+    // Self-healing: link interpreter when profile exists but interpreterId is null
+    if (!profile.interpreterId && profile.email) {
+      try {
+        const interpreterMatch = await prisma.interpreter.findFirst({
+          where: {
+            OR: [
+              { emailCorporativo: profile.email },
+              { name: profile.displayName || profile.email?.split('@')[0] },
+            ],
+          },
+          select: { id: true },
+        });
+
+        if (interpreterMatch) {
+          await prisma.userProfile.update({
+            where: { id: profile.id },
+            data: { interpreterId: interpreterMatch.id },
+          });
+          profile = { ...profile, interpreterId: interpreterMatch.id, interpreter: null };
+          console.log(`🔧 [AUTH] Interpreter link auto-repaired in getCurrentProfile for ${profile.id} → interpreter ${interpreterMatch.id}`);
+        } else {
+          console.warn(`[AUTH] No matching interpreter found for email=${profile.email} / name=${profile.displayName}`);
+        }
+      } catch (linkErr) {
+        console.error('[AUTH] Interpreter link repair in getCurrentProfile failed:', linkErr);
+      }
+    }
 
     return {
       id: profile.id,

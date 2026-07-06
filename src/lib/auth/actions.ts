@@ -33,7 +33,7 @@ export const getCurrentUser = cache(async () => {
       // Self-healing: if the user exists in Supabase but has no userProfile record in the public schema
       if (!supabaseProfile && user.email) {
         console.log(`🔧 [AUTH] Self-healing profile auto-creation for user: ${user.email}`);
-        
+
         // Determine default role based on email matches
         const emailLower = user.email.toLowerCase();
         let role = 'interpreter';
@@ -46,9 +46,14 @@ export const getCurrentUser = cache(async () => {
           role = 'admin';
         }
 
-        // Link with an interpreter profile if the email matches
-        const interpreter = await prisma.interpreter.findUnique({
-          where: { emailCorporativo: user.email },
+        // Link with an interpreter profile — broader matching (email or name)
+        const interpreter = await prisma.interpreter.findFirst({
+          where: {
+            OR: [
+              { emailCorporativo: user.email },
+              { name: user.user_metadata?.display_name || user.email?.split('@')[0] },
+            ],
+          },
           select: { id: true }
         });
 
@@ -70,19 +75,45 @@ export const getCurrentUser = cache(async () => {
           }
         });
       }
+
+      // Self-healing: link interpreter when profile exists but interpreterId is null
+      if (supabaseProfile && !supabaseProfile.interpreterId && supabaseUser?.email) {
+        try {
+          const interpreterMatch = await prisma.interpreter.findFirst({
+            where: {
+              OR: [
+                { emailCorporativo: supabaseUser.email },
+                { name: supabaseProfile.displayName || supabaseUser.email?.split('@')[0] },
+              ],
+            },
+            select: { id: true },
+          });
+
+          if (interpreterMatch) {
+            await prisma.userProfile.update({
+              where: { id: supabaseProfile.id },
+              data: { interpreterId: interpreterMatch.id },
+            });
+            supabaseProfile = { ...supabaseProfile, interpreterId: interpreterMatch.id };
+            console.log(`🔧 [AUTH] Interpreter link auto-repaired for ${supabaseProfile.id} → interpreter ${interpreterMatch.id}`);
+          }
+        } catch (linkErr) {
+          console.error('[AUTH] Interpreter link repair failed:', linkErr);
+        }
+      }
     }
   } catch (error) {
     // Supabase variables might be missing in RBAC-only environments (e.g. interpreters subproject)
     // We catch it here to allow clean fallback to Auth.js credentials session
   }
-  
+
   if (supabaseUser) {
     return {
       ...supabaseUser,
       profile: supabaseProfile
     };
   }
-  
+
   // Fallback to NextAuth (Auth.js) session
   try {
     const session = await auth();
@@ -102,7 +133,7 @@ export const getCurrentUser = cache(async () => {
   } catch (authError) {
     console.error('NextAuth Fallback Error:', authError);
   }
-  
+
   return null;
 });
 
@@ -117,7 +148,7 @@ export async function validateAction(requiredRole?: UserRole | UserRole[]): Prom
   profile: any;
 } | { error: string; code: NonNullable<ActionResult['code']> }> {
   const userData = await getCurrentUser();
-  
+
   if (!userData) {
     return { error: 'Not authenticated', code: 'UNAUTHORIZED' };
   }
@@ -125,7 +156,7 @@ export async function validateAction(requiredRole?: UserRole | UserRole[]): Prom
   if (requiredRole) {
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
     const userRole = (userData.profile?.role || 'interpreter').toLowerCase() as UserRole;
-    
+
     if (!roles.includes(userRole)) {
       return { error: 'Access denied: insufficient permissions', code: 'UNAUTHORIZED' };
     }
