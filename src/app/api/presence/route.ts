@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const profile = userData.profile;
 
     if (!profile?.interpreterId) {
-      return NextResponse.json({ success: false, error: 'Interpreter not found' }, { status: 404 });
+      return NextResponse.json({ success: true, skipped: true });
     }
 
     // Single update. If no status provided, we just update the ID to itself
