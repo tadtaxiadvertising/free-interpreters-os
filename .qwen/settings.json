@@ -36,7 +36,8 @@
       "Bash($r *)",
       "Bash(type *)",
       "Bash(timeout *)",
-      "Bash(ping *)"
+      "Bash(ping *)",
+      "Bash(set *)"
     ]
   },
   "$version": 4
