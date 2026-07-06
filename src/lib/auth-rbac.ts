@@ -27,7 +27,7 @@ if (typeof window === 'undefined' && typeof (globalThis as any).EdgeRuntime === 
             if (!process.env[k]) process.env[k] = parsed[k];
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     };
 
     loadEnv('.env.local');
@@ -41,28 +41,35 @@ if (typeof window === 'undefined' && typeof (globalThis as any).EdgeRuntime === 
 process.env.AUTH_TRUST_HOST = "true";
 
 // ---------------------------------------------------------------------------
-// AUTH_SECRET resolution — hardened fallback
-// Priority: AUTH_SECRET env → derived from ENCRYPTION_KEY → stable dev default
+// AUTH_SECRET resolution
+// Priority: AUTH_SECRET env → derived from ENCRYPTION_KEY → random per-process secret
 // ---------------------------------------------------------------------------
 if (!process.env.AUTH_SECRET) {
   if (process.env.ENCRYPTION_KEY) {
-    // Derive a stable 32-byte secret from the existing ENCRYPTION_KEY
     process.env.AUTH_SECRET = crypto
       .createHash('sha256')
       .update(process.env.ENCRYPTION_KEY)
       .digest('hex')
       .slice(0, 32);
     console.warn(
-      '[AUTH-RBAC] AUTH_SECRET was missing — derived from ENCRYPTION_KEY. ' +
-      'Set AUTH_SECRET explicitly in production for best security.'
+      '[AUTH-RBAC] AUTH_SECRET derived from ENCRYPTION_KEY. ' +
+      'Set AUTH_SECRET explicitly for stable sessions across restarts.'
     );
   } else {
-    // Hard fallback to prevent NextAuth from crashing the server
-    process.env.AUTH_SECRET = "default-unsecure-fallback-secret-nextauth-rbac-123456";
-    console.warn(
-      "[AUTH-RBAC] WARNING: Neither AUTH_SECRET nor ENCRYPTION_KEY is set. " +
-      "NextAuth is using a default fallback secret. Set AUTH_SECRET in your environment for production!"
-    );
+    // Random per-process secret — sessions invalidated on restart, but not predictable
+    process.env.AUTH_SECRET = crypto.randomBytes(32).toString('hex');
+    if (process.env.NODE_ENV === 'production') {
+      console.error(
+        '[AUTH-RBAC] CRITICAL: AUTH_SECRET is not set in production! ' +
+        'Using a random per-process secret — sessions will break on every restart. ' +
+        'Set AUTH_SECRET in your Easypanel runtime environment immediately.'
+      );
+    } else {
+      console.warn(
+        '[AUTH-RBAC] AUTH_SECRET not set — using random per-process secret. ' +
+        'Sessions will be invalidated on server restart. Set AUTH_SECRET for stable sessions.'
+      );
+    }
   }
 }
 
