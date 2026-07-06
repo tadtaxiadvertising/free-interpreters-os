@@ -57,9 +57,11 @@ if (!process.env.AUTH_SECRET) {
       'Set AUTH_SECRET explicitly in production for best security.'
     );
   } else {
-    console.error(
-      "[AUTH-RBAC] FATAL: Neither AUTH_SECRET nor ENCRYPTION_KEY is set. " +
-      "NextAuth sessions will fail. Set AUTH_SECRET in your environment."
+    // Hard fallback to prevent NextAuth from crashing the server
+    process.env.AUTH_SECRET = "default-unsecure-fallback-secret-nextauth-rbac-123456";
+    console.warn(
+      "[AUTH-RBAC] WARNING: Neither AUTH_SECRET nor ENCRYPTION_KEY is set. " +
+      "NextAuth is using a default fallback secret. Set AUTH_SECRET in your environment for production!"
     );
   }
 }
