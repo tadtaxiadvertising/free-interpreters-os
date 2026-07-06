@@ -34,7 +34,9 @@
       "Bash(-join *)",
       "Bash(get-random *)",
       "Bash($r *)",
-      "Bash(type *)"
+      "Bash(type *)",
+      "Bash(timeout *)",
+      "Bash(ping *)"
     ]
   },
   "$version": 4

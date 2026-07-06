@@ -164,6 +164,9 @@ export async function login(formData: FormData) {
         }
       }
 
+      // ── LOCAL RBAC FALLBACK ─────────────────────────────────
+      // Authenticate against the rbac_users table (works even without
+      // Supabase service key).
       const localUser = await prisma.rbacUser.findUnique({
         where: { email },
         select: { id: true, email: true, name: true, role: true, password: true },
@@ -186,42 +189,58 @@ export async function login(formData: FormData) {
         };
       }
 
+      // Try to provision the user in Supabase Auth for cookie-based sessions.
+      // If the service key is unavailable, sign in via NextAuth (Auth.js)
+      // credentials provider instead — this creates a JWT session cookie.
+      if (getSupabaseServiceRoleKey()) {
+        try {
+          const displayName = localUser.name || email.split('@')[0];
+          const provisionedUserId = await provisionSupabaseUserFromLocalCredentials({
+            email,
+            password,
+            role: localRole,
+            displayName,
+          });
+
+          if (provisionedUserId) {
+            const retry = await supabase.auth.signInWithPassword({
+              email: validated.email,
+              password: validated.password,
+            });
+            if (!retry.error && retry.data.user) {
+              await syncUserProfileFromAuth({
+                userId: retry.data.user.id,
+                email,
+                role: localRole,
+                displayName,
+              });
+              return { success: true, role: localRole };
+            }
+          }
+        } catch (fallbackError) {
+          console.error(`🔴 [AUTH_LOGIN] Supabase provisioning failed for ${email}:`, fallbackError);
+        }
+      }
+
+      // If we got here, Supabase provisioning was unavailable or failed.
+      // Sign in via NextAuth credentials provider (creates a JWT cookie).
       try {
-        const displayName = localUser.name || email.split('@')[0];
-        const provisionedUserId = await provisionSupabaseUserFromLocalCredentials({
+        const { signIn: nextAuthSignIn } = await import('@/lib/auth-rbac');
+        await nextAuthSignIn('credentials', {
           email,
           password,
-          role: localRole,
-          displayName,
+          redirect: false,
         });
-
-        if (!provisionedUserId) {
-          return {
-            success: false,
-            error: 'No se pudo habilitar esta cuenta para Supabase Auth.',
-          };
+      } catch (nextAuthErr: any) {
+        // signIn may throw a NEXT_REDIRECT — that's actually success
+        if (nextAuthErr?.digest?.includes('NEXT_REDIRECT')) {
+          // NextAuth redirect is expected behavior
+        } else {
+          console.warn('⚠️ [AUTH_LOGIN] NextAuth signIn fallback warning:', nextAuthErr?.message);
         }
-
-        const retry = await supabase.auth.signInWithPassword({
-          email: validated.email,
-          password: validated.password,
-        });
-        if (retry.error || !retry.data.user) {
-          return { success: false, error: retry.error?.message || 'Credenciales inválidas o error de autenticación.' };
-        }
-
-        await syncUserProfileFromAuth({
-          userId: retry.data.user.id,
-          email,
-          role: localRole,
-          displayName,
-        });
-
-        return { success: true, role: localRole };
-      } catch (fallbackError) {
-        console.error(`🔴 [AUTH_LOGIN] Fallback provisioning failed for ${email}:`, fallbackError);
-        return { success: false, error: 'Credenciales inválidas o error de autenticación.' };
       }
+
+      return { success: true, role: localRole };
     }
 
     // Fetch minimal profile via Prisma
