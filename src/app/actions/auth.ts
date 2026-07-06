@@ -2,7 +2,7 @@
 
 import { createClient, isSupabaseConfigError } from '@/lib/supabase/server';
 import { getSupabaseServiceRoleKey } from '@/lib/supabase/admin';
-import { confirmAuthUserEmail, upsertConfirmedAuthUser } from '@/lib/supabase/auth-users';
+import { upsertConfirmedAuthUser } from '@/lib/supabase/auth-users';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import type { UserProfile, UserRole } from '@/lib/types';
@@ -20,10 +20,6 @@ const AuthSchema = z.object({
 
 function normalizeRbacRole(role: string | null | undefined): UserRole {
   return role?.toLowerCase() === 'admin' ? 'admin' : 'interpreter';
-}
-
-function isEmailNotConfirmedError(error: { message?: string } | null | undefined) {
-  return error?.message?.toLowerCase().includes('email not confirmed') ?? false;
 }
 
 async function provisionSupabaseUserFromLocalCredentials(params: {
@@ -79,7 +75,7 @@ async function syncUserProfileFromAuth(params: {
   });
 }
 
-async function retryAfterConfirmingAuthEmail(params: {
+async function repairAuthUserAndRetry(params: {
   supabase: Awaited<ReturnType<typeof createClient>>;
   email: string;
   password: string;
@@ -89,8 +85,17 @@ async function retryAfterConfirmingAuthEmail(params: {
     return null;
   }
 
-  const confirmedUser = await confirmAuthUserEmail(params.email);
-  if (!confirmedUser) return null;
+  // upsertConfirmedAuthUser handles all known failure modes:
+  //  - identities: null/empty → deletes broken user, recreates with proper identity link
+  //  - email not confirmed → updates with email_confirm: true
+  //  - user doesn't exist → creates fresh confirmed user
+  const repairedUser = await upsertConfirmedAuthUser({
+    email: params.email,
+    password: params.password,
+    displayName: params.email.split('@')[0],
+  });
+
+  if (!repairedUser) return null;
 
   const retry = await params.supabase.auth.signInWithPassword({
     email: params.email,
@@ -114,7 +119,7 @@ async function retryAfterConfirmingAuthEmail(params: {
       userId: retry.data.user.id,
       email: params.email,
       role: params.requestedRole,
-      displayName: confirmedUser.user_metadata?.display_name || params.email.split('@')[0],
+      displayName: repairedUser.user_metadata?.display_name || params.email.split('@')[0],
     });
   }
 
@@ -144,12 +149,11 @@ export async function login(formData: FormData) {
     if (error) {
       console.error(`🔴 [AUTH_LOGIN] Failed for ${email}:`, error.message);
 
-      // Always attempt admin API repair when the service key is available.
-      // "Invalid login credentials" can ALSO indicate an unconfirmed email
-      // in certain Supabase configurations — not just "Email not confirmed".
+      // Attempt admin API repair when the service key is available.
+      // Handles: identities:null, unconfirmed email, missing user.
       if (getSupabaseServiceRoleKey()) {
         try {
-          const repairedLogin = await retryAfterConfirmingAuthEmail({
+          const repairedLogin = await repairAuthUserAndRetry({
             supabase,
             email,
             password,
