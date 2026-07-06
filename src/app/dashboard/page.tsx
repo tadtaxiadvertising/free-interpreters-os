@@ -27,6 +27,18 @@ export default async function InterpreterDashboard() {
   if (!profile) {
     console.warn(`[DASHBOARD] Profile missing for user ${userId}, attempting auto-repair...`);
     try {
+      // Determine role from email before interpreter logic
+      const emailLower = (user.email || '').toLowerCase();
+      let role: string = 'interpreter';
+      if (
+        emailLower === 'interpretersfree@gmail.com' ||
+        emailLower === 'melvinramonduranmesa@gmail.com' ||
+        emailLower === 'admin@freeinterpreters.com' ||
+        emailLower.includes('admin')
+      ) {
+        role = 'admin';
+      }
+
       // Use Prisma for auto-repair — broader matching (email or name)
       const interpreter = await prisma.interpreter.findFirst({
         where: {
@@ -38,9 +50,9 @@ export default async function InterpreterDashboard() {
         select: { id: true }
       });
 
-      // AUTO-CREATE: If no matching interpreter, create one
-      let interpreterId: number | null = interpreter?.id || null;
-      if (!interpreterId) {
+      // AUTO-CREATE: If no matching interpreter, create one (only for interpreters)
+      let interpreterId: number | null = role === 'interpreter' ? (interpreter?.id || null) : null;
+      if (!interpreterId && role === 'interpreter') {
         const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter';
         try {
           const newInterp = await prisma.interpreter.create({
@@ -87,14 +99,14 @@ export default async function InterpreterDashboard() {
         update: {
           email: user.email || '',
           displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
-          role: 'interpreter',
+          role: role,
           interpreterId: interpreterId,
         },
         create: {
           id: userId,
           email: user.email || '',
           displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
-          role: 'interpreter',
+          role: role,
           interpreterId: interpreterId,
         }
       });
@@ -123,8 +135,25 @@ export default async function InterpreterDashboard() {
 
   }
 
-  // ── AUTO-REPAIR: Link interpreter when profile exists but interpreter_id is null ──
-  if (profile && !profile.interpreter_id) {
+  // Self-healing: correct admin role if email matches admin patterns
+  if (profile && profile.email && profile.role !== 'admin') {
+    const emailLower = profile.email.toLowerCase();
+    const isAdminEmail = emailLower === 'interpretersfree@gmail.com' ||
+      emailLower === 'melvinramonduranmesa@gmail.com' ||
+      emailLower === 'admin@freeinterpreters.com' ||
+      emailLower.includes('admin');
+    if (isAdminEmail) {
+      await prisma.userProfile.update({
+        where: { id: userId },
+        data: { role: 'admin', interpreterId: null },
+      });
+      profile = { ...profile, role: 'admin', interpreter_id: null };
+      console.log(`🔧 [DASHBOARD] Role self-healed to admin for ${userId}`);
+    }
+  }
+
+  // ── AUTO-REPAIR: Link interpreter when profile exists but interpreter_id is null (skip for admins) ──
+  if (profile && !profile.interpreter_id && profile.role !== 'admin') {
     console.warn(`[DASHBOARD] Profile exists for ${userId} but interpreter_id is null, attempting link repair...`);
     try {
       const interpreterMatch = await prisma.interpreter.findFirst({
@@ -148,7 +177,7 @@ export default async function InterpreterDashboard() {
         };
         console.log(`[DASHBOARD] Interpreter link auto-repaired for ${userId} → interpreter ${interpreterMatch.id}`);
       } else {
-        // AUTO-CREATE: No matching interpreter — create one and link it
+        // AUTO-CREATE: No matching interpreter — create one and link it (admins excluded by outer condition)
         const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter';
         let newInterpreter: { id: number } | null = null;
         try {

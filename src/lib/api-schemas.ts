@@ -11,7 +11,8 @@ export const ManualCallSchema = z.object({
 
 export const PresenceSchema = z.object({
   status: z.enum(['Online', 'Offline', 'Busy']).optional(),
-});
+  type: z.string().optional(),
+}).passthrough();
 
 export const IncentiveTierSchema = z.object({
   tierNumber: z.number().int().positive().max(20),

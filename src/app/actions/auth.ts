@@ -473,8 +473,25 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
 
     if (!profile) return null;
 
-    // Self-healing: link interpreter when profile exists but interpreterId is null
-    if (!profile.interpreterId && profile.email) {
+    // Self-healing: correct admin role if email matches admin patterns
+    if (profile.email && profile.role !== 'admin') {
+      const emailLower = profile.email.toLowerCase();
+      const isAdminEmail = emailLower === 'interpretersfree@gmail.com' ||
+        emailLower === 'melvinramonduranmesa@gmail.com' ||
+        emailLower === 'admin@freeinterpreters.com' ||
+        emailLower.includes('admin');
+      if (isAdminEmail) {
+        await prisma.userProfile.update({
+          where: { id: profile.id },
+          data: { role: 'admin', interpreterId: null },
+        });
+        profile = { ...profile, role: 'admin', interpreterId: null };
+        console.log(`🔧 [AUTH] Role self-healed to admin in getCurrentProfile for ${profile.id}`);
+      }
+    }
+
+    // Self-healing: link interpreter when profile exists but interpreterId is null (skip for admins)
+    if (!profile.interpreterId && profile.email && profile.role !== 'admin') {
       try {
         const interpreterMatch = await prisma.interpreter.findFirst({
           where: {
@@ -493,7 +510,7 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
           });
           profile = { ...profile, interpreterId: interpreterMatch.id, interpreter: null };
           console.log(`🔧 [AUTH] Interpreter link auto-repaired in getCurrentProfile for ${profile.id} → interpreter ${interpreterMatch.id}`);
-        } else {
+        } else if (profile.role !== 'admin') {
           // AUTO-CREATE: No matching interpreter — create one and link it
           const displayName = profile.displayName || profile.email?.split('@')[0] || 'Interpreter';
           let newInterpreter: { id: number } | null = null;
@@ -540,6 +557,8 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
             profile = { ...profile, interpreterId: newInterpreter.id, interpreter: null };
             console.log(`🔧 [AUTH] Interpreter auto-created and linked in getCurrentProfile for ${profile.id} → interpreter ${newInterpreter.id}`);
           }
+        } else {
+          console.warn(`⚠️ [AUTH] Admin user ${profile.id} has no interpreterId — expected, skipping auto-create`);
         }
       } catch (linkErr) {
         console.error('[AUTH] Interpreter link repair in getCurrentProfile failed:', linkErr);

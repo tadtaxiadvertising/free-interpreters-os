@@ -120,8 +120,25 @@ export const getCurrentUser = cache(async () => {
         });
       }
 
-      // Self-healing: link interpreter when profile exists but interpreterId is null
-      if (supabaseProfile && !supabaseProfile.interpreterId && supabaseUser?.email) {
+      // Self-healing: correct admin role if email matches admin patterns
+      if (supabaseProfile && supabaseProfile.email && supabaseProfile.role !== 'admin') {
+        const emailLower = supabaseProfile.email.toLowerCase();
+        const isAdminEmail = emailLower === 'interpretersfree@gmail.com' ||
+          emailLower === 'melvinramonduranmesa@gmail.com' ||
+          emailLower === 'admin@freeinterpreters.com' ||
+          emailLower.includes('admin');
+        if (isAdminEmail) {
+          await prisma.userProfile.update({
+            where: { id: supabaseProfile.id },
+            data: { role: 'admin', interpreterId: null },
+          });
+          supabaseProfile = { ...supabaseProfile, role: 'admin', interpreterId: null };
+          console.log(`🔧 [AUTH] Role self-healed to admin for ${supabaseProfile.id}`);
+        }
+      }
+
+      // Self-healing: link interpreter when profile exists but interpreterId is null (skip for admins)
+      if (supabaseProfile && !supabaseProfile.interpreterId && supabaseUser?.email && supabaseProfile.role !== 'admin') {
         try {
           const interpreterMatch = await prisma.interpreter.findFirst({
             where: {

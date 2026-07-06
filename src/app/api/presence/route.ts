@@ -14,7 +14,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { status } = await parseJsonBody(req, PresenceSchema);
+    const body = await parseJsonBody(req, PresenceSchema);
+
+    // Heartbeat: just return success without DB I/O
+    if (body.type === 'heartbeat') {
+      return NextResponse.json({ success: true, heartbeat: true });
+    }
+
+    const { status } = body;
 
     const profile = userData.profile;
 
