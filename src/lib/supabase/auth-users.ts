@@ -86,6 +86,25 @@ export async function upsertConfirmedAuthUser(params: {
     };
 
     if (existingUser) {
+      // If identities is null/empty, signInWithPassword will always fail.
+      // The only reliable fix is to delete the broken user and recreate it.
+      if (!existingUser.identities || existingUser.identities.length === 0) {
+        const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(existingUser.id);
+        if (deleteError) {
+          console.error('[AUTH-USERS] Failed to delete broken user with null identities:', deleteError.message);
+          throw deleteError;
+        }
+        console.log(`[AUTH-USERS] Deleted auth user ${existingUser.id} (${email}) with null identities — recreating.`);
+        const { data, error } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password: params.password,
+          email_confirm: true,
+          user_metadata: userMetadata,
+        });
+        if (error) throw error;
+        return data.user;
+      }
+
       const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
         existingUser.id,
         {
