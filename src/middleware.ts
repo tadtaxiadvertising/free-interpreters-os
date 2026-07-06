@@ -79,6 +79,10 @@ export async function middleware(req: NextRequest) {
       (cookie) => cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')
     );
 
+  const hasNextAuthCookie =
+    req.cookies.has('next-auth.session-token') ||
+    req.cookies.has('__Secure-next-auth.session-token');
+
   const isSupabaseSecureRoute = SUPABASE_SECURE_PREFIXES.some(
     (prefix) => pathname.startsWith(prefix)
   );
@@ -105,9 +109,9 @@ export async function middleware(req: NextRequest) {
   }
 
   // ── 3. SUPABASE AUTH PROTECTION ───────────────────────────
-  // Dashboard/Admin/Payroll/QA routes require a Supabase session.
+  // Dashboard/Admin/Payroll/QA routes require a Supabase or NextAuth session.
   if (isSupabaseSecureRoute) {
-    if (!hasActiveSupabaseSession) {
+    if (!hasActiveSupabaseSession && !hasNextAuthCookie) {
       const loginUrl = req.nextUrl.clone();
       loginUrl.pathname = '/login';
       return NextResponse.redirect(loginUrl);
@@ -130,4 +134,3 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
-

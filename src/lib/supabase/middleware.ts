@@ -89,7 +89,11 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
     }
   }
   const { pathname } = request.nextUrl;
-  const hasValidSession = !!user;
+  const hasNextAuthCookie =
+    request.cookies.has('next-auth.session-token') ||
+    request.cookies.has('__Secure-next-auth.session-token');
+
+  const hasValidSession = !!user || hasNextAuthCookie;
 
   // 2. Public paths that don't require Supabase auth
   const publicPaths = [
@@ -105,7 +109,7 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
 
   // 3. Handle non-authenticated users
-  if (!user && !isPublic) {
+  if (!user && !hasNextAuthCookie && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return {
@@ -148,10 +152,14 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
     } catch (err) {
       console.error('🔴 [MIDDLEWARE] Exception fetching user role:', err);
     }
+  } else if (hasNextAuthCookie) {
+    role = request.cookies.get('user-role')?.value || 'interpreter';
   }
 
+  const hasSession = !!user || hasNextAuthCookie;
+
   // 5. Handle logged-in users on public pages (like login)
-  if (user && pathname === '/login') {
+  if (hasSession && pathname === '/login') {
     const url = request.nextUrl.clone();
     url.pathname = role === 'admin' ? '/admin' : '/dashboard';
     return {
@@ -161,7 +169,7 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
   }
 
   // 6. Role-based route protection
-  if (user && (pathname.startsWith('/admin') || pathname.startsWith('/dashboard'))) {
+  if (hasSession && (pathname.startsWith('/admin') || pathname.startsWith('/dashboard'))) {
     if (pathname.startsWith('/admin') && role !== 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/dashboard';
@@ -182,7 +190,7 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
   }
 
   // 7. Basic role-based root redirection
-  if (user && pathname === '/') {
+  if (hasSession && pathname === '/') {
     const url = request.nextUrl.clone();
     url.pathname = role === 'admin' ? '/admin' : '/dashboard';
     return {

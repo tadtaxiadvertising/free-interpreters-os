@@ -1,5 +1,6 @@
 import { createClient, isSupabaseConfigError } from './supabase/server';
 import prisma from './prisma';
+import { auth as nextAuth } from './auth-rbac';
 
 /**
  * AUTH BRIDGE
@@ -27,13 +28,30 @@ export async function auth() {
   } catch (error) {
     if (isSupabaseConfigError(error)) {
       console.warn(
-        '⚠️ [AUTH_BRIDGE] Supabase configuration is missing; returning an anonymous session.'
+        '⚠️ [AUTH_BRIDGE] Supabase configuration is missing; checking NextAuth session.'
       );
     } else {
       console.warn(
-        '⚠️ [AUTH_BRIDGE] Unable to resolve Supabase session; returning an anonymous session:',
+        '⚠️ [AUTH_BRIDGE] Unable to resolve Supabase session; checking NextAuth session:',
         error instanceof Error ? error.message : error
       );
+    }
+  }
+
+  // Fallback to NextAuth session
+  if (!user) {
+    try {
+      const session = await nextAuth();
+      if (session?.user) {
+        user = {
+          id: session.user.id,
+          email: session.user.email,
+          role: (session.user as any).role || 'interpreter',
+          displayName: session.user.name || session.user.email?.split('@')[0]
+        };
+      }
+    } catch (authError) {
+      console.warn('⚠️ [AUTH_BRIDGE] NextAuth session check failed:', authError);
     }
   }
   

@@ -4,6 +4,7 @@ import { createClient, isSupabaseConfigError } from '@/lib/supabase/server';
 import { getSupabaseServiceRoleKey } from '@/lib/supabase/admin';
 import { confirmAuthUserEmail, upsertConfirmedAuthUser } from '@/lib/supabase/auth-users';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import type { UserProfile, UserRole } from '@/lib/types';
 import prismaClient from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
@@ -158,7 +159,11 @@ export async function login(formData: FormData) {
           // Only short-circuit on success — on failure, fall through to
           // the local rbac_users fallback so we don't block users who
           // have a valid password in the local table.
-          if (repairedLogin?.success) return repairedLogin;
+          if (repairedLogin?.success) {
+            const cookieStore = await cookies();
+            cookieStore.set('user-role', repairedLogin.role || 'interpreter', { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+            return repairedLogin;
+          }
         } catch (repairError) {
           console.error(`🔴 [AUTH_LOGIN] Admin API repair failed for ${email}:`, repairError);
         }
@@ -214,6 +219,8 @@ export async function login(formData: FormData) {
                 role: localRole,
                 displayName,
               });
+              const cookieStore = await cookies();
+              cookieStore.set('user-role', localRole, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
               return { success: true, role: localRole };
             }
           }
@@ -223,24 +230,12 @@ export async function login(formData: FormData) {
       }
 
       // If we got here, Supabase provisioning was unavailable or failed.
-      // Sign in via NextAuth credentials provider (creates a JWT cookie).
-      try {
-        const { signIn: nextAuthSignIn } = await import('@/lib/auth-rbac');
-        await nextAuthSignIn('credentials', {
-          email,
-          password,
-          redirect: false,
-        });
-      } catch (nextAuthErr: any) {
-        // signIn may throw a NEXT_REDIRECT — that's actually success
-        if (nextAuthErr?.digest?.includes('NEXT_REDIRECT')) {
-          // NextAuth redirect is expected behavior
-        } else {
-          console.warn('⚠️ [AUTH_LOGIN] NextAuth signIn fallback warning:', nextAuthErr?.message);
-        }
-      }
-
-      return { success: true, role: localRole };
+      // The client must handle NextAuth authentication through the proper
+      // route handler (/api/auth/callback/credentials) because Server
+      // Actions cannot reliably set NextAuth session cookies.
+      const cookieStore = await cookies();
+      cookieStore.set('user-role', localRole, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+      return { success: true, role: localRole, nextAuthRequired: true };
     }
 
     // Fetch minimal profile via Prisma
@@ -258,7 +253,10 @@ export async function login(formData: FormData) {
       });
     }
 
-    return { success: true, role: normalizeRbacRole(profile?.role ?? requestedRole) };
+    const finalRole = normalizeRbacRole(profile?.role ?? requestedRole);
+    const cookieStore3 = await cookies();
+    cookieStore3.set('user-role', finalRole, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+    return { success: true, role: finalRole };
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       return { success: false, error: 'Email o contraseña inválidos.' };
@@ -394,10 +392,34 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
     } = await supabase.auth.getUser();
 
     let profile = null;
+    let profileUserId = user?.id;
 
-    if (user) {
+    if (!profileUserId) {
+      try {
+        const { auth: nextAuth } = await import('@/lib/auth-rbac');
+        const session = await nextAuth();
+        if (session?.user) {
+          const dbProfile = await prisma.userProfile.findFirst({
+            where: {
+              OR: [
+                { id: session.user.id },
+                { email: session.user.email || undefined }
+              ]
+            },
+            select: { id: true }
+          });
+          if (dbProfile) {
+            profileUserId = dbProfile.id;
+          }
+        }
+      } catch (authError) {
+        console.warn('⚠️ [AUTH] NextAuth session fallback failed in getCurrentProfile:', authError);
+      }
+    }
+
+    if (profileUserId) {
       profile = await prisma.userProfile.findUnique({
-        where: { id: user.id },
+        where: { id: profileUserId },
         select: {
           id: true,
           email: true,
@@ -455,6 +477,19 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
 }
 
 export async function logout() {
+  // Clear the role cookie
+  const cookieStore = await cookies();
+  cookieStore.delete('user-role');
+
+  // Sign out of NextAuth if a session exists
+  try {
+    const { signOut: nextAuthSignOut } = await import('@/lib/auth-rbac');
+    await nextAuthSignOut({ redirect: false });
+  } catch (_) {
+    // Ignore — may not have a NextAuth session
+  }
+
+  // Sign out of Supabase
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect('/login');
@@ -497,7 +532,7 @@ export async function requestPasswordReset(formData: FormData) {
     if (
       isAdminUnavailableError(err) ||
       (err instanceof Error &&
-      (err.message.includes('SUPABASE_SERVICE_ROLE_KEY') || err.message.includes('NEXT_PUBLIC_SUPABASE_URL')))
+        (err.message.includes('SUPABASE_SERVICE_ROLE_KEY') || err.message.includes('NEXT_PUBLIC_SUPABASE_URL')))
     ) {
       console.warn('⚠️ [AUTH_RESET] Request password omitido por falta de configuración.');
       return { success: false, error: 'Servicio deshabilitado temporalmente.' };
