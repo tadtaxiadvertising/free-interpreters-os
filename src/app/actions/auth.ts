@@ -494,7 +494,52 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
           profile = { ...profile, interpreterId: interpreterMatch.id, interpreter: null };
           console.log(`🔧 [AUTH] Interpreter link auto-repaired in getCurrentProfile for ${profile.id} → interpreter ${interpreterMatch.id}`);
         } else {
-          console.warn(`[AUTH] No matching interpreter found for email=${profile.email} / name=${profile.displayName}`);
+          // AUTO-CREATE: No matching interpreter — create one and link it
+          const displayName = profile.displayName || profile.email?.split('@')[0] || 'Interpreter';
+          let newInterpreter: { id: number } | null = null;
+          try {
+            newInterpreter = await prisma.interpreter.create({
+              data: {
+                externalId: `auth-${profile.id}`,
+                name: displayName,
+                emailCorporativo: profile.email,
+                status: 'Activo',
+                realtimeStatus: 'Offline',
+                tariffPerMinute: 0,
+                monthlyGoal: 2000,
+                languageA: 'Español',
+                languageB: 'Inglés',
+              },
+              select: { id: true },
+            });
+          } catch (createErr: any) {
+            if (createErr?.code === 'P2002') {
+              // Unique constraint violation — retry without emailCorporativo and with timestamp suffix
+              newInterpreter = await prisma.interpreter.create({
+                data: {
+                  externalId: `auth-${profile.id}-${Date.now()}`,
+                  name: displayName,
+                  status: 'Activo',
+                  realtimeStatus: 'Offline',
+                  tariffPerMinute: 0,
+                  monthlyGoal: 2000,
+                  languageA: 'Español',
+                  languageB: 'Inglés',
+                },
+                select: { id: true },
+              });
+            } else {
+              throw createErr;
+            }
+          }
+          if (newInterpreter) {
+            await prisma.userProfile.update({
+              where: { id: profile.id },
+              data: { interpreterId: newInterpreter.id },
+            });
+            profile = { ...profile, interpreterId: newInterpreter.id, interpreter: null };
+            console.log(`🔧 [AUTH] Interpreter auto-created and linked in getCurrentProfile for ${profile.id} → interpreter ${newInterpreter.id}`);
+          }
         }
       } catch (linkErr) {
         console.error('[AUTH] Interpreter link repair in getCurrentProfile failed:', linkErr);

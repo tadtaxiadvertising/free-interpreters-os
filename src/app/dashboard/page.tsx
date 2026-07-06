@@ -38,20 +38,64 @@ export default async function InterpreterDashboard() {
         select: { id: true }
       });
 
+      // AUTO-CREATE: If no matching interpreter, create one
+      let interpreterId: number | null = interpreter?.id || null;
+      if (!interpreterId) {
+        const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter';
+        try {
+          const newInterp = await prisma.interpreter.create({
+            data: {
+              externalId: `auth-${userId}`,
+              name: displayName,
+              emailCorporativo: user.email || undefined,
+              status: 'Activo',
+              realtimeStatus: 'Offline',
+              tariffPerMinute: 0,
+              monthlyGoal: 2000,
+              languageA: 'Español',
+              languageB: 'Inglés',
+            },
+            select: { id: true },
+          });
+          interpreterId = newInterp.id;
+          console.log(`🔧 [DASHBOARD] Interpreter auto-created for ${userId} → interpreter ${newInterp.id}`);
+        } catch (createErr: any) {
+          if (createErr?.code === 'P2002') {
+            const fallbackInterp = await prisma.interpreter.create({
+              data: {
+                externalId: `auth-${userId}-${Date.now()}`,
+                name: displayName,
+                status: 'Activo',
+                realtimeStatus: 'Offline',
+                tariffPerMinute: 0,
+                monthlyGoal: 2000,
+                languageA: 'Español',
+                languageB: 'Inglés',
+              },
+              select: { id: true },
+            });
+            interpreterId = fallbackInterp.id;
+            console.log(`🔧 [DASHBOARD] Interpreter auto-created (fallback) for ${userId} → interpreter ${fallbackInterp.id}`);
+          } else {
+            console.error('[DASHBOARD] Interpreter auto-creation failed:', createErr);
+          }
+        }
+      }
+
       const newProfile: any = await prisma.userProfile.upsert({
         where: { id: userId },
         update: {
           email: user.email || '',
           displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
           role: 'interpreter',
-          interpreterId: interpreter?.id || null,
+          interpreterId: interpreterId,
         },
         create: {
           id: userId,
           email: user.email || '',
           displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
           role: 'interpreter',
-          interpreterId: interpreter?.id || null,
+          interpreterId: interpreterId,
         }
       });
 
@@ -104,7 +148,51 @@ export default async function InterpreterDashboard() {
         };
         console.log(`[DASHBOARD] Interpreter link auto-repaired for ${userId} → interpreter ${interpreterMatch.id}`);
       } else {
-        console.warn(`[DASHBOARD] No matching interpreter found for email=${user.email} / name=${user.displayName}`);
+        // AUTO-CREATE: No matching interpreter — create one and link it
+        const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter';
+        let newInterpreter: { id: number } | null = null;
+        try {
+          newInterpreter = await prisma.interpreter.create({
+            data: {
+              externalId: `auth-${userId}`,
+              name: displayName,
+              emailCorporativo: user.email || undefined,
+              status: 'Activo',
+              realtimeStatus: 'Offline',
+              tariffPerMinute: 0,
+              monthlyGoal: 2000,
+              languageA: 'Español',
+              languageB: 'Inglés',
+            },
+            select: { id: true },
+          });
+        } catch (createErr: any) {
+          if (createErr?.code === 'P2002') {
+            newInterpreter = await prisma.interpreter.create({
+              data: {
+                externalId: `auth-${userId}-${Date.now()}`,
+                name: displayName,
+                status: 'Activo',
+                realtimeStatus: 'Offline',
+                tariffPerMinute: 0,
+                monthlyGoal: 2000,
+                languageA: 'Español',
+                languageB: 'Inglés',
+              },
+              select: { id: true },
+            });
+          } else {
+            throw createErr;
+          }
+        }
+        if (newInterpreter) {
+          await prisma.userProfile.update({
+            where: { id: userId },
+            data: { interpreterId: newInterpreter.id },
+          });
+          profile = { ...profile, interpreter_id: newInterpreter.id };
+          console.log(`🔧 [DASHBOARD] Interpreter auto-created and linked for ${userId} → interpreter ${newInterpreter.id}`);
+        }
       }
     } catch (err) {
       console.error('[DASHBOARD] Interpreter link repair failed:', err);
