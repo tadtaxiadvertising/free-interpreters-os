@@ -81,7 +81,10 @@ async function repairAuthUserAndRetry(params: {
   password: string;
   requestedRole: UserRole;
 }) {
-  if (!getSupabaseServiceRoleKey()) {
+  const serviceKey = getSupabaseServiceRoleKey();
+  console.log(`🔧 [AUTH_REPAIR] Attempting repair for ${params.email} — serviceKey available: ${!!serviceKey}`);
+  if (!serviceKey) {
+    console.warn('⚠️ [AUTH_REPAIR] SUPABASE_SERVICE_ROLE_KEY not available — skipping repair.');
     return null;
   }
 
@@ -89,44 +92,51 @@ async function repairAuthUserAndRetry(params: {
   //  - identities: null/empty → deletes broken user, recreates with proper identity link
   //  - email not confirmed → updates with email_confirm: true
   //  - user doesn't exist → creates fresh confirmed user
-  const repairedUser = await upsertConfirmedAuthUser({
-    email: params.email,
-    password: params.password,
-    displayName: params.email.split('@')[0],
-  });
-
-  if (!repairedUser) return null;
-
-  const retry = await params.supabase.auth.signInWithPassword({
-    email: params.email,
-    password: params.password,
-  });
-
-  if (retry.error || !retry.data.user) {
-    return {
-      success: false,
-      error: retry.error?.message || 'Credenciales inválidas o error de autenticación.',
-    };
-  }
-
-  const profile = await prisma.userProfile.findUnique({
-    where: { id: retry.data.user.id },
-    select: { role: true },
-  });
-
-  if (!profile) {
-    await syncUserProfileFromAuth({
-      userId: retry.data.user.id,
+  try {
+    const repairedUser = await upsertConfirmedAuthUser({
       email: params.email,
-      role: params.requestedRole,
-      displayName: repairedUser.user_metadata?.display_name || params.email.split('@')[0],
+      password: params.password,
+      displayName: params.email.split('@')[0],
     });
-  }
+    console.log(`🔧 [AUTH_REPAIR] upsertConfirmedAuthUser result for ${params.email}: ${repairedUser ? `id=${repairedUser.id} identities=${repairedUser.identities?.length ?? 'null'}` : 'null'}`);
+    if (!repairedUser) return null;
 
-  return {
-    success: true,
-    role: normalizeRbacRole(profile?.role ?? params.requestedRole),
-  };
+    const retry = await params.supabase.auth.signInWithPassword({
+      email: params.email,
+      password: params.password,
+    });
+    console.log(`🔧 [AUTH_REPAIR] signInWithPassword retry for ${params.email}: ${retry.error ? `error=${retry.error.message}` : `success userId=${retry.data.user?.id}`}`);
+
+    if (retry.error || !retry.data.user) {
+      return {
+        success: false,
+        error: retry.error?.message || 'Credenciales inválidas o error de autenticación.',
+      };
+    }
+
+    const profile = await prisma.userProfile.findUnique({
+      where: { id: retry.data.user.id },
+      select: { role: true },
+    });
+
+    if (!profile) {
+      await syncUserProfileFromAuth({
+        userId: retry.data.user.id,
+        email: params.email,
+        role: params.requestedRole,
+        displayName: repairedUser.user_metadata?.display_name || params.email.split('@')[0],
+      });
+    }
+
+    console.log(`✅ [AUTH_REPAIR] Repair successful for ${params.email} — role=${profile?.role ?? params.requestedRole}`);
+    return {
+      success: true,
+      role: normalizeRbacRole(profile?.role ?? params.requestedRole),
+    };
+  } catch (repairErr) {
+    console.error(`🔴 [AUTH_REPAIR] upsertConfirmedAuthUser threw for ${params.email}:`, repairErr);
+    return null;
+  }
 }
 
 /**
@@ -176,17 +186,20 @@ export async function login(formData: FormData) {
       // ── LOCAL RBAC FALLBACK ─────────────────────────────────
       // Authenticate against the rbac_users table (works even without
       // Supabase service key).
+      console.log(`🔧 [AUTH_LOGIN] Falling through to local RBAC fallback for ${email}`);
       const localUser = await prisma.rbacUser.findUnique({
         where: { email },
         select: { id: true, email: true, name: true, role: true, password: true },
       });
 
       if (!localUser) {
+        console.log(`🔴 [AUTH_LOGIN] No local RBAC user found for ${email}`);
         return { success: false, error: 'Credenciales inválidas o error de autenticación.' };
       }
 
       const passwordMatches = await bcrypt.compare(password, localUser.password);
       if (!passwordMatches) {
+        console.log(`🔴 [AUTH_LOGIN] Local RBAC password mismatch for ${email}`);
         return { success: false, error: 'Credenciales inválidas o error de autenticación.' };
       }
 
