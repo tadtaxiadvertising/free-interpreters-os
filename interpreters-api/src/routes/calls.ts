@@ -104,8 +104,8 @@ router.post('/manual', asyncHandler(async (req: Request, res: Response): Promise
   });
 
   // Sync to ProductionLog so metrics update immediately
-  const minutes = Math.floor(durationSeconds / 60);
-  if (minutes > 0) {
+  const interpretedMinutes = Math.floor(durationSeconds / 60);
+  if (interpretedMinutes > 0) {
     // Use Santo Domingo timezone for date calculation
     const getLocalDateStr = (d: Date) => {
       return new Intl.DateTimeFormat('en-CA', {
@@ -130,7 +130,7 @@ router.post('/manual', asyncHandler(async (req: Request, res: Response): Promise
       await prisma.productionLog.update({
         where: { id: existingLog.id },
         data: {
-          interpretedMinutes: (existingLog.interpretedMinutes || 0) + minutes,
+          interpretedMinutes: (existingLog.interpretedMinutes || 0) + interpretedMinutes,
           callsAttended: (existingLog.callsAttended || 0) + 1,
         },
       });
@@ -139,7 +139,7 @@ router.post('/manual', asyncHandler(async (req: Request, res: Response): Promise
         data: {
           interpreterId: interpreter.id,
           date: logDate,
-          interpretedMinutes: minutes,
+          interpretedMinutes: interpretedMinutes,
           callsAttended: 1,
           status: 'Completed',
           observaciones: 'Synced from external API',
