@@ -47,6 +47,7 @@ export function DashboardShell({ children, role, userName, notifications = [], r
         await fetch('/api/presence', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ status: 'Online' }),
         });
       } catch (err) {
@@ -61,9 +62,10 @@ export function DashboardShell({ children, role, userName, notifications = [], r
       fetch('/api/presence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ status: 'Offline' }),
         keepalive: true
-      }).catch(() => {});
+      }).catch(() => { });
     };
 
     window.addEventListener('beforeunload', setOffline);
@@ -73,8 +75,9 @@ export function DashboardShell({ children, role, userName, notifications = [], r
       fetch('/api/presence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ type: 'heartbeat' }),
-      }).catch(() => {});
+      }).catch(() => { });
     }, 60000);
 
 
@@ -86,23 +89,23 @@ export function DashboardShell({ children, role, userName, notifications = [], r
 
   return (
     <div className="flex min-h-screen w-full bg-[#0a0f1c] overflow-hidden">
-      <Sidebar 
-        role={role} 
-        isCollapsed={isCollapsed} 
-        onToggle={handleToggle} 
+      <Sidebar
+        role={role}
+        isCollapsed={isCollapsed}
+        onToggle={handleToggle}
         ranking={ranking}
       />
-      
+
       <div className="flex flex-col flex-1 h-screen overflow-hidden">
         <Navbar email={userName} notifications={notifications} />
-        
+
         <main className="flex-1 p-4 md:p-8 overflow-y-auto custom-scrollbar transition-all duration-500 relative">
           <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700 pb-24 md:pb-20">
             {children}
           </div>
         </main>
       </div>
-      
+
       {/* Mobile Bottom Navigation */}
       <MobileBottomNav role={role} />
     </div>
