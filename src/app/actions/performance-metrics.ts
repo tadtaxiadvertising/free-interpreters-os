@@ -57,10 +57,7 @@ export async function registerPerformanceMetrics(data: unknown): Promise<ActionR
         if (existingLog) {
           await tx.productionLog.update({
             where: { id: existingLog.id },
-            data: {
-              interpretedMinutes,
-              updatedAt: new Date(),
-            },
+            data: { interpretedMinutes },
           });
         } else {
           await tx.productionLog.create({
