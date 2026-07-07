@@ -2,7 +2,7 @@ import React from 'react';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck, RefreshCw, LogIn, Plus, Trophy, CalendarDays } from 'lucide-react';
+import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck, RefreshCw, LogIn, Plus, Trophy } from 'lucide-react';
 import { getSystemConfig } from '@/app/actions/settings';
 import { cn } from '@/lib/utils';
 import { StatusToggle } from '@/components/StatusToggle';
@@ -36,16 +36,6 @@ function getSdWorkingDayCount() {
     if (isWorkingDay && day <= d) passed++;
   }
   return { total, passed, remaining: total - passed };
-}
-
-// ── Build per-day minute map from production-log rows ──
-function buildDayMap(logs: Array<{ date: Date; interpretedMinutes?: number | null; verifiedMinutes?: number | null }>) {
-  const map = new Map<string, number>();
-  for (const log of logs) {
-    const key = log.date.toISOString().split('T')[0];
-    map.set(key, (map.get(key) || 0) + (log.verifiedMinutes ?? log.interpretedMinutes ?? 0));
-  }
-  return map;
 }
 
 export const dynamic = 'force-dynamic';
@@ -398,17 +388,6 @@ export default async function InterpreterDashboard() {
   const requiredPace = wd.remaining > 0 ? Math.round(mtdRemaining / wd.remaining) : 0;
   const projectedMinutes = mtdMinutes + (currentPace * wd.remaining);
   const projectedOnTrack = projectedMinutes >= monthlyGoal;
-  const dayMap = buildDayMap(monthLogs);
-
-  // ── Mini calendar: Santo Domingo date info ──
-  const sdNow = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Santo_Domingo',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date());
-  const [sdYear, sdMonth, sdDay] = sdNow.split('-').map(Number);
-  const daysInMonth = new Date(sdYear, sdMonth, 0).getDate();
-  const firstDayOfMonth = new Date(Date.UTC(sdYear, sdMonth - 1, 1, 12, 0, 0)).getUTCDay();
-  const startCol = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
 
   const mtdProgress = Math.min((mtdMinutes / monthlyGoal) * 100, 100);
 
@@ -602,73 +581,6 @@ export default async function InterpreterDashboard() {
               </div>
               <p className="text-xs text-slate-200 mt-2 font-medium">Tarifa: RD${(Number(interpreter.tariffPerMinute || 0) * 60).toFixed(2)}/hr</p>
             </div>
-          </div>
-        </div>
-
-        {/* ── Mini Month Compliance Calendar ── */}
-        <div className="glass rounded-3xl p-6 border border-white/5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
-                <CalendarDays size={18} />
-              </div>
-              <h3 className="text-lg font-bold text-white">Progreso Mensual</h3>
-            </div>
-            <Link href="/dashboard/calendar" className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
-              Ver calendario →
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((label, i) => (
-              <div key={`h-${i}`} className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider py-1">
-                {label}
-              </div>
-            ))}
-            {/* Empty cells before first day */}
-            {Array.from({ length: startCol }).map((_, i) => (
-              <div key={`e-${i}`} />
-            ))}
-            {/* Day cells */}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const dateStr = `${sdYear}-${String(sdMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              const isToday = day === sdDay;
-              const dow = new Date(Date.UTC(sdYear, sdMonth - 1, day, 12, 0, 0)).getUTCDay();
-              const isWeekend = dow === 0 || dow === 6;
-              const isFuture = day > sdDay;
-              const minutes = dayMap.get(dateStr) || 0;
-              const pct = dailyGoal > 0 ? Math.round((minutes / dailyGoal) * 100) : 0;
-
-              let bg = 'bg-slate-800/30';
-              let txt = 'text-slate-500';
-              if (isFuture) { bg = 'bg-slate-800/10'; txt = 'text-slate-600'; }
-              else if (isWeekend) { bg = 'bg-slate-800/20'; txt = 'text-slate-500'; }
-              else if (minutes >= dailyGoal) { bg = 'bg-emerald-500/20'; txt = 'text-emerald-400'; }
-              else if (minutes > 0) { bg = 'bg-amber-500/10'; txt = 'text-amber-400'; }
-              else { bg = 'bg-red-500/10'; txt = 'text-red-400'; }
-
-              return (
-                <div
-                  key={day}
-                  className={`${bg} ${isToday ? 'ring-2 ring-indigo-500' : ''} rounded-lg p-1.5 text-center min-h-[44px] flex flex-col items-center justify-center`}
-                >
-                  <div className={`text-xs font-bold ${txt}`}>{day}</div>
-                  {!isFuture && !isWeekend && (
-                    <div className={`text-[9px] leading-tight ${txt}/70`}>
-                      {minutes >= dailyGoal ? '✓' : minutes > 0 ? `${pct}%` : '—'}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center gap-4 mt-4 text-[10px] font-medium text-slate-400">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/40" /> Meta</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/30" /> Parcial</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30" /> Sin avance</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-slate-800/40" /> Futuro</span>
           </div>
         </div>
 

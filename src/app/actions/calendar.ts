@@ -111,6 +111,63 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
   };
 }
 
+/**
+ * Monthly progress data for the interpreter calendar view.
+ * Returns per-day minute breakdown, goal metrics, and calendar grid helpers.
+ */
+export async function getMonthlyProgress(interpreterId: number) {
+  const now = new Date();
+  const sdNow = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santo_Domingo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(now);
+  const [sdYear, sdMonth, sdDay] = sdNow.split('-').map(Number);
+
+  const startOfMonth = new Date(Date.UTC(sdYear, sdMonth - 1, 1, 0, 0, 0, 0));
+  const endOfMonth = new Date(Date.UTC(sdYear, sdMonth, 0, 23, 59, 59, 999));
+
+  const interpreter = await prisma.interpreter.findUnique({
+    where: { id: interpreterId },
+    select: { monthlyGoal: true },
+  });
+
+  const monthlyGoal = interpreter?.monthlyGoal || 2000;
+  const dailyGoal = Math.floor(monthlyGoal / 22);
+
+  const logs = await prisma.productionLog.findMany({
+    where: {
+      interpreterId,
+      date: { gte: startOfMonth, lte: endOfMonth },
+    },
+    select: { date: true, interpretedMinutes: true, verifiedMinutes: true },
+  });
+
+  const dayMap = new Map<string, number>();
+  for (const log of logs) {
+    const key = log.date.toISOString().split('T')[0];
+    dayMap.set(key, (dayMap.get(key) || 0) + (log.verifiedMinutes ?? log.interpretedMinutes ?? 0));
+  }
+
+  const daysInMonth = new Date(sdYear, sdMonth, 0).getDate();
+  const firstDayOfMonth = new Date(Date.UTC(sdYear, sdMonth - 1, 1, 12, 0, 0)).getUTCDay();
+  const startCol = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
+
+  let mtdMinutes = 0;
+  dayMap.forEach((mins) => { mtdMinutes += mins; });
+
+  return {
+    sdYear,
+    sdMonth,
+    sdDay,
+    daysInMonth,
+    startCol,
+    dailyGoal,
+    monthlyGoal,
+    mtdMinutes,
+    dayMap: Object.fromEntries(dayMap),
+  };
+}
+
 export async function getComplianceBoard(year: number, month: number) {
   const interpreters = await prisma.interpreter.findMany();
 
