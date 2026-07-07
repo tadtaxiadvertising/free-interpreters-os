@@ -9,6 +9,7 @@ import prismaClient from '@/lib/prisma';
 import { GlobalGoalsButton } from '@/components/GlobalGoalsButton';
 import { CSVChunkUploader } from '@/components/CSVChunkUploader';
 import { getSystemConfig } from '@/app/actions/settings';
+import { getMonthBounds } from '@/lib/interpreter-metrics';
 
 // Regla #2: Caching explícito (Next.js 15)
 export const revalidate = 120;
@@ -43,9 +44,8 @@ export default async function AdminDashboard(props: PageProps) {
     redirect('/dashboard');
   }
 
-  // Cálculos de tiempo para Telemetría MTD
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Cálculos de tiempo para Telemetría MTD (Santo Domingo timezone)
+  const { startOfMonth: monthStart } = getMonthBounds();
 
   // Fetch Unificado y paralelo (Optimizado para Carga CPU/RAM en Easypanel)
   let interpreters: any[] = [];

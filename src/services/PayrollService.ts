@@ -116,15 +116,20 @@ export async function getIncentiveTiers(): Promise<IncentiveTier[]> {
 }
 
 /**
- * Unifica las horas de production_logs y call_sessions
- * para un intÃ©rprete en un perÃ­odo dado.
+ * Unifica las horas de production_logs
+ * para un intérprete en un período dado.
+ *
+ * ProductionLogs is the single source of truth — endCall() syncs live calls
+ * into ProductionLog, and the /api/v1/sync route backfills older sessions.
+ * Adding callSessions here would double-count minutes already present in
+ * productionLogs.
  */
 export async function calculateUnifiedTime(
   interpreterId: number,
   periodStart: Date,
   periodEnd: Date
 ): Promise<UnifiedTimeResult> {
-  // 1. Minutos de production_logs (CSV imports + Manual logs)
+  // 1. Minutos de production_logs (CSV imports + Manual logs + synced live calls)
   const productionLogs = await db.productionLog.findMany({
     where: {
       interpreterId,
@@ -141,26 +146,10 @@ export async function calculateUnifiedTime(
     0
   );
 
-  // 2. Minutos de call_sessions (timer en vivo)
-  const callSessions = await db.callSession.findMany({
-    where: {
-      interpreterId,
-      startedAt: { gte: periodStart, lte: periodEnd },
-      endedAt: { not: null },
-    },
-    select: { durationSeconds: true },
-  });
-
-  const totalSeconds = (callSessions || []).reduce(
-    (sum: number, call: { durationSeconds: number | null }) => sum + (call.durationSeconds || 0),
-    0
-  );
-  const realtimeMinutes = Math.round(totalSeconds / 60);
-
-  const totalMinutes = importedMinutes + realtimeMinutes;
+  const totalMinutes = importedMinutes;
   const totalHours = Math.round((totalMinutes / 60) * 100) / 100;
 
-  return { importedMinutes, realtimeMinutes, totalMinutes, totalHours };
+  return { importedMinutes, realtimeMinutes: 0, totalMinutes, totalHours };
 }
 
 /**
@@ -213,7 +202,8 @@ export async function calculateFullPayroll(
   // Regla C: Manejo seguro de Decimal
   const baseRatePerMinute = parseFloat(interpreter.tariffPerMinute.toString());
 
-  // 2. Obtener logs de producción
+  // 2. Obtener logs de producción (single source of truth: incluye imports,
+  //    logs manuales y llamadas sincronizadas desde el timer en vivo)
   const productionLogs = await db.productionLog.findMany({
     where: {
       interpreterId,
@@ -222,32 +212,18 @@ export async function calculateFullPayroll(
     select: { interpretedMinutes: true, verifiedMinutes: true },
   }) as ProductionLogRecord[];
 
-  // 3. Obtener logs de llamadas (Timer)
-  const callSessions = await db.callSession.findMany({
-    where: {
-      interpreterId,
-      startedAt: { gte: periodStart, lte: periodEnd },
-      endedAt: { not: null },
-    },
-    select: { durationSeconds: true },
-  });
-
-  // 4. Cálculos de Minutos (Regla Payroll Engine)
+  // 4. Cálculos de Minutos
+  // ProductionLogs is the single source of truth.
+  // endCall() syncs live calls into ProductionLog, and the /api/v1/sync
+  // route backfills older sessions. Adding callSessions here would
+  // double-count minutes already present in productionLogs.
   const interpretedSum = (productionLogs || []).reduce((sum: number, log: ProductionLogRecord) => {
-    return sum + (log.interpretedMinutes || 0);
+    const effective = log.verifiedMinutes !== null ? log.verifiedMinutes : (log.interpretedMinutes || 0);
+    return sum + effective;
   }, 0);
-  
-  const realtimeSum = (callSessions || []).reduce((sum: number, call: { durationSeconds: number | null }) => {
-    return sum + (call.durationSeconds || 0);
-  }, 0);
-  const realtimeMinutes = realtimeSum / 60;
 
   // Minutos Totales Base
-  const calculatedTotalMinutes = interpretedSum + realtimeMinutes;
-  
-  // Prioridad de Supervisión: Si verifiedMinutes existe en PayrollRecord se usará, 
-  // pero aquí calculamos la base inicial.
-  const totalMinutes = Math.round(calculatedTotalMinutes * 100) / 100;
+  const totalMinutes = Math.round(interpretedSum * 100) / 100;
   const totalHours = Math.round((totalMinutes / 60) * 100) / 100;
 
   // 5. Cálculo Bruto (Regla: minutos_finales * tariffPerMinute)

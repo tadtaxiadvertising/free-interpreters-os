@@ -19,7 +19,7 @@ async function main() {
   const grouped = new Map<string, number>(); // Key: "interpreterId_YYYY-MM-DD", Value: total minutes
   const callCount = new Map<string, number>(); // Total calls
 
-  const getLocalDateStr = (d: Date) => {
+  const formatSantoDomingoDate = (d: Date) => {
     return new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Santo_Domingo',
       year: 'numeric',
@@ -28,17 +28,19 @@ async function main() {
     }).format(d);
   };
 
+  const formatDbDate = (d: Date) => d.toISOString().split('T')[0];
+
   for (const session of sessions) {
     if (!session.startedAt || !session.durationSeconds) continue;
-    
+
     const dayStr = getLocalDateStr(session.startedAt);
     const key = `${session.interpreterId}_${dayStr}`;
     const minutes = Math.floor(session.durationSeconds / 60);
-    
+
     if (minutes > 0) {
       const existing = grouped.get(key) || 0;
       grouped.set(key, existing + minutes);
-      
+
       const existingCalls = callCount.get(key) || 0;
       callCount.set(key, existingCalls + 1);
     }
@@ -74,7 +76,7 @@ async function main() {
         data: {
           interpretedMinutes: (existingLog.interpretedMinutes || 0) + extraMinutes,
           callsAttended: (existingLog.callsAttended || 0) + calls,
-          observaciones: existingLog.observaciones 
+          observaciones: existingLog.observaciones
             ? `${existingLog.observaciones} | Sincronizado desde llamadas en vivo (+${extraMinutes}m)`
             : `Sincronizado desde llamadas en vivo (+${extraMinutes}m)`
         }

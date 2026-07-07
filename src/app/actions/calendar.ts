@@ -2,6 +2,32 @@
 
 import prisma from "@/lib/prisma";
 
+/**
+ * Format a Date from a @db.Date column to "YYYY-MM-DD".
+ *
+ * Prisma reads @db.Date as midnight UTC. Converting that via a timezone
+ * (e.g. America/Santo_Domingo UTC-4) shifts it to the *previous* day.
+ * Since @db.Date stores a pure date, we extract the date directly from
+ * midnight UTC — it matches the stored calendar date.
+ */
+function formatDbDate(d: Date): string {
+  return d.toISOString().split('T')[0];
+}
+
+/**
+ * Format an arbitrary Date (e.g. a generated UTC day-loop date) into a
+ * Santo_Domingo date string, so that "midnight UTC" corresponds to
+ * "8 PM previous day" in the local calendar.
+ */
+function formatSantoDomingoDate(d: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santo_Domingo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(d);
+}
+
 export async function getInterpreterCommitment(interpreterId: number, targetDateStr: string) {
   // Usar 12:00 UTC para evitar que al formatear a Santo Domingo (UTC-4) cambie de día
   const targetDate = new Date(`${targetDateStr}T12:00:00Z`);
@@ -35,17 +61,8 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
 
   const dailyStats = new Map<string, number>();
 
-  const getLocalDateStr = (d: Date) => {
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Santo_Domingo',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(d);
-  };
-
   logs.forEach(log => {
-    const dayStr = getLocalDateStr(log.date);
+    const dayStr = formatDbDate(log.date);
     const existing = dailyStats.get(dayStr) || 0;
     dailyStats.set(dayStr, existing + (log.interpretedMinutes || 0));
   });
@@ -53,13 +70,13 @@ export async function getInterpreterCommitment(interpreterId: number, targetDate
   let totalMinutesWeek = 0;
   let targetMinutesToDate = 0;
   const today = new Date();
-  const todayStr = getLocalDateStr(today);
+  const todayStr = formatSantoDomingoDate(today);
 
   for (let i = 0; i < 5; i++) {
     const d = new Date(startOfWeek);
     d.setUTCDate(d.getUTCDate() + i);
     d.setUTCHours(12, 0, 0, 0); // Mediodía UTC para que al aplicar UTC-4 siga siendo el mismo día
-    const dayStr = getLocalDateStr(d);
+    const dayStr = formatSantoDomingoDate(d);
     const achieved = dailyStats.get(dayStr) || 0;
     totalMinutesWeek += achieved;
 
@@ -100,23 +117,40 @@ export async function getComplianceBoard(year: number, month: number) {
   const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
   const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-  const logs = await prisma.productionLog.findMany({
-    where: {
-      date: {
-        gte: startOfMonth,
-        lte: endOfMonth
+  const [logs, callSessions] = await Promise.all([
+    prisma.productionLog.findMany({
+      where: {
+        date: {
+          gte: startOfMonth,
+          lte: endOfMonth
+        }
       }
-    }
-  });
+    }),
+    prisma.callSession.findMany({
+      where: {
+        startedAt: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+        endedAt: { not: null },
+      },
+      select: {
+        interpreterId: true,
+        startedAt: true,
+        durationSeconds: true,
+      }
+    }),
+  ]);
 
-  const getLocalDateStr = (d: Date) => {
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Santo_Domingo',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(d);
-  };
+  // Build session minutes per interpreter per day
+  const sessionMinutesByIntDay = new Map<string, number>();
+  callSessions.forEach(s => {
+    if (!s.interpreterId) return;
+    const dayStr = formatSantoDomingoDate(s.startedAt);
+    const key = `${s.interpreterId}:${dayStr}`;
+    const existing = sessionMinutesByIntDay.get(key) || 0;
+    sessionMinutesByIntDay.set(key, existing + Math.floor((s.durationSeconds || 0) / 60));
+  });
 
   const board = interpreters.map(int => {
     const dailyGoalMinutes = Math.floor((int.monthlyGoal || 2000) / 22);
@@ -128,15 +162,16 @@ export async function getComplianceBoard(year: number, month: number) {
     for (let day = 1; day <= daysInMonth; day++) {
       const d = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0)); // Mediodía UTC para evitar salto de día en UTC-4
       const isWeekend = d.getUTCDay() === 0 || d.getUTCDay() === 6;
-      const dayStr = getLocalDateStr(d);
+      const dayStr = formatSantoDomingoDate(d);
 
       let logsMinutes = 0;
 
-      intLogs.filter(l => getLocalDateStr(l.date) === dayStr).forEach(l => {
+      intLogs.filter(l => formatDbDate(l.date) === dayStr).forEach(l => {
         logsMinutes += l.interpretedMinutes || 0;
       });
 
       const minutes = logsMinutes;
+      const sessionsMinutes = sessionMinutesByIntDay.get(`${int.id}:${dayStr}`) || 0;
 
       let status = "Not Needed";
       if (!isWeekend) {
@@ -153,7 +188,7 @@ export async function getComplianceBoard(year: number, month: number) {
         isWeekend,
         minutes,
         logsMinutes,
-        sessionsMinutes: 0,
+        sessionsMinutes,
         status,
         dailyGoalMinutes
       });

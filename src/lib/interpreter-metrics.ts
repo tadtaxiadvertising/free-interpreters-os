@@ -17,21 +17,38 @@ export function sumEffectiveLogMinutes(
 }
 
 export function getMonthBounds(now = new Date()) {
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  startOfMonth.setHours(0, 0, 0, 0);
+  // Determine the current month in America/Santo_Domingo timezone,
+  // matching how ProductionLog.date values are stored.
+  const sd = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santo_Domingo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+  const [year, month] = sd.split('-').map(Number);
 
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  endOfMonth.setHours(23, 59, 59, 999);
+  // Use UTC midnight bounds — PostgreSQL DATE comparison converts DATE
+  // to midnight in the session timezone, which is always ≤ any time on
+  // that day, so UTC midnight includes the entire calendar day.
+  const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
   return { startOfMonth, endOfMonth };
 }
 
 export function getDayBounds(now = new Date()) {
-  const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
+  // Determine "today" in America/Santo_Domingo timezone, not UTC,
+  // so that logs created in late Santo Domingo hours map to the correct day.
+  const sd = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santo_Domingo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+  const [year, month, day] = sd.split('-').map(Number);
 
-  const endOfDay = new Date(now);
-  endOfDay.setHours(23, 59, 59, 999);
+  const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
   return { startOfDay, endOfDay };
 }
