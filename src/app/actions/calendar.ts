@@ -145,7 +145,7 @@ export async function getComplianceBoard(year: number, month: number) {
   // Build session minutes per interpreter per day
   const sessionMinutesByIntDay = new Map<string, number>();
   callSessions.forEach(s => {
-    if (!s.interpreterId) return;
+    if (!s.interpreterId || !s.startedAt) return;
     const dayStr = formatSantoDomingoDate(s.startedAt);
     const key = `${s.interpreterId}:${dayStr}`;
     const existing = sessionMinutesByIntDay.get(key) || 0;
