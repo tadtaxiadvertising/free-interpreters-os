@@ -9,7 +9,7 @@ if (typeof window === 'undefined' && typeof (globalThis as any).EdgeRuntime === 
     const fs = require('fs');
     const path = require('path');
     const getCwd = () => (process as any)['cwd']();
-    
+
     const loadEnv = (file: string) => {
       try {
         const fullPath = path.resolve(getCwd(), file);
@@ -19,11 +19,16 @@ if (typeof window === 'undefined' && typeof (globalThis as any).EdgeRuntime === 
             if (!process.env[k]) process.env[k] = parsed[k];
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     };
-    
+
+    // Try multiple locations for .env files
     loadEnv('.env.local');
     loadEnv('.env');
+
+    // In standalone builds, .env might be in the app root or one level up
+    loadEnv('../.env.local');
+    loadEnv('../.env');
   } catch {
     // silently ignore
   }
@@ -36,6 +41,13 @@ function getSupabasePublicConfig() {
   const key = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']?.trim();
 
   if (!url || !key) {
+    // Diagnostic logging for Easypanel/VPS debugging
+    console.error('🔴 [SUPABASE_CONFIG] Missing required environment variables:');
+    console.error(`   NEXT_PUBLIC_SUPABASE_URL: ${url ? 'SET' : 'MISSING'}`);
+    console.error(`   NEXT_PUBLIC_SUPABASE_ANON_KEY: ${key ? 'SET' : 'MISSING'}`);
+    console.error('   Process cwd:', process.cwd());
+    console.error('   Available env keys:', Object.keys(process.env).filter(k => k.includes('SUPABASE')).join(', ') || 'NONE');
+
     throw new Error(SUPABASE_CONFIG_ERROR);
   }
 
