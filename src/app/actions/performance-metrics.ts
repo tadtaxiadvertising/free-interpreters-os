@@ -81,7 +81,7 @@ export async function registerPerformanceMetrics(data: unknown): Promise<ActionR
     return { success: true };
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return { success: false, error: "Datos de entrada inválidos. " + error.errors[0].message, code: "VALIDATION_ERROR" };
+      return { success: false, error: "Datos de entrada inválidos. " + (error.issues[0]?.message || ""), code: "VALIDATION_ERROR" };
     }
     console.error("🔴 ERROR [registerPerformanceMetrics]:", error);
     return { success: false, error: "Error interno al actualizar métricas.", code: "INTERNAL_ERROR" };
