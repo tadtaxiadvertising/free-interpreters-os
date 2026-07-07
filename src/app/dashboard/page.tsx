@@ -295,7 +295,7 @@ export default async function InterpreterDashboard() {
           monthlyGoal: true,
           productionLogs: {
             where: { date: { gte: startOfMonth, lte: endOfMonth } },
-            select: { interpretedMinutes: true, verifiedMinutes: true }
+            select: { date: true, interpretedMinutes: true, verifiedMinutes: true }
           },
           qaScores: {
             take: 5,
@@ -321,14 +321,14 @@ export default async function InterpreterDashboard() {
               interpreterId: interpreter.id,
               date: { gte: startOfMonth, lte: endOfMonth },
             },
-            select: { interpretedMinutes: true, verifiedMinutes: true }
+            select: { date: true, interpretedMinutes: true, verifiedMinutes: true }
           }),
           prisma.productionLog.findMany({
             where: {
               interpreterId: interpreter.id,
               date: { gte: todayStart, lte: todayEnd },
             },
-            select: { interpretedMinutes: true, verifiedMinutes: true }
+            select: { date: true, interpretedMinutes: true, verifiedMinutes: true }
           }),
           prisma.interpreter.findMany({
             select: {
