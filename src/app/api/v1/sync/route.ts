@@ -69,6 +69,7 @@ export async function GET() {
     // Index logs by interpreterId → date string for fast lookup
     const logsByInt = new Map<number, Map<string, typeof allLogs[number]>>();
     allLogs.forEach(log => {
+      if (log.interpreterId == null) return;
       if (!logsByInt.has(log.interpreterId)) {
         logsByInt.set(log.interpreterId, new Map());
       }
