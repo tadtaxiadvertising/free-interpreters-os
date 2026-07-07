@@ -1,0 +1,178 @@
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
+
+/**
+ * POST /api/calls/sync
+ * 
+ * Syncs orphaned CallSessions (ended but not in ProductionLog) to ProductionLog.
+ * This fixes the issue where calls ended but metrics weren't updated.
+ * 
+ * Can be called:
+ * 1. Manually by admin to fix historical data
+ * 2. Automatically on dashboard load to catch any missed syncs
+ * 3. After a call ends as a safety net
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const { userId, user } = await auth();
+    if (!userId || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get user profile to find interpreterId
+    const profile = await prisma.userProfile.findUnique({
+      where: { id: userId },
+      select: { interpreterId: true, role: true },
+    });
+
+    if (!profile?.interpreterId) {
+      return NextResponse.json({ error: 'Interpreter profile not found' }, { status: 404 });
+    }
+
+    const { interpreterId } = profile;
+
+    // Use Santo Domingo timezone for date calculation
+    const getLocalDateStr = (d: Date) => {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Santo_Domingo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(d);
+    };
+
+    // Find all CallSessions that:
+    // 1. Have endedAt (not active)
+    // 2. Have durationSeconds > 0
+    // 3. Are not already settled (not in payroll)
+    // 4. Don't have a corresponding ProductionLog entry for their date
+    const orphanedSessions = await prisma.callSession.findMany({
+      where: {
+        interpreterId,
+        endedAt: { not: null },
+        durationSeconds: { gt: 0 },
+        isSettled: false,
+      },
+      select: {
+        id: true,
+        startedAt: true,
+        endedAt: true,
+        durationSeconds: true,
+        tariffSnapshot: true,
+        callCost: true,
+      },
+      orderBy: {
+        startedAt: 'asc',
+      },
+    });
+
+    const synced: number[] = [];
+    const skipped: number[] = [];
+
+    for (const session of orphanedSessions) {
+      if (!session.endedAt || !session.durationSeconds) continue;
+
+      const minutes = Math.floor(session.durationSeconds / 60);
+      if (minutes <= 0) {
+        skipped.push(session.id);
+        continue;
+      }
+
+      const dayStr = getLocalDateStr(session.startedAt || new Date());
+      const logDate = new Date(`${dayStr}T12:00:00Z`);
+
+      // Check if ProductionLog exists for this date
+      const existingLog = await prisma.productionLog.findFirst({
+        where: {
+          interpreterId,
+          date: logDate,
+        },
+      });
+
+      if (existingLog) {
+        // Update existing log
+        await prisma.productionLog.update({
+          where: { id: existingLog.id },
+          data: {
+            interpretedMinutes: (existingLog.interpretedMinutes || 0) + minutes,
+            callsAttended: (existingLog.callsAttended || 0) + 1,
+          },
+        });
+      } else {
+        // Create new log
+        await prisma.productionLog.create({
+          data: {
+            interpreterId,
+            date: logDate,
+            interpretedMinutes: minutes,
+            callsAttended: 1,
+            status: 'Completed',
+            observaciones: 'Synced from orphaned CallSession',
+            adherence: 100,
+          },
+        });
+      }
+
+      // Mark session as settled to avoid double-syncing
+      await prisma.callSession.update({
+        where: { id: session.id },
+        data: { isSettled: true },
+      });
+
+      synced.push(session.id);
+    }
+
+    return NextResponse.json({
+      success: true,
+      synced,
+      skipped,
+      totalSynced: synced.length,
+      totalSkipped: skipped.length,
+    });
+  } catch (error) {
+    console.error(' ERROR [/api/calls/sync]:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
+ * GET /api/calls/sync
+ * 
+ * Returns stats about orphaned sessions without syncing them.
+ * Useful for debugging and monitoring.
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const { userId, user } = await auth();
+    if (!userId || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const profile = await prisma.userProfile.findUnique({
+      where: { id: userId },
+      select: { interpreterId: true, role: true },
+    });
+
+    if (!profile?.interpreterId) {
+      return NextResponse.json({ error: 'Interpreter profile not found' }, { status: 404 });
+    }
+
+    const orphanedCount = await prisma.callSession.count({
+      where: {
+        interpreterId: profile.interpreterId,
+        endedAt: { not: null },
+        durationSeconds: { gt: 0 },
+        isSettled: false,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      orphanedSessions: orphanedCount,
+    });
+  } catch (error) {
+    console.error('🔴 ERROR [/api/calls/sync GET]:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

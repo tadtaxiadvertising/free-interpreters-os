@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, X, Clock, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { quickLog } from '@/app/actions/quick-log';
 
 export function QuickLogButton() {
   const [isOpen, setIsOpen] = useState(false);
@@ -19,21 +20,20 @@ export function QuickLogButton() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/v1/calls/manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          durationMinutes: minutes || 0,
-          seconds: seconds || 0
-        }),
-      });
-      
-      if (!response.ok) throw new Error('Failed to save log');
-      
+      const formData = new FormData();
+      formData.append('durationMinutes', minutes || '0');
+      formData.append('seconds', seconds || '0');
+
+      const result = await quickLog(formData);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save log');
+      }
+
       setIsOpen(false);
       setMinutes('');
       setSeconds('');
-      router.refresh(); 
+      router.refresh();
     } catch (error) {
       console.error('Error logging call:', error);
       alert('Error saving manual log. Please try again.');
@@ -55,15 +55,15 @@ export function QuickLogButton() {
 
       {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div 
+          <div
             className="absolute inset-0 bg-slate-950/60 backdrop-blur-md transition-opacity animate-in fade-in duration-300"
             onClick={() => setIsOpen(false)}
           />
-          
+
           <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 overflow-hidden animate-in fade-in zoom-in-95 duration-300">
             <div className="absolute top-0 right-0 p-32 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
-            
-            <button 
+
+            <button
               onClick={() => setIsOpen(false)}
               className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800 rounded-full transition-colors"
             >
@@ -120,7 +120,7 @@ export function QuickLogButton() {
                 className={cn(
                   "w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-lg transition-all",
                   isSubmitting || (!minutes && !seconds)
-                    ? "bg-slate-800 text-slate-500 cursor-not-allowed" 
+                    ? "bg-slate-800 text-slate-500 cursor-not-allowed"
                     : "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 active:scale-95"
                 )}
               >

@@ -352,8 +352,17 @@ export default async function InterpreterDashboard() {
   }
 
   // ── 📊 METRICS CALCULATION ──
-  const todayMinutes = sumEffectiveLogMinutes(todayLogs);
-  const mtdMinutes = sumEffectiveLogMinutes(monthLogs);
+  // Include active call time in metrics so dashboard reflects real-time progress
+  let activeCallMinutes = 0;
+  if (activeCall?.startedAt) {
+    const startedAt = new Date(activeCall.startedAt);
+    const now = new Date();
+    const elapsedSeconds = Math.floor((now.getTime() - startedAt.getTime()) / 1000);
+    activeCallMinutes = Math.floor(elapsedSeconds / 60);
+  }
+
+  const todayMinutes = sumEffectiveLogMinutes(todayLogs) + activeCallMinutes;
+  const mtdMinutes = sumEffectiveLogMinutes(monthLogs) + activeCallMinutes;
   const monthlyGoal = interpreter?.monthlyGoal || (globalGoalHours * 60);
   const mtdProgress = Math.min((mtdMinutes / monthlyGoal) * 100, 100);
 
