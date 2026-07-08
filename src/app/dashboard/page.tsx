@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { StatusToggle } from '@/components/StatusToggle';
 import { CallTimer } from '@/components/CallTimer';
 import { CallHistory } from '@/components/CallHistory';
+import { GoalProgressWidget } from '@/components/interpreters/GoalProgressWidget';
 import { AccessActionsRail } from '@/components/AccessActionsRail';
 import { OnboardingGate } from '@/components/OnboardingGate';
 import { getCurrentProfile } from '@/app/actions/auth';
@@ -398,6 +399,20 @@ export default async function InterpreterDashboard() {
   const latestQaScore = interpreter?.qaScores?.[0]?.totalScore ? Number(interpreter.qaScores[0].totalScore) : 0;
   const isQaExcellent = latestQaScore >= 95;
 
+  // ── Q1 / Q2 Goal Progress ──
+  const now = new Date();
+  const isQ1 = now.getDate() < 16;
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const q1End = new Date(currentYear, currentMonth, 15, 23, 59, 59);
+
+  const q1Logs = monthLogs.filter((log: any) => new Date(log.date) <= q1End);
+  const q2Logs = monthLogs.filter((log: any) => new Date(log.date) > q1End);
+
+  const q1Minutes = sumEffectiveLogMinutes(q1Logs);
+  const q2Minutes = sumEffectiveLogMinutes(q2Logs);
+  const baseTariff = interpreter?.tariffPerMinute ? Number(interpreter.tariffPerMinute) : 5;
+
   const mtdEarnings = mtdMinutes * Number(interpreter?.tariffPerMinute || 0);
   const onboardingComplete = profile?.onboarding_complete || false;
 
@@ -582,6 +597,14 @@ export default async function InterpreterDashboard() {
               <p className="text-xs text-slate-200 mt-2 font-medium">Tarifa: RD${(Number(interpreter.tariffPerMinute || 0) * 60).toFixed(2)}/hr</p>
             </div>
           </div>
+
+          <GoalProgressWidget 
+            monthlyGoal={monthlyGoal}
+            q1Minutes={q1Minutes}
+            q2Minutes={q2Minutes}
+            isQ1={isQ1}
+            tariffPerMinute={baseTariff}
+          />
         </div>
 
         {/* Quick Tools & Production Registry */}

@@ -192,6 +192,7 @@ export async function calculateFullPayroll(
       name: true,
       tariffPerMinute: true,
       metodoPago: true,
+      monthlyGoal: true,
     },
   });
 
@@ -262,6 +263,49 @@ export async function calculateFullPayroll(
     penalidades = Math.round(grossTotal * 0.1 * criticalErrors * 100) / 100;
   }
 
+  // 8.5. Penalidades / Recuperaciones por Metas (Q1 / Q2)
+  const isQ1 = periodStart.getDate() < 16;
+  const PENALTY_PER_HOUR = 50;
+  const penaltyPerMinute = PENALTY_PER_HOUR / 60;
+  let q1Refund = 0;
+
+  if (isQ1) {
+    const q1Goal = interpreter.monthlyGoal / 2;
+    if (totalMinutes < q1Goal) {
+      const q1GoalPenalty = Math.round(totalMinutes * penaltyPerMinute * 100) / 100;
+      penalidades += q1GoalPenalty;
+    }
+  } else {
+    // Es Q2
+    const firstDayOfMonth = new Date(periodStart.getFullYear(), periodStart.getMonth(), 1);
+    const fifteenthDay = new Date(periodStart.getFullYear(), periodStart.getMonth(), 15);
+    
+    // Buscar registro de nómina de Q1
+    const q1Record = await db.payrollRecord.findFirst({
+      where: {
+        interpreterId,
+        periodStart: { gte: firstDayOfMonth },
+        periodEnd: { lte: fifteenthDay },
+      },
+      select: { totalMinutes: true }
+    });
+    
+    const q1Minutes = q1Record?.totalMinutes || 0;
+    const accumulatedMinutes = q1Minutes + totalMinutes;
+    
+    if (accumulatedMinutes >= interpreter.monthlyGoal) {
+      // Reembolso de Q1
+      const q1Goal = interpreter.monthlyGoal / 2;
+      if (q1Minutes < q1Goal) {
+        q1Refund = Math.round(q1Minutes * penaltyPerMinute * 100) / 100;
+      }
+    } else {
+      // Penalidad en Q2
+      const q2GoalPenalty = Math.round(totalMinutes * penaltyPerMinute * 100) / 100;
+      penalidades += q2GoalPenalty;
+    }
+  }
+
   // 9. Deducción de Pasarela (Regla: PayPal 5%, Local 0%)
   let transferDeduction = 0;
   if (interpreter.metodoPago === 'PayPal') {
@@ -274,7 +318,7 @@ export async function calculateFullPayroll(
   // 10. Cálculo Neto Consolidado
   // netTotal = (grossTotal + qualityBonus + incentivesTotal) - (penalidades + transferDeduction)
   const netTotal = Math.round(
-    ((grossTotal + qualityBonus + incentive.totalIncentive) - (penalidades + transferDeduction)) * 100
+    ((grossTotal + qualityBonus + incentive.totalIncentive + q1Refund) - (penalidades + transferDeduction)) * 100
   ) / 100;
 
   return {
@@ -284,7 +328,7 @@ export async function calculateFullPayroll(
     totalHours,
     tariffPerMinute: baseRatePerMinute,
     grossTotal,
-    incentivesTotal: incentive.totalIncentive,
+    incentivesTotal: incentive.totalIncentive + q1Refund,
     matchedTier: incentive.matchedTier,
     qualityBonus,
     penalidades,
