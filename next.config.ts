@@ -81,7 +81,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               "font-src 'self'",
-              "connect-src 'self' https://kzbkygppplknynrwmtmf.supabase.co https://freeinterpreters.com https://app.freeinterpreters.com",
+              "connect-src 'self' https://kzbkygppplknynrwmtmf.supabase.co wss://kzbkygppplknynrwmtmf.supabase.co https://freeinterpreters.com https://app.freeinterpreters.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self' https://app.freeinterpreters.com https://freeinterpreters.com",
