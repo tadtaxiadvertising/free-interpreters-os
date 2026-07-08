@@ -88,8 +88,8 @@ export async function middleware(req: NextRequest) {
   );
 
   const HAS_SUPABASE_ENV = !!(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    (process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || process.env.SUPABASE_URL?.trim()) &&
+    (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || process.env.SUPABASE_ANON_KEY?.trim())
   );
 
   if (HAS_SUPABASE_ENV && (hasSupabaseCookie || isSupabaseSecureRoute)) {

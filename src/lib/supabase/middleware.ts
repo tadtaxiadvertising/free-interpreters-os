@@ -43,9 +43,15 @@ function applyCookieDeletions(response: NextResponse, names: Set<string>) {
 export async function updateSession(request: NextRequest): Promise<UpdateSessionResult> {
   // Guard: if Supabase env vars are missing, let the request pass through
   // instead of crashing the entire server with a 502.
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  // Fallback to non-public variants (common in Easypanel runtime).
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+    || process.env.SUPABASE_URL?.trim();
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+    || process.env.SUPABASE_ANON_KEY?.trim();
+
+  if (!supabaseUrl || !supabaseAnonKey) {
     console.error(
-      '⚠️ MIDDLEWARE: Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
+      '⚠️ MIDDLEWARE: Missing Supabase URL or ANON_KEY (tried NEXT_PUBLIC_* and fallback SUPABASE_*). ' +
       'Auth middleware is disabled. Set these as runtime env vars in Easypanel.'
     );
     return { response: NextResponse.next({ request }), hasValidSession: false };
@@ -54,8 +60,8 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
   const staleCookieNames = new Set<string>();
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -136,7 +142,7 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
       if (serviceKey) {
         const { createClient } = await import('@supabase/supabase-js');
         const supabaseAdmin = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          supabaseUrl,
           serviceKey
         );
         const { data: profile, error } = await supabaseAdmin
