@@ -37,14 +37,19 @@ if (typeof window === 'undefined' && typeof (globalThis as any).EdgeRuntime === 
 const SUPABASE_CONFIG_ERROR = 'SUPABASE_CONFIG_MISSING';
 
 function getSupabasePublicConfig() {
-  const url = process.env['NEXT_PUBLIC_SUPABASE_URL']?.trim();
-  const key = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']?.trim();
+  // Prefer NEXT_PUBLIC_* vars (inlined at build time for client-side),
+  // but fall back to the non-public variants when only those are available
+  // (common in Easypanel/Docker runtime where NEXT_PUBLIC_ vars may not be set).
+  const url = process.env['NEXT_PUBLIC_SUPABASE_URL']?.trim()
+    || process.env['SUPABASE_URL']?.trim();
+  const key = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']?.trim()
+    || process.env['SUPABASE_ANON_KEY']?.trim();
 
   if (!url || !key) {
     // Diagnostic logging for Easypanel/VPS debugging
     console.error('🔴 [SUPABASE_CONFIG] Missing required environment variables:');
-    console.error(`   NEXT_PUBLIC_SUPABASE_URL: ${url ? 'SET' : 'MISSING'}`);
-    console.error(`   NEXT_PUBLIC_SUPABASE_ANON_KEY: ${key ? 'SET' : 'MISSING'}`);
+    console.error(`   NEXT_PUBLIC_SUPABASE_URL / SUPABASE_URL: ${url ? 'SET' : 'MISSING'}`);
+    console.error(`   NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_ANON_KEY: ${key ? 'SET' : 'MISSING'}`);
     console.error('   Process cwd:', process.cwd());
     console.error('   Available env keys:', Object.keys(process.env).filter(k => k.includes('SUPABASE')).join(', ') || 'NONE');
 
