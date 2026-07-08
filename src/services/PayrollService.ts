@@ -268,6 +268,7 @@ export async function calculateFullPayroll(
   const PENALTY_PER_HOUR = 50;
   const penaltyPerMinute = PENALTY_PER_HOUR / 60;
   let q1Refund = 0;
+  let superGoalBonus = 0;
 
   if (isQ1) {
     const q1Goal = interpreter.monthlyGoal / 2;
@@ -299,6 +300,12 @@ export async function calculateFullPayroll(
       if (q1Minutes < q1Goal) {
         q1Refund = Math.round(q1Minutes * penaltyPerMinute * 100) / 100;
       }
+      
+      // Super Goal Bonus (160% of monthly goal)
+      const superGoalMinutes = Math.round((interpreter.monthlyGoal / 100) * 160);
+      if (accumulatedMinutes >= superGoalMinutes) {
+        superGoalBonus = 50.00;
+      }
     } else {
       // Penalidad en Q2
       const q2GoalPenalty = Math.round(totalMinutes * penaltyPerMinute * 100) / 100;
@@ -317,8 +324,9 @@ export async function calculateFullPayroll(
 
   // 10. Cálculo Neto Consolidado
   // netTotal = (grossTotal + qualityBonus + incentivesTotal) - (penalidades + transferDeduction)
+  const finalIncentives = incentive.totalIncentive + q1Refund + superGoalBonus;
   const netTotal = Math.round(
-    ((grossTotal + qualityBonus + incentive.totalIncentive + q1Refund) - (penalidades + transferDeduction)) * 100
+    ((grossTotal + qualityBonus + finalIncentives) - (penalidades + transferDeduction)) * 100
   ) / 100;
 
   return {
@@ -328,7 +336,7 @@ export async function calculateFullPayroll(
     totalHours,
     tariffPerMinute: baseRatePerMinute,
     grossTotal,
-    incentivesTotal: incentive.totalIncentive + q1Refund,
+    incentivesTotal: finalIncentives,
     matchedTier: incentive.matchedTier,
     qualityBonus,
     penalidades,
