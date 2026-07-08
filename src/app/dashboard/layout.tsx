@@ -94,6 +94,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <DashboardShell
       role="interpreter"
       userName={profile?.display_name || "Interpreter"}
+      interpreterId={profile?.interpreter_id}
+      userEmail={profile?.email || ''}
       notifications={notifications}
       ranking={ranking}
     >

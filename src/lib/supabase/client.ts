@@ -26,11 +26,10 @@ export function createClient() {
     url,
     key,
     {
-      // Aggressive Realtime Disabling to stop 'Presence API Error'
       realtime: {
-        timeout: 1, // Minimize timeout to fail fast if triggered
+        timeout: 30000,
         params: {
-          eventsPerSecond: 0,
+          eventsPerSecond: 10,
         }
       },
       auth: {

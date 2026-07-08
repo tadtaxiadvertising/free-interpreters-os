@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Phone, Clock, DollarSign, TrendingUp, ShieldCheck, RefreshCw, LogIn, Plus, Trophy } from 'lucide-react';
 import { getSystemConfig } from '@/app/actions/settings';
 import { cn } from '@/lib/utils';
-import { StatusToggle } from '@/components/StatusToggle';
+import { PresenceBadge } from '@/components/PresenceBadge';
 import { CallTimer } from '@/components/CallTimer';
 import { CallHistory } from '@/components/CallHistory';
 import { GoalProgressWidget } from '@/components/interpreters/GoalProgressWidget';
@@ -495,7 +495,7 @@ export default async function InterpreterDashboard() {
                 {interpreter.campaign && <span className="ml-3 text-indigo-300">• {interpreter.campaign}</span>}
               </p>
             </div>
-            <StatusToggle currentStatus={interpreter.realtimeStatus as any} />
+            <PresenceBadge />
           </div>
 
           <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
@@ -598,7 +598,7 @@ export default async function InterpreterDashboard() {
             </div>
           </div>
 
-          <GoalProgressWidget 
+          <GoalProgressWidget
             monthlyGoal={monthlyGoal}
             q1Minutes={q1Minutes}
             q2Minutes={q2Minutes}
