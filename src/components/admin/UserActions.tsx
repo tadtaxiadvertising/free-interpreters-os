@@ -1,25 +1,26 @@
 'use client';
 
 import React, { useState } from 'react';
-import { 
-  MoreVertical, 
-  Shield, 
-  Link as LinkIcon, 
-  Trash2, 
-  Key, 
-  Edit3, 
-  X, 
-  User, 
-  Check, 
-  Loader2 
+import {
+  MoreVertical,
+  Shield,
+  Link as LinkIcon,
+  Trash2,
+  Key,
+  Edit3,
+  X,
+  User,
+  Check,
+  Loader2,
+  ClipboardCheck
 } from 'lucide-react';
 import { UserProfile } from '@prisma/client';
 import type { UserRole } from '@/lib/types';
-import { 
-  updateUserRole, 
-  updateUserPassword, 
-  updateUserProfile, 
-  deleteUserAccess, 
+import {
+  updateUserRole,
+  updateUserPassword,
+  updateUserProfile,
+  deleteUserAccess,
   getAllInterpretersList,
   linkUserToInterpreter
 } from '@/app/actions/admin-users';
@@ -31,7 +32,7 @@ interface InterpreterItem {
   campaign: string | null;
 }
 
-export function UserActions({ user }: { user: UserProfile }) {
+export function UserActions({ user, onViewOnboarding }: { user: UserProfile; onViewOnboarding?: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeModal, setActiveModal] = useState<'edit' | 'password' | 'link' | 'delete' | null>(null);
@@ -153,7 +154,7 @@ export function UserActions({ user }: { user: UserProfile }) {
 
   return (
     <div className="relative">
-      <button 
+      <button
         onClick={() => setIsOpen(!isOpen)}
         className="p-3 hover:bg-white/10 rounded-2xl text-slate-400 hover:text-white transition-all active:scale-90"
       >
@@ -162,8 +163,8 @@ export function UserActions({ user }: { user: UserProfile }) {
 
       {isOpen && (
         <>
-          <div 
-            className="fixed inset-0 z-40" 
+          <div
+            className="fixed inset-0 z-40"
             onClick={() => setIsOpen(false)}
           />
           <div className="absolute right-0 mt-2 w-64 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -183,17 +184,17 @@ export function UserActions({ user }: { user: UserProfile }) {
                 ))}
               </div>
             </div>
-            
+
             <div className="p-2 space-y-1">
-              <button 
+              <button
                 onClick={() => setActiveModal('edit')}
                 className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-bold text-slate-300 hover:bg-white/5 hover:text-white transition-all"
               >
                 <Edit3 size={16} className="text-slate-400" />
                 Editar Perfil
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => setActiveModal('password')}
                 className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-bold text-slate-300 hover:bg-white/5 hover:text-white transition-all"
               >
@@ -201,7 +202,7 @@ export function UserActions({ user }: { user: UserProfile }) {
                 Cambiar Contraseña
               </button>
 
-              <button 
+              <button
                 onClick={openLinkModal}
                 className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-bold text-blue-400 hover:bg-blue-500/10 transition-all"
               >
@@ -209,7 +210,17 @@ export function UserActions({ user }: { user: UserProfile }) {
                 Vincular ID Intérprete
               </button>
 
-              <button 
+              {onViewOnboarding && (
+                <button
+                  onClick={() => { setIsOpen(false); onViewOnboarding(); }}
+                  className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-bold text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                >
+                  <ClipboardCheck size={16} />
+                  Ver Onboarding
+                </button>
+              )}
+
+              <button
                 onClick={() => setActiveModal('delete')}
                 className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-bold text-red-400 hover:bg-red-500/10 transition-all"
               >
@@ -225,8 +236,8 @@ export function UserActions({ user }: { user: UserProfile }) {
       {activeModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
           {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" 
+          <div
+            className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
             onClick={() => !isUpdating && setActiveModal(null)}
           />
 
@@ -244,7 +255,7 @@ export function UserActions({ user }: { user: UserProfile }) {
                 {activeModal === 'link' && 'Vincular Intérprete Registrado'}
                 {activeModal === 'delete' && 'Confirmar Eliminación'}
               </h3>
-              <button 
+              <button
                 onClick={() => !isUpdating && setActiveModal(null)}
                 className="p-2 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-colors"
                 disabled={isUpdating}
@@ -258,8 +269,8 @@ export function UserActions({ user }: { user: UserProfile }) {
               <form onSubmit={handleSaveProfile} className="p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Nombre para mostrar</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     required
@@ -268,8 +279,8 @@ export function UserActions({ user }: { user: UserProfile }) {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Correo electrónico</label>
-                  <input 
-                    type="email" 
+                  <input
+                    type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -277,7 +288,7 @@ export function UserActions({ user }: { user: UserProfile }) {
                   />
                 </div>
                 <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setActiveModal(null)}
                     disabled={isUpdating}
@@ -285,7 +296,7 @@ export function UserActions({ user }: { user: UserProfile }) {
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     disabled={isUpdating}
                     className="px-6 py-3 rounded-2xl font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
@@ -304,8 +315,8 @@ export function UserActions({ user }: { user: UserProfile }) {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Nueva Contraseña</label>
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
                     placeholder="Mínimo 6 caracteres"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -314,7 +325,7 @@ export function UserActions({ user }: { user: UserProfile }) {
                   />
                 </div>
                 <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setActiveModal(null)}
                     disabled={isUpdating}
@@ -322,7 +333,7 @@ export function UserActions({ user }: { user: UserProfile }) {
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     disabled={isUpdating}
                     className="px-6 py-3 rounded-2xl font-bold text-sm bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
@@ -349,11 +360,10 @@ export function UserActions({ user }: { user: UserProfile }) {
                   <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                     <button
                       onClick={() => setSelectedInterpreterId(null)}
-                      className={`w-full text-left p-4 rounded-2xl border transition-all flex justify-between items-center ${
-                        selectedInterpreterId === null 
-                          ? 'bg-blue-600/10 border-blue-500 text-white font-bold' 
-                          : 'bg-slate-950 border-white/5 text-slate-400 hover:border-white/10 hover:text-white'
-                      }`}
+                      className={`w-full text-left p-4 rounded-2xl border transition-all flex justify-between items-center ${selectedInterpreterId === null
+                        ? 'bg-blue-600/10 border-blue-500 text-white font-bold'
+                        : 'bg-slate-950 border-white/5 text-slate-400 hover:border-white/10 hover:text-white'
+                        }`}
                     >
                       <span>Desvincular Cuenta (Sin Enlace)</span>
                       {selectedInterpreterId === null && <Check size={16} />}
@@ -363,11 +373,10 @@ export function UserActions({ user }: { user: UserProfile }) {
                       <button
                         key={interpreter.id}
                         onClick={() => setSelectedInterpreterId(interpreter.id)}
-                        className={`w-full text-left p-4 rounded-2xl border transition-all flex justify-between items-center ${
-                          selectedInterpreterId === interpreter.id 
-                            ? 'bg-blue-600/10 border-blue-500 text-white font-bold' 
-                            : 'bg-slate-950 border-white/5 text-slate-400 hover:border-white/10 hover:text-white'
-                        }`}
+                        className={`w-full text-left p-4 rounded-2xl border transition-all flex justify-between items-center ${selectedInterpreterId === interpreter.id
+                          ? 'bg-blue-600/10 border-blue-500 text-white font-bold'
+                          : 'bg-slate-950 border-white/5 text-slate-400 hover:border-white/10 hover:text-white'
+                          }`}
                       >
                         <div className="flex flex-col">
                           <span className="font-bold">{interpreter.name}</span>
@@ -388,7 +397,7 @@ export function UserActions({ user }: { user: UserProfile }) {
                 )}
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setActiveModal(null)}
                     disabled={isUpdating}
@@ -396,7 +405,7 @@ export function UserActions({ user }: { user: UserProfile }) {
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     onClick={handleLinkInterpreter}
                     disabled={isUpdating || isLoadingInterpreters}
                     className="px-6 py-3 rounded-2xl font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
@@ -416,7 +425,7 @@ export function UserActions({ user }: { user: UserProfile }) {
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setActiveModal(null)}
                     disabled={isUpdating}
@@ -424,7 +433,7 @@ export function UserActions({ user }: { user: UserProfile }) {
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     onClick={handleDeleteUser}
                     disabled={isUpdating}
                     className="px-6 py-3 rounded-2xl font-bold text-sm bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
