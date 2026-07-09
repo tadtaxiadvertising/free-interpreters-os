@@ -14,7 +14,7 @@ const db = prisma;
 const AdminOnboardingUpdateSchema = z.object({
   userId: z.string().uuid(),
   bankName: z.string().min(1, 'Bank name is required').trim(),
-  bankAccount: z.string().min(5, 'Account number must be at least 5 digits').trim(),
+  bankAccount: z.string().min(5, 'Account number must be at least 5 digits').regex(/^\d+$/, 'Only digits allowed').trim(),
   bankAccountType: z.enum(['Ahorro', 'Corriente'], { message: 'Select account type' }),
   bankCedula: z.string().regex(/^\d{3}-\d{7}-\d{1}$/, 'Cédula format: XXX-XXXXXXX-X').trim(),
 });

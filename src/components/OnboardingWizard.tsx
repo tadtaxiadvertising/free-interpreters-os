@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FileText, CreditCard, Compass, ChevronRight, ChevronLeft, Check, Loader2, Sparkles, ChevronDown, AlertCircle } from 'lucide-react';
+import { FileText, CreditCard, Compass, ChevronRight, ChevronLeft, Check, Loader2, Sparkles, ChevronDown, AlertCircle, ShieldCheck, PartyPopper } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { acceptTerms, saveBankingDetails, completeOnboarding } from '@/app/actions/onboarding';
 import { BankFormRD, type BankFormData, isBankFormValid } from './BankFormRD';
@@ -66,6 +66,7 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   // Step 1 – Legal
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
@@ -107,6 +108,10 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
       const result = await acceptTerms();
       if (result.success) {
         setCurrentStep(1);
+      } else if (result.code === 'CONFLICT') {
+        // Onboarding already completed — skip wizard entirely
+        setShowSuccess(true);
+        setTimeout(onComplete, 1500);
       } else {
         setError(result.error || 'Error al aceptar términos');
       }
@@ -124,6 +129,11 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
       const result = await saveBankingDetails(bankData);
       if (result.success) {
         setCurrentStep(2);
+      } else if (result.code === 'CONFLICT') {
+        setShowSuccess(true);
+        setTimeout(onComplete, 1500);
+      } else if (result.code === 'VALIDATION_ERROR') {
+        setError('Verifica que los datos bancarios sean correctos');
       } else {
         setError(result.error || 'Error al guardar datos bancarios');
       }
@@ -140,7 +150,12 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
     try {
       const result = await completeOnboarding();
       if (result.success) {
-        onComplete();
+        setShowSuccess(true);
+        setTimeout(onComplete, 2000);
+      } else if (result.code === 'CONFLICT') {
+        // Already completed — just close
+        setShowSuccess(true);
+        setTimeout(onComplete, 1500);
       } else {
         setError(result.error || 'Error al finalizar onboarding');
       }
@@ -178,6 +193,33 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
 
   const progress = ((currentStep + 1) / STEPS.length) * 100;
 
+  // ── Success overlay ──
+  if (showSuccess) {
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+        <div className="relative w-full max-w-md animate-in fade-in zoom-in-95 duration-700">
+          <div className="absolute -top-20 -left-20 w-64 h-64 bg-emerald-500/30 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-teal-500/30 rounded-full blur-[100px] pointer-events-none" />
+          <div className="relative bg-slate-900 border border-emerald-500/20 rounded-[2.5rem] shadow-2xl p-12 text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 text-emerald-400 mb-6 border border-emerald-500/20">
+              <PartyPopper size={40} />
+            </div>
+            <h2 className="text-2xl font-extrabold text-white tracking-tight mb-2">
+              ¡Onboarding Completado!
+            </h2>
+            <p className="text-slate-400 text-sm">
+              Tu portal está listo. Accederás al dashboard en breve...
+            </p>
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <Loader2 size={18} className="animate-spin text-emerald-400" />
+              <span className="text-emerald-400 font-medium text-sm">Redirigiendo...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
       <div className="relative w-full max-w-2xl animate-in fade-in zoom-in-95 duration-500">
@@ -185,9 +227,9 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
         <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-[100px] pointer-events-none" />
 
         <div className="relative bg-slate-900 border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-          
+
           <div className="absolute top-0 left-0 w-full h-1 bg-slate-800 z-10">
-            <div 
+            <div
               className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-700 ease-out"
               style={{ width: `${progress}%` }}
             />
@@ -227,7 +269,7 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
                       </div>
                       <span className={cn(
                         "text-[11px] font-bold uppercase tracking-wider transition-colors",
-                        isCurrent ? "text-blue-400" : "text-slate-500"
+                        isCurrent ? "text-blue-400" : isCompleted ? "text-emerald-400" : "text-slate-500"
                       )}>
                         {step.label}
                       </span>
@@ -248,7 +290,10 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
             {currentStep === 0 && (
               <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="mb-6">
-                  <h3 className="text-xl font-bold text-white mb-2">Acuerdo de Confidencialidad</h3>
+                  <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                    <ShieldCheck size={20} className="text-blue-400" />
+                    Acuerdo de Confidencialidad
+                  </h3>
                   <p className="text-slate-400 text-sm">
                     Para trabajar con nosotros, es vital que leas y aceptes nuestras políticas de privacidad y manejo de datos.
                   </p>
@@ -276,6 +321,13 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
                   </div>
                 )}
 
+                {hasScrolledToBottom && !isLoading && !error && (
+                  <div className="mt-4 flex items-center gap-2 py-2 px-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 animate-in fade-in zoom-in duration-500">
+                    <Check size={14} />
+                    <span className="font-medium">Has leído el documento completo — puedes continuar</span>
+                  </div>
+                )}
+
                 {error && currentStep === 0 && (
                   <div className="mt-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-3 animate-in shake duration-500">
                     <AlertCircle size={20} className="shrink-0" />
@@ -295,6 +347,9 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
                   <p className="text-slate-400 text-sm max-w-md mx-auto">
                     Necesitamos tus datos bancarios de República Dominicana para procesar tus pagos de manera segura.
                   </p>
+                  <p className="text-slate-500 text-xs max-w-md mx-auto mt-2">
+                    Estos datos se almacenan con cifrado y solo se usan para nómina. No podrás modificarlos una vez completado el onboarding — el administrador puede corregirlos si hay errores.
+                  </p>
                 </div>
 
                 <BankFormRD
@@ -304,7 +359,6 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
                   standalone={true}
                 />
 
-                {/* Error feedback */}
                 {error && (
                   <div className="mt-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-3 animate-in shake duration-500">
                     <AlertCircle size={20} className="shrink-0" />
@@ -369,7 +423,7 @@ export function OnboardingWizard({ onComplete, interpreterName }: OnboardingWiza
           <div className="px-10 py-6 border-t border-white/5 bg-slate-900/50 backdrop-blur-sm flex items-center justify-between">
             {currentStep > 0 ? (
               <button
-                onClick={() => setCurrentStep(currentStep - 1)}
+                onClick={() => { setCurrentStep(currentStep - 1); setError(null); }}
                 className="flex items-center gap-2 px-6 py-3 rounded-2xl text-slate-400 font-bold hover:text-white hover:bg-white/5 transition-all"
               >
                 <ChevronLeft size={18} /> Atrás
