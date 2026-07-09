@@ -72,13 +72,23 @@ router.post('/manual', asyncHandler(async (req: Request, res: Response): Promise
     throw AppError.notFound(`Interpreter with externalId ${interpreterId} not found`);
   }
 
+  // Get interpreter tariff for ProductionLog sync
+  const interpreterWithTariff = await prisma.interpreter.findUnique({
+    where: { id: interpreter.id },
+    select: { tariffPerMinute: true },
+  });
+
+  const tariffSnapshot = Number(interpreterWithTariff?.tariffPerMinute || 0);
+  const callCost = (durationSeconds / 60) * tariffSnapshot;
+
   const callSession = await prisma.callSession.create({
     data: {
       interpreterId: interpreter.id,
       startedAt: finalStartTime,
       endedAt: finalEndTime,
       durationSeconds,
-      tariffSnapshot: 0,
+      tariffSnapshot,
+      callCost,
       notes: notes || 'Manual entry recorded from UI',
     },
     select: {
@@ -92,6 +102,52 @@ router.post('/manual', asyncHandler(async (req: Request, res: Response): Promise
       createdAt: true,
     },
   });
+
+  // Sync to ProductionLog so metrics update immediately
+  const interpretedMinutes = Math.floor(durationSeconds / 60);
+  if (interpretedMinutes > 0) {
+    // Use Santo Domingo timezone for date calculation
+    const getLocalDateStr = (d: Date) => {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Santo_Domingo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(d);
+    };
+
+    const dayStr = getLocalDateStr(finalStartTime);
+    const logDate = new Date(`${dayStr}T12:00:00Z`);
+
+    const existingLog = await prisma.productionLog.findFirst({
+      where: {
+        interpreterId: interpreter.id,
+        date: logDate,
+      },
+    });
+
+    if (existingLog) {
+      await prisma.productionLog.update({
+        where: { id: existingLog.id },
+        data: {
+          interpretedMinutes: (existingLog.interpretedMinutes || 0) + interpretedMinutes,
+          callsAttended: (existingLog.callsAttended || 0) + 1,
+        },
+      });
+    } else {
+      await prisma.productionLog.create({
+        data: {
+          interpreterId: interpreter.id,
+          date: logDate,
+          interpretedMinutes: interpretedMinutes,
+          callsAttended: 1,
+          status: 'Completed',
+          observaciones: 'Synced from external API',
+          adherence: 100,
+        },
+      });
+    }
+  }
 
   res.status(201).json({
     success: true,

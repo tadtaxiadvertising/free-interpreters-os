@@ -4,7 +4,8 @@ import prismaClient from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { UserRole } from '@/lib/types';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { supabaseAdmin, isAdminUnavailableError, ADMIN_UNAVAILABLE_MESSAGE } from '@/lib/supabase/admin';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 
 const prisma = prismaClient;
 
@@ -36,12 +37,13 @@ export async function updateUserRole(userId: string, role: UserRole) {
     throw new Error('Unauthorized');
   }
 
-  await prisma.userProfile.update({
+  const updated = await prisma.userProfile.update({
     where: { id: userId },
-    data: { role }
+    data: { role },
+    select: { interpreterId: true }
   });
 
-  revalidatePath('/admin/users');
+  revalidateInterpreterProfileRecords(updated.interpreterId);
   return { success: true };
 }
 
@@ -51,12 +53,18 @@ export async function linkUserToInterpreter(userId: string, interpreterId: numbe
     throw new Error('Unauthorized');
   }
 
+  const previous = await prisma.userProfile.findUnique({
+    where: { id: userId },
+    select: { interpreterId: true }
+  });
+
   await prisma.userProfile.update({
     where: { id: userId },
     data: { interpreterId }
   });
 
-  revalidatePath('/admin/users');
+  revalidateInterpreterProfileRecords(previous?.interpreterId);
+  revalidateInterpreterProfileRecords(interpreterId);
   return { success: true };
 }
 
@@ -67,14 +75,21 @@ export async function updateUserPassword(userId: string, newPassword: string) {
       throw new Error('Unauthorized');
     }
 
-    const supabaseAdmin = createAdminClient();
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-      password: newPassword
-    });
+    try {
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        password: newPassword,
+        email_confirm: true,
+      });
 
-    if (error) {
-      console.error('Supabase Auth Reset Password Error:', error);
-      return { success: false, error: error.message };
+      if (error) {
+        console.error('Supabase Auth Reset Password Error:', error);
+        return { success: false, error: error.message };
+      }
+    } catch (adminError) {
+      if (isAdminUnavailableError(adminError)) {
+        return { success: false, error: ADMIN_UNAVAILABLE_MESSAGE };
+      }
+      throw adminError;
     }
 
     return { success: true };
@@ -102,16 +117,20 @@ export async function updateUserProfile(userId: string, data: { displayName: str
 
     // Sync to Supabase Auth
     try {
-      const supabaseAdmin = createAdminClient();
       await supabaseAdmin.auth.admin.updateUserById(userId, {
         email: data.email,
+        email_confirm: true,
         user_metadata: { display_name: data.displayName }
       });
     } catch (supabaseError) {
-      console.error('Supabase sync warning:', supabaseError);
+      if (isAdminUnavailableError(supabaseError)) {
+        console.warn('⚠️ [updateUserProfile] Supabase Auth sync skipped:', ADMIN_UNAVAILABLE_MESSAGE);
+      } else {
+        console.error('Supabase sync warning:', supabaseError);
+      }
     }
 
-    revalidatePath('/admin/users');
+    revalidateInterpreterProfileRecords(updated.interpreterId);
     return { success: true, profile: updated };
   } catch (error: any) {
     console.error('Update Profile Exception:', error);
@@ -127,19 +146,23 @@ export async function deleteUserAccess(userId: string) {
     }
 
     // De-link/Delete from local DB first to avoid dependency failures
-    await prisma.userProfile.delete({
-      where: { id: userId }
+    const deleted = await prisma.userProfile.delete({
+      where: { id: userId },
+      select: { interpreterId: true }
     });
 
     // Delete in Supabase Auth
     try {
-      const supabaseAdmin = createAdminClient();
       await supabaseAdmin.auth.admin.deleteUser(userId);
     } catch (supabaseError) {
-      console.error('Supabase delete account warning:', supabaseError);
+      if (isAdminUnavailableError(supabaseError)) {
+        console.warn('⚠️ [deleteUserAccess] Supabase Auth delete skipped:', ADMIN_UNAVAILABLE_MESSAGE);
+      } else {
+        console.error('Supabase delete account warning:', supabaseError);
+      }
     }
 
-    revalidatePath('/admin/users');
+    revalidateInterpreterProfileRecords(deleted.interpreterId);
     return { success: true };
   } catch (error: any) {
     console.error('Delete User Exception:', error);
@@ -173,16 +196,23 @@ export async function syncAllSupabaseUsers() {
       throw new Error('Unauthorized');
     }
 
-    const supabaseAdmin = createAdminClient();
-    
     // Fetch all users from Supabase Auth
-    const { data: { users: supabaseUsers }, error } = await supabaseAdmin.auth.admin.listUsers({
-      perPage: 1000
-    });
+    let supabaseUsers;
+    try {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+        perPage: 1000
+      });
 
-    if (error) {
-      console.error('Error listing Supabase users:', error);
-      return { success: false, error: error.message };
+      if (error) {
+        console.error('Error listing Supabase users:', error);
+        return { success: false, error: error.message };
+      }
+      supabaseUsers = data.users;
+    } catch (adminError) {
+      if (isAdminUnavailableError(adminError)) {
+        return { success: false, error: ADMIN_UNAVAILABLE_MESSAGE };
+      }
+      throw adminError;
     }
 
     let syncedCount = 0;

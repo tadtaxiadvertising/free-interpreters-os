@@ -2,29 +2,52 @@
 
 import prisma from '@/lib/prisma';
 import type { ActionResult } from '@/lib/types';
-import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 import { validateAction } from '@/lib/auth/actions';
 import { z } from 'zod';
 
 const db = prisma;
 
+const CEDULA_REGEX = /^\d{3}-\d{7}-\d{1}$/;
+
 const BankingDetailsSchema = z.object({
-  bankName: z.string().min(1, 'Bank name is required').trim(),
-  bankAccount: z.string().min(1, 'Account number is required').trim(),
-  bankAccountType: z.string().trim().optional().nullable(),
-  bankCedula: z.string().min(1, 'ID/Cedula is required').trim(),
+  bankName: z.string().min(1, 'Selecciona un banco').trim(),
+  bankAccount: z.string().min(5, 'El número de cuenta debe tener al menos 5 dígitos').regex(/^\d+$/, 'Solo números permitidos').trim(),
+  bankAccountType: z.enum(['Ahorro', 'Corriente'], { message: 'Selecciona el tipo de cuenta' }),
+  bankCedula: z.string().regex(CEDULA_REGEX, 'Formato de cédula: XXX-XXXXXXX-X').trim(),
 });
 
 /**
  * Accept legal terms — records the signatureDate on the user's profile.
+ * GUARD: Rejects if onboarding is already complete.
  */
 export async function acceptTerms(): Promise<ActionResult> {
   const auth = await validateAction();
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    const now = new Date();
+    // ── Guard: block if onboarding already completed ──
     const isRbacUser = auth.user.id.startsWith('c');
+    if (!isRbacUser) {
+      const profile = await db.userProfile.findUnique({
+        where: { id: auth.user.id },
+        select: { onboardingComplete: true },
+      });
+      if (profile?.onboardingComplete) {
+        return { success: false, error: 'Onboarding ya fue completado — no puedes modificar los datos', code: 'CONFLICT' };
+      }
+    } else if (auth.profile?.interpreterId) {
+      const interpreter = await db.interpreter.findUnique({
+        where: { id: auth.profile.interpreterId },
+        select: { documentosCompleto: true },
+      });
+      if (interpreter?.documentosCompleto) {
+        return { success: false, error: 'Onboarding ya fue completado — no puedes modificar los datos', code: 'CONFLICT' };
+      }
+    }
+
+    const now = new Date();
+    let changedInterpreterId = auth.profile?.interpreterId ?? null;
 
     if (isRbacUser) {
       if (auth.profile?.interpreterId) {
@@ -34,6 +57,7 @@ export async function acceptTerms(): Promise<ActionResult> {
         if (interpreter) {
           const currentNotas = interpreter.notas || '';
           if (!currentNotas.includes('[TERMS_ACCEPTED]')) {
+            changedInterpreterId = interpreter.id;
             await db.interpreter.update({
               where: { id: interpreter.id },
               data: {
@@ -55,7 +79,7 @@ export async function acceptTerms(): Promise<ActionResult> {
       });
     }
 
-    revalidatePath('/dashboard');
+    revalidateInterpreterProfileRecords(changedInterpreterId);
     return { success: true };
   } catch (error) {
     console.error('[ONBOARDING] acceptTerms error:', error);
@@ -65,6 +89,7 @@ export async function acceptTerms(): Promise<ActionResult> {
 
 /**
  * Save RD banking details for the interpreter's payment profile.
+ * GUARD: Rejects if onboarding is already complete.
  */
 export async function saveBankingDetails(data: {
   bankName: string;
@@ -76,8 +101,28 @@ export async function saveBankingDetails(data: {
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    const validated = BankingDetailsSchema.parse(data);
+    // ── Guard: block if onboarding already completed ──
     const isRbacUser = auth.user.id.startsWith('c');
+    if (!isRbacUser) {
+      const existingProfile = await db.userProfile.findUnique({
+        where: { id: auth.user.id },
+        select: { onboardingComplete: true },
+      });
+      if (existingProfile?.onboardingComplete) {
+        return { success: false, error: 'Onboarding ya fue completado — los datos bancarios no pueden ser modificados', code: 'CONFLICT' };
+      }
+    } else if (auth.profile?.interpreterId) {
+      const existingInterpreter = await db.interpreter.findUnique({
+        where: { id: auth.profile.interpreterId },
+        select: { documentosCompleto: true },
+      });
+      if (existingInterpreter?.documentosCompleto) {
+        return { success: false, error: 'Onboarding ya fue completado — los datos bancarios no pueden ser modificados', code: 'CONFLICT' };
+      }
+    }
+
+    const validated = BankingDetailsSchema.parse(data);
+    let changedInterpreterId = auth.profile?.interpreterId ?? null;
 
     if (isRbacUser) {
       if (auth.profile?.interpreterId) {
@@ -91,6 +136,7 @@ export async function saveBankingDetails(data: {
           },
           select: { id: true }
         });
+        changedInterpreterId = auth.profile.interpreterId;
       } else {
         return { success: false, error: 'No interpreter profile linked to this RBAC user', code: 'NOT_FOUND' };
       }
@@ -111,6 +157,7 @@ export async function saveBankingDetails(data: {
 
         // 2. Sync with Interpreter record if linked
         if (profile?.interpreterId) {
+          changedInterpreterId = profile.interpreterId;
           await tx.interpreter.update({
             where: { id: profile.interpreterId },
             data: {
@@ -125,7 +172,7 @@ export async function saveBankingDetails(data: {
       });
     }
 
-    revalidatePath('/dashboard');
+    revalidateInterpreterProfileRecords(changedInterpreterId);
     return { success: true };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -138,6 +185,7 @@ export async function saveBankingDetails(data: {
 
 /**
  * Mark onboarding as complete — enables full dashboard access.
+ * GUARD: Rejects if onboarding was already completed (prevents re-submission).
  */
 export async function completeOnboarding(): Promise<ActionResult> {
   const auth = await validateAction();
@@ -145,6 +193,26 @@ export async function completeOnboarding(): Promise<ActionResult> {
 
   try {
     const isRbacUser = auth.user.id.startsWith('c');
+    let changedInterpreterId = auth.profile?.interpreterId ?? null;
+
+    // ── Guard: prevent re-submission if already complete ──
+    if (!isRbacUser) {
+      const existingProfile = await db.userProfile.findUnique({
+        where: { id: auth.user.id },
+        select: { onboardingComplete: true },
+      });
+      if (existingProfile?.onboardingComplete) {
+        return { success: false, error: 'Onboarding ya fue completado previamente', code: 'CONFLICT' };
+      }
+    } else if (auth.profile?.interpreterId) {
+      const existingInterpreter = await db.interpreter.findUnique({
+        where: { id: auth.profile.interpreterId },
+        select: { documentosCompleto: true },
+      });
+      if (existingInterpreter?.documentosCompleto) {
+        return { success: false, error: 'Onboarding ya fue completado previamente', code: 'CONFLICT' };
+      }
+    }
 
     if (isRbacUser) {
       if (auth.profile?.interpreterId) {
@@ -157,6 +225,7 @@ export async function completeOnboarding(): Promise<ActionResult> {
           },
           select: { id: true }
         });
+        changedInterpreterId = auth.profile.interpreterId;
       } else {
         return { success: false, error: 'No interpreter profile linked to this RBAC user', code: 'NOT_FOUND' };
       }
@@ -170,6 +239,7 @@ export async function completeOnboarding(): Promise<ActionResult> {
         });
 
         if (profile?.interpreterId) {
+          changedInterpreterId = profile.interpreterId;
           await tx.interpreter.update({
             where: { id: profile.interpreterId },
             data: {
@@ -183,7 +253,7 @@ export async function completeOnboarding(): Promise<ActionResult> {
       });
     }
 
-    revalidatePath('/dashboard');
+    revalidateInterpreterProfileRecords(changedInterpreterId);
     return { success: true };
   } catch (error) {
     console.error('[ONBOARDING] completeOnboarding error:', error);

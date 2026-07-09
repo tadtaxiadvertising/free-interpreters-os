@@ -1,9 +1,8 @@
 import 'dotenv/config';
-import { createAdminClient } from '../src/lib/supabase/admin';
+import { supabaseAdmin } from '../src/lib/supabase/admin';
 
 async function main() {
-  const supabase = createAdminClient();
-  const { data: { users }, error } = await supabase.auth.admin.listUsers();
+  const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
   
   if (error) {
     console.error("Error listing users:", error);
@@ -11,7 +10,7 @@ async function main() {
   }
   
   console.log("=== SUPABASE AUTH USERS ===");
-  users.forEach(u => {
+  users.forEach((u: any) => {
     console.log(`Email: ${u.email} | ID: ${u.id} | Metadata:`, u.user_metadata);
   });
 }

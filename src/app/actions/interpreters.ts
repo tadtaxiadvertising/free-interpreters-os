@@ -1,15 +1,33 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 import prisma from '@/lib/prisma';
 import { InterpreterSchema, InterpreterInput } from '@/lib/validators';
 import { ActionResult } from '@/lib/types';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { supabaseAdmin, isAdminUnavailableError, getSupabaseServiceRoleKey, ADMIN_UNAVAILABLE_MESSAGE } from '@/lib/supabase/admin';
+import { upsertConfirmedAuthUser } from '@/lib/supabase/auth-users';
 import { Interpreter, Prisma } from '@prisma/client';
 import { validateAction } from '@/lib/auth/actions';
 import { UpdateInterpreterStatusSchema } from '@/lib/validators/interpreters';
+import { deleteInterpreterDatabaseRecords } from '@/lib/interpreters/delete-interpreter';
 
 const db = prisma;
+
+async function createInterpreterAuthUser(email: string, password: string, displayName: string) {
+  try {
+    return await upsertConfirmedAuthUser({
+      email,
+      password,
+      displayName,
+    });
+  } catch (error) {
+    if (isAdminUnavailableError(error)) {
+      throw new Error(ADMIN_UNAVAILABLE_MESSAGE);
+    }
+    throw error;
+  }
+}
 
 /**
  * ACTION: Create Interpreter
@@ -35,51 +53,50 @@ export async function createInterpreter(data: InterpreterInput): Promise<ActionR
           throw new Error('Email corporativo is required for account creation');
         }
 
-        const supabaseAdmin = createAdminClient();
-        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: interpreter.emailCorporativo,
-          password: password,
-          email_confirm: true,
-          user_metadata: { display_name: interpreter.name }
-        });
+        const authUser = await createInterpreterAuthUser(
+          interpreter.emailCorporativo,
+          password,
+          interpreter.name
+        );
 
-        if (authError) throw authError;
-
-        if (authUser.user) {
-          await tx.userProfile.upsert({
-            where: { id: authUser.user.id },
-            update: {
-              email: interpreter.emailCorporativo,
-              displayName: interpreter.name,
-              interpreterId: interpreter.id,
-              onboardingComplete: true
-            },
-            create: {
-              id: authUser.user.id,
-              email: interpreter.emailCorporativo,
-              displayName: interpreter.name,
-              role: 'interpreter',
-              interpreterId: interpreter.id,
-              onboardingComplete: true
-            }
-          });
+        if (!authUser) {
+          throw new Error('No se pudo crear el usuario de autenticación.');
         }
+
+        await tx.userProfile.upsert({
+          where: { id: authUser.id },
+          update: {
+            email: interpreter.emailCorporativo,
+            displayName: interpreter.name,
+            interpreterId: interpreter.id,
+            onboardingComplete: true
+          },
+          create: {
+            id: authUser.id,
+            email: interpreter.emailCorporativo,
+            displayName: interpreter.name,
+            role: 'interpreter',
+            interpreterId: interpreter.id,
+            onboardingComplete: true
+          }
+        });
       }
 
       return { id: interpreter.id, name: interpreter.name };
     });
 
-    revalidatePath('/interpreters');
-    revalidatePath('/admin');
+    revalidateInterpreterProfileRecords(result.id);
     return { success: true, data: result };
   } catch (error: unknown) {
     console.error('🔴 ERROR [createInterpreter]:', error);
-    
+
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       return { success: false, error: 'Un intérprete con este ID externo o Email ya existe.', code: 'CONFLICT' };
     }
-
     const errorMsg = error instanceof Error ? error.message : 'Error al crear el intérprete';
+    if (isAdminUnavailableError(error) || errorMsg === ADMIN_UNAVAILABLE_MESSAGE) {
+      return { success: false, error: ADMIN_UNAVAILABLE_MESSAGE, code: 'SERVICE_UNAVAILABLE' };
+    }
     return { success: false, error: errorMsg, code: 'INTERNAL_ERROR' };
   }
 }
@@ -93,15 +110,23 @@ export async function updateInterpreter(id: number, data: Partial<InterpreterInp
 
   try {
     const validated = InterpreterSchema.partial().parse(data);
+    const { password, ...updateData } = validated;
 
     const interpreter = await db.interpreter.update({
       where: { id },
-      data: validated,
-      select: { id: true, name: true }
+      data: updateData,
+      select: { id: true, name: true, emailCorporativo: true }
     });
 
-    revalidatePath('/interpreters');
-    revalidatePath(`/interpreters/${id}`);
+    await db.userProfile.updateMany({
+      where: { interpreterId: id },
+      data: {
+        displayName: interpreter.name,
+        ...(interpreter.emailCorporativo ? { email: interpreter.emailCorporativo } : {}),
+      },
+    });
+
+    revalidateInterpreterProfileRecords(id);
     return { success: true, data: interpreter };
   } catch (error: unknown) {
     console.error('🔴 ERROR [updateInterpreter]:', error);
@@ -117,37 +142,40 @@ export async function deleteInterpreter(id: number): Promise<ActionResult> {
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    await db.$transaction(async (tx) => {
-      // 1. Get interpreter and profile with minimal fields
-      const interpreter = await tx.interpreter.findUnique({
-        where: { id },
-        select: { 
-          id: true,
-          userProfile: { select: { id: true } } 
-        }
-      });
-
-      if (!interpreter) throw new Error('Intérprete no encontrado');
-
-      // 2. Delete Supabase Auth user if linked
-      if (interpreter.userProfile) {
-        const supabaseAdmin = createAdminClient();
-        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(interpreter.userProfile.id);
-        if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
-        
-        await tx.userProfile.delete({ where: { id: interpreter.userProfile.id } });
+    // 1. Validar cliente de Supabase Admin access
+    try {
+      void supabaseAdmin.auth;
+    } catch (err) {
+      if (isAdminUnavailableError(err)) {
+        return {
+          success: false,
+          error: ADMIN_UNAVAILABLE_MESSAGE,
+          code: 'SERVICE_UNAVAILABLE'
+        };
       }
+      throw err;
+    }
 
-      // 3. Delete interpreter record
-      await tx.interpreter.delete({ where: { id } });
-    });
+    // 2. Perform DB deletion
+    const { authUserId } = await db.$transaction((tx: any) => deleteInterpreterDatabaseRecords(tx, id));
 
-    revalidatePath('/interpreters');
-    revalidatePath('/admin');
+    // 3. Delete Supabase Auth user if client is ready and user is linked
+    if (authUserId) {
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
+      if (authError) console.warn('⚠️ Fallo al borrar usuario de Auth:', authError.message);
+    }
+
+    revalidateInterpreterProfileRecords(id);
     return { success: true };
   } catch (error: unknown) {
     console.error('🔴 ERROR [deleteInterpreter]:', error);
-    return { success: false, error: 'Error al eliminar el intérprete', code: 'INTERNAL_ERROR' };
+
+    const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+    if (errorMsg === 'Intérprete no encontrado') {
+      return { success: false, error: 'El intérprete no se encuentra o ya fue eliminado.', code: 'NOT_FOUND' };
+    }
+
+    return { success: false, error: errorMsg || 'Error al eliminar el intérprete', code: 'INTERNAL_ERROR' };
   }
 }
 
@@ -187,9 +215,9 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
   try {
     const interpreter = await db.interpreter.findUnique({
       where: { id },
-      select: { 
-        id: true, 
-        name: true, 
+      select: {
+        id: true,
+        name: true,
         emailCorporativo: true,
         userProfile: { select: { id: true } }
       }
@@ -198,30 +226,25 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
     if (!interpreter) return { success: false, error: 'Intérprete no encontrado', code: 'NOT_FOUND' };
 
     let userProfileId = interpreter.userProfile?.id;
-    const supabaseAdmin = createAdminClient();
+
+    try {
+      void supabaseAdmin.auth;
+    } catch (err) {
+      if (isAdminUnavailableError(err) && !userProfileId) {
+        return { success: false, error: ADMIN_UNAVAILABLE_MESSAGE, code: 'SERVICE_UNAVAILABLE' };
+      }
+    }
 
     if (!userProfileId) {
       if (!interpreter.emailCorporativo) {
         return { success: false, error: 'No hay cuenta vinculada ni email corporativo configurado.', code: 'VALIDATION_ERROR' };
       }
 
-      // 1. Find or create Auth user
-      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-      let authUser = existingUsers.users.find(u => u.email === interpreter.emailCorporativo);
-
-      if (!authUser) {
-        const { data: newUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: interpreter.emailCorporativo,
-          password: password,
-          email_confirm: true,
-          user_metadata: { display_name: interpreter.name }
-        });
-        if (authError) throw authError;
-        authUser = newUser.user;
-      } else {
-        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, { password });
-        if (updateError) throw updateError;
-      }
+      const authUser = await upsertConfirmedAuthUser({
+        email: interpreter.emailCorporativo,
+        password,
+        displayName: interpreter.name,
+      });
 
       // 2. Link Profile
       if (authUser) {
@@ -239,10 +262,21 @@ export async function resetInterpreterPassword(id: number, password: string): Pr
         });
       }
     } else {
-      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userProfileId, { password });
-      if (authError) throw authError;
+      try {
+        const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userProfileId, {
+          password,
+          email_confirm: true,
+        });
+        if (authError) throw authError;
+      } catch (authErr) {
+        if (isAdminUnavailableError(authErr)) {
+          return { success: false, error: ADMIN_UNAVAILABLE_MESSAGE, code: 'SERVICE_UNAVAILABLE' };
+        }
+        throw authErr;
+      }
     }
 
+    revalidateInterpreterProfileRecords(id);
     return { success: true };
   } catch (error: unknown) {
     console.error('🔴 ERROR [resetInterpreterPassword]:', error);
@@ -269,24 +303,20 @@ export async function updateRealtimeStatus(id: number, status: 'Online' | 'Offli
       select: { id: true }
     });
 
-    revalidatePath('/interpreters');
-    revalidatePath('/dashboard');
+    revalidateInterpreterProfileRecords(id);
     return { success: true };
   } catch (error: unknown) {
     console.error('🔴 ERROR [updateRealtimeStatus]:', error);
-    return { success: false, error: 'Error al actualizar estado en tiempo real', code: 'INTERNAL_ERROR' };
+    return { success: false, error: 'Error al actualizar estado realtime', code: 'INTERNAL_ERROR' };
   }
 }
-
-
-
 
 export async function updateInterpreterStatusAction(data: unknown): Promise<{ success: boolean; data?: { id: number; status: string }; error?: string }> {
   const auth = await validateAction('admin');
   if ('error' in auth) return { success: false, error: auth.error };
 
   try {
-    const parsedData = UpdateInterpreterStatusSchema.parse(data);
+    const parsedData = UpdateInterpreterStatusSchema.strict().parse(data);
 
     const updatedInterpreter = await db.interpreter.update({
       where: { id: parsedData.id },
@@ -295,8 +325,18 @@ export async function updateInterpreterStatusAction(data: unknown): Promise<{ su
     });
 
     revalidatePath('/admin/roster');
+    revalidatePath('/interpreters');
+    revalidateInterpreterProfileRecords(parsedData.id);
 
-    return { success: true, data: updatedInterpreter };
+    const normalizedInterpreter = {
+      id: updatedInterpreter.id,
+      status: updatedInterpreter.status ?? 'Activo',
+    };
+
+    return {
+      success: true,
+      data: normalizedInterpreter,
+    };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'No se pudo actualizar el estado del intérprete';
     return { success: false, error: message };

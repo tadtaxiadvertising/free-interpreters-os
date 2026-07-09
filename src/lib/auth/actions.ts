@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
 import { ActionResult, UserRole } from '@/lib/types';
 import { cache } from 'react';
+import { auth } from '@/lib/auth-rbac';
 
 /**
  * CACHED AUTH HELPER
@@ -32,7 +33,7 @@ export const getCurrentUser = cache(async () => {
       // Self-healing: if the user exists in Supabase but has no userProfile record in the public schema
       if (!supabaseProfile && user.email) {
         console.log(`🔧 [AUTH] Self-healing profile auto-creation for user: ${user.email}`);
-        
+
         // Determine default role based on email matches
         const emailLower = user.email.toLowerCase();
         let role = 'interpreter';
@@ -45,11 +46,60 @@ export const getCurrentUser = cache(async () => {
           role = 'admin';
         }
 
-        // Link with an interpreter profile if the email matches
-        const interpreter = await prisma.interpreter.findUnique({
-          where: { emailCorporativo: user.email },
+        // Link with an interpreter profile — broader matching (email or name)
+        const interpreter = await prisma.interpreter.findFirst({
+          where: {
+            OR: [
+              { emailCorporativo: user.email },
+              { name: user.user_metadata?.display_name || user.email?.split('@')[0] },
+            ],
+          },
           select: { id: true }
         });
+
+        // AUTO-CREATE: If no matching interpreter and role is 'interpreter', create one
+        let interpreterId: number | null = interpreter?.id || null;
+        if (!interpreterId && role === 'interpreter') {
+          const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter';
+          try {
+            const newInterp = await prisma.interpreter.create({
+              data: {
+                externalId: `auth-${user.id}`,
+                name: displayName,
+                emailCorporativo: user.email,
+                status: 'Activo',
+                realtimeStatus: 'Offline',
+                tariffPerMinute: 0,
+                monthlyGoal: 2000,
+                languageA: 'Español',
+                languageB: 'Inglés',
+              },
+              select: { id: true },
+            });
+            interpreterId = newInterp.id;
+            console.log(`🔧 [AUTH] Interpreter auto-created for ${user.id} → interpreter ${newInterp.id}`);
+          } catch (createErr: any) {
+            if (createErr?.code === 'P2002') {
+              const fallbackInterp = await prisma.interpreter.create({
+                data: {
+                  externalId: `auth-${user.id}-${Date.now()}`,
+                  name: displayName,
+                  status: 'Activo',
+                  realtimeStatus: 'Offline',
+                  tariffPerMinute: 0,
+                  monthlyGoal: 2000,
+                  languageA: 'Español',
+                  languageB: 'Inglés',
+                },
+                select: { id: true },
+              });
+              interpreterId = fallbackInterp.id;
+              console.log(`🔧 [AUTH] Interpreter auto-created (fallback) for ${user.id} → interpreter ${fallbackInterp.id}`);
+            } else {
+              console.error('[AUTH] Interpreter auto-creation failed:', createErr);
+            }
+          }
+        }
 
         // Safe creation of the profile
         supabaseProfile = await prisma.userProfile.create({
@@ -58,7 +108,7 @@ export const getCurrentUser = cache(async () => {
             email: user.email,
             displayName: user.user_metadata?.display_name || user.email.split('@')[0],
             role: role,
-            interpreterId: interpreter?.id || null
+            interpreterId: interpreterId
           },
           select: {
             id: true,
@@ -69,19 +119,128 @@ export const getCurrentUser = cache(async () => {
           }
         });
       }
+
+      // Self-healing: correct admin role if email matches admin patterns
+      if (supabaseProfile && supabaseProfile.email && supabaseProfile.role !== 'admin') {
+        const emailLower = supabaseProfile.email.toLowerCase();
+        const isAdminEmail = emailLower === 'interpretersfree@gmail.com' ||
+          emailLower === 'melvinramonduranmesa@gmail.com' ||
+          emailLower === 'admin@freeinterpreters.com' ||
+          emailLower.includes('admin');
+        if (isAdminEmail) {
+          await prisma.userProfile.update({
+            where: { id: supabaseProfile.id },
+            data: { role: 'admin', interpreterId: null },
+          });
+          supabaseProfile = { ...supabaseProfile, role: 'admin', interpreterId: null };
+          console.log(`🔧 [AUTH] Role self-healed to admin for ${supabaseProfile.id}`);
+        }
+      }
+
+      // Self-healing: link interpreter when profile exists but interpreterId is null (skip for admins)
+      if (supabaseProfile && !supabaseProfile.interpreterId && supabaseUser?.email && supabaseProfile.role !== 'admin') {
+        try {
+          const interpreterMatch = await prisma.interpreter.findFirst({
+            where: {
+              OR: [
+                { emailCorporativo: supabaseUser.email },
+                { name: supabaseProfile.displayName || supabaseUser.email?.split('@')[0] },
+              ],
+            },
+            select: { id: true },
+          });
+
+          if (interpreterMatch) {
+            await prisma.userProfile.update({
+              where: { id: supabaseProfile.id },
+              data: { interpreterId: interpreterMatch.id },
+            });
+            supabaseProfile = { ...supabaseProfile, interpreterId: interpreterMatch.id };
+            console.log(`🔧 [AUTH] Interpreter link auto-repaired for ${supabaseProfile.id} → interpreter ${interpreterMatch.id}`);
+          } else if (supabaseProfile.role !== 'admin') {
+            // AUTO-CREATE: No matching interpreter and user is not admin — create one and link it
+            const displayName = supabaseProfile.displayName || supabaseUser.email?.split('@')[0] || 'Interpreter';
+            let newInterpreter: { id: number } | null = null;
+            try {
+              newInterpreter = await prisma.interpreter.create({
+                data: {
+                  externalId: `auth-${supabaseProfile.id}`,
+                  name: displayName,
+                  emailCorporativo: supabaseUser.email,
+                  status: 'Activo',
+                  realtimeStatus: 'Offline',
+                  tariffPerMinute: 0,
+                  monthlyGoal: 2000,
+                  languageA: 'Español',
+                  languageB: 'Inglés',
+                },
+                select: { id: true },
+              });
+            } catch (createErr: any) {
+              if (createErr?.code === 'P2002') {
+                newInterpreter = await prisma.interpreter.create({
+                  data: {
+                    externalId: `auth-${supabaseProfile.id}-${Date.now()}`,
+                    name: displayName,
+                    status: 'Activo',
+                    realtimeStatus: 'Offline',
+                    tariffPerMinute: 0,
+                    monthlyGoal: 2000,
+                    languageA: 'Español',
+                    languageB: 'Inglés',
+                  },
+                  select: { id: true },
+                });
+              } else {
+                throw createErr;
+              }
+            }
+            if (newInterpreter) {
+              await prisma.userProfile.update({
+                where: { id: supabaseProfile.id },
+                data: { interpreterId: newInterpreter.id },
+              });
+              supabaseProfile = { ...supabaseProfile, interpreterId: newInterpreter.id };
+              console.log(`🔧 [AUTH] Interpreter auto-created and linked for ${supabaseProfile.id} → interpreter ${newInterpreter.id}`);
+            }
+          }
+        } catch (linkErr) {
+          console.error('[AUTH] Interpreter link repair failed:', linkErr);
+        }
+      }
     }
   } catch (error) {
     // Supabase variables might be missing in RBAC-only environments (e.g. interpreters subproject)
     // We catch it here to allow clean fallback to Auth.js credentials session
   }
-  
+
   if (supabaseUser) {
     return {
       ...supabaseUser,
       profile: supabaseProfile
     };
   }
-  
+
+  // Fallback to NextAuth (Auth.js) session
+  try {
+    const session = await auth();
+    if (session?.user) {
+      return {
+        id: session.user.id,
+        email: session.user.email,
+        profile: {
+          id: session.user.id,
+          role: (session.user as any).role || 'interpreter',
+          displayName: session.user.name,
+          email: session.user.email,
+          interpreterId: (session.user as any).interpreterId || null,
+        }
+      };
+    }
+  } catch (authError) {
+    console.error('NextAuth Fallback Error:', authError);
+  }
+
   return null;
 });
 
@@ -96,7 +255,7 @@ export async function validateAction(requiredRole?: UserRole | UserRole[]): Prom
   profile: any;
 } | { error: string; code: NonNullable<ActionResult['code']> }> {
   const userData = await getCurrentUser();
-  
+
   if (!userData) {
     return { error: 'Not authenticated', code: 'UNAUTHORIZED' };
   }
@@ -104,7 +263,7 @@ export async function validateAction(requiredRole?: UserRole | UserRole[]): Prom
   if (requiredRole) {
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
     const userRole = (userData.profile?.role || 'interpreter').toLowerCase() as UserRole;
-    
+
     if (!roles.includes(userRole)) {
       return { error: 'Access denied: insufficient permissions', code: 'UNAUTHORIZED' };
     }

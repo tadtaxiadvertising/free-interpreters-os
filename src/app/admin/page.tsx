@@ -9,6 +9,7 @@ import prismaClient from '@/lib/prisma';
 import { GlobalGoalsButton } from '@/components/GlobalGoalsButton';
 import { CSVChunkUploader } from '@/components/CSVChunkUploader';
 import { getSystemConfig } from '@/app/actions/settings';
+import { getMonthBounds } from '@/lib/interpreter-metrics';
 
 // Regla #2: Caching explícito (Next.js 15)
 export const revalidate = 120;
@@ -43,9 +44,8 @@ export default async function AdminDashboard(props: PageProps) {
     redirect('/dashboard');
   }
 
-  // Cálculos de tiempo para Telemetría MTD
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Cálculos de tiempo para Telemetría MTD (Santo Domingo timezone)
+  const { startOfMonth: monthStart } = getMonthBounds();
 
   // Fetch Unificado y paralelo (Optimizado para Carga CPU/RAM en Easypanel)
   let interpreters: any[] = [];
@@ -55,8 +55,7 @@ export default async function AdminDashboard(props: PageProps) {
 
   try {
     [interpreters, activeCalls, monthProductionLogs, qaAlertsCount] = await Promise.all([
-      prisma.interpreter.findMany({ 
-        where: { status: 'Activo' },
+      prisma.interpreter.findMany({
         select: {
           id: true,
           externalId: true,
@@ -65,11 +64,11 @@ export default async function AdminDashboard(props: PageProps) {
           updatedAt: true,
         }
       }),
-      prisma.callSession.findMany({ 
-        where: { endedAt: null }, 
-        select: { id: true } 
+      prisma.callSession.findMany({
+        where: { endedAt: null },
+        select: { id: true }
       }),
-      prisma.productionLog.findMany({ 
+      prisma.productionLog.findMany({
         where: { date: { gte: monthStart } },
         select: { interpretedMinutes: true, adherence: true }
       }),
@@ -86,9 +85,9 @@ export default async function AdminDashboard(props: PageProps) {
 
   // Agregación O(N) eficiente en CPU
   const totalMinutesMonth = monthProductionLogs.reduce((sum, log) => sum + (log.interpretedMinutes || 0), 0);
-  
+
   const validAdherenceLogs = monthProductionLogs.filter(log => log.adherence && Number(log.adherence) > 0);
-  const avgAdherence = validAdherenceLogs.length > 0 
+  const avgAdherence = validAdherenceLogs.length > 0
     ? validAdherenceLogs.reduce((sum, log) => sum + Number(log.adherence), 0) / validAdherenceLogs.length
     : 0;
 
@@ -97,8 +96,8 @@ export default async function AdminDashboard(props: PageProps) {
   const STALE_THRESHOLD = 2 * 60 * 1000; // 2 minutes timeout
   const nowTime = new Date().getTime();
 
-  const onlineCount = interpreters.filter((i: any) => 
-    i.realtimeStatus === 'Online' && 
+  const onlineCount = interpreters.filter((i: any) =>
+    i.realtimeStatus === 'Online' &&
     (nowTime - new Date(i.updatedAt).getTime() < STALE_THRESHOLD)
   ).length;
 
@@ -113,7 +112,7 @@ export default async function AdminDashboard(props: PageProps) {
           </p>
         </div>
         <div className="flex gap-3">
-           <GlobalGoalsButton initialGoal={globalGoalHours} />
+          <GlobalGoalsButton initialGoal={globalGoalHours} />
         </div>
       </header>
 
@@ -146,27 +145,27 @@ export default async function AdminDashboard(props: PageProps) {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-         <div className="xl:col-span-2 space-y-6">
-            {/* Uploader de archivos optimizado (Client Component) */}
-            <CSVChunkUploader />
-         </div>
-         
-         <div className="space-y-6">
-            <div className="glass p-6 rounded-3xl border border-white/5 bg-slate-900/40">
-              <h3 className="text-xl font-bold text-white flex items-center gap-3 mb-4">
-                Estado de Red en Vivo
-              </h3>
-              <div className="space-y-4">
-                 <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-orange-500/30 transition-colors">
-                    <div className="flex items-center gap-3">
-                       <Phone className="text-orange-400" />
-                       <span className="text-white font-medium">Llamadas Activas</span>
-                    </div>
-                    <span className="text-2xl font-bold text-orange-400 animate-pulse">{activeCalls.length}</span>
-                 </div>
+        <div className="xl:col-span-2 space-y-6">
+          {/* Uploader de archivos optimizado (Client Component) */}
+          <CSVChunkUploader />
+        </div>
+
+        <div className="space-y-6">
+          <div className="glass p-6 rounded-3xl border border-white/5 bg-slate-900/40">
+            <h3 className="text-xl font-bold text-white flex items-center gap-3 mb-4">
+              Estado de Red en Vivo
+            </h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-orange-500/30 transition-colors">
+                <div className="flex items-center gap-3">
+                  <Phone className="text-orange-400" />
+                  <span className="text-white font-medium">Llamadas Activas</span>
+                </div>
+                <span className="text-2xl font-bold text-orange-400 animate-pulse">{activeCalls.length}</span>
               </div>
             </div>
-         </div>
+          </div>
+        </div>
       </div>
     </div>
   );

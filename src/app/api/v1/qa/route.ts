@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { QAScoreSchema } from '@/lib/validators';
+import { apiError, parseJsonBody } from '@/lib/api-responses';
 
 export async function OPTIONS() {
   return NextResponse.json({}, {
@@ -44,24 +45,13 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error fetching QA scores:', error);
     const message = error instanceof Error ? error.message : 'Error fetching QA scores';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: message });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    
-    // Rule D: Validación rigurosa con Zod
-    const validationResult = QAScoreSchema.safeParse(body);
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: validationResult.error.issues },
-        { status: 400 }
-      );
-    }
-
-    const data = { ...validationResult.data };
+    const data = { ...(await parseJsonBody(request, QAScoreSchema)) };
 
     // FÓRMULA DE CALIDAD (QA Scorecard)
     // Total Score = (Protocol * 0.20) + (Interpretación * 0.40) + (Idioma * 0.20) + (Servicio * 0.10) + (Técnico * 0.10)
@@ -99,7 +89,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('🔴 QA API ERROR:', error);
     const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError({ error, fallback: message });
   }
 }
 

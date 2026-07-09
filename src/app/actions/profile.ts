@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import { validateAction } from '@/lib/auth/actions';
 import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 
 import { z } from 'zod';
 import type { ActionResult } from '@/lib/types';
@@ -70,9 +71,8 @@ export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Pr
       }
     }
 
-    revalidatePath('/dashboard');
+    revalidateInterpreterProfileRecords(profile.interpreterId);
     revalidatePath('/dashboard/settings');
-    revalidatePath('/dashboard/earnings');
     
     return { success: true };
   } catch (error: unknown) {
@@ -80,5 +80,17 @@ export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Pr
     console.error('Unexpected Profile Update Error:', errorMsg);
     return { success: false, error: 'An unexpected error occurred while updating profile.' };
   }
+}
+
+export async function updateInterpreterProfileFromForm(formData: FormData): Promise<void> {
+  await updateInterpreterProfile({
+    phone: formData.get('phone') as string,
+    country: formData.get('country') as string,
+    bankName: formData.get('bankName') as string,
+    bankAccount: formData.get('bankAccount') as string,
+    bankAccountType: formData.get('bankAccountType') as string,
+    bankCedula: formData.get('bankCedula') as string,
+    notes: formData.get('notes') as string,
+  });
 }
 

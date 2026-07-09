@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { revalidatePath } from 'next/cache';
+import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 import { validateAction } from '@/lib/auth/actions';
 import { ActionResult } from '@/lib/types';
 import { refreshPayrollRecord } from '@/services/PayrollService';
@@ -10,7 +10,7 @@ import { z } from 'zod';
 const db = prisma;
 
 const ProductionLogSchema = z.object({
-  date: z.coerce.date(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format").transform(val => new Date(`${val}T12:00:00Z`)),
   interpretedMinutes: z.coerce.number().positive('Minutes must be positive'),
   callsAttended: z.coerce.number().int().nonnegative().default(0),
   observations: z.string().trim().optional(),
@@ -74,8 +74,7 @@ export async function createInterpreterLog(formData: FormData): Promise<ActionRe
     // Refresh payroll record for this period
     await refreshPayrollRecord(profile.interpreterId, validated.date);
 
-    revalidatePath('/dashboard');
-    revalidatePath('/production');
+    revalidateInterpreterProfileRecords(profile.interpreterId);
     
     return { success: true };
   } catch (error) {

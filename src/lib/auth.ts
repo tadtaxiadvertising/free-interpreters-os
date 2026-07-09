@@ -1,5 +1,6 @@
-import { createClient } from './supabase/server';
+import { createClient, isSupabaseConfigError } from './supabase/server';
 import prisma from './prisma';
+import { auth as nextAuth } from './auth-rbac';
 
 /**
  * AUTH BRIDGE
@@ -7,10 +8,12 @@ import prisma from './prisma';
  * This prevents breaking existing pages while we migrate to native Supabase patterns.
  */
 export async function auth() {
-  const supabase = await createClient();
   let user: any = null;
+
   try {
+    const supabase = await createClient();
     const { data: { user: currentUser } } = await supabase.auth.getUser();
+
     if (currentUser) {
       const profile = await prisma.userProfile.findUnique({
         where: { id: currentUser.id },
@@ -22,8 +25,34 @@ export async function auth() {
         displayName: profile?.displayName || currentUser.email?.split('@')[0]
       };
     }
-  } catch {
-    // Ignore auth errors for the bridge
+  } catch (error) {
+    if (isSupabaseConfigError(error)) {
+      console.warn(
+        '⚠️ [AUTH_BRIDGE] Supabase configuration is missing; checking NextAuth session.'
+      );
+    } else {
+      console.warn(
+        '⚠️ [AUTH_BRIDGE] Unable to resolve Supabase session; checking NextAuth session:',
+        error instanceof Error ? error.message : error
+      );
+    }
+  }
+
+  // Fallback to NextAuth session
+  if (!user) {
+    try {
+      const session = await nextAuth();
+      if (session?.user) {
+        user = {
+          id: session.user.id,
+          email: session.user.email,
+          role: (session.user as any).role || 'interpreter',
+          displayName: session.user.name || session.user.email?.split('@')[0]
+        };
+      }
+    } catch (authError) {
+      console.warn('⚠️ [AUTH_BRIDGE] NextAuth session check failed:', authError);
+    }
   }
   
   return { 
@@ -40,6 +69,14 @@ export async function getSession() {
 }
 
 export async function destroySession() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  try {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+  } catch (error) {
+    if (isSupabaseConfigError(error)) {
+      console.warn('⚠️ [AUTH_BRIDGE] Supabase configuration is missing; sign out skipped.');
+      return;
+    }
+    throw error;
+  }
 }

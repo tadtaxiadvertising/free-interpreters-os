@@ -1,17 +1,143 @@
 'use server';
 
 import { createClient, isSupabaseConfigError } from '@/lib/supabase/server';
+import { getSupabaseServiceRoleKey } from '@/lib/supabase/admin';
+import { upsertConfirmedAuthUser } from '@/lib/supabase/auth-users';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import type { UserProfile, UserRole } from '@/lib/types';
 import prismaClient from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 
 const prisma = prismaClient;
 
 const AuthSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform(val => val.toLowerCase().trim()),
   password: z.string().min(6),
+  role: z.enum(['admin', 'interpreter']).default('interpreter'),
 });
+
+function normalizeRbacRole(role: string | null | undefined): UserRole {
+  return role?.toLowerCase() === 'admin' ? 'admin' : 'interpreter';
+}
+
+async function provisionSupabaseUserFromLocalCredentials(params: {
+  email: string;
+  password: string;
+  role: UserRole;
+  displayName: string;
+}): Promise<string | null> {
+  if (!getSupabaseServiceRoleKey()) {
+    return null;
+  }
+
+  const authUser = await upsertConfirmedAuthUser({
+    email: params.email,
+    password: params.password,
+    displayName: params.displayName,
+  });
+
+  return authUser?.id || null;
+}
+
+async function syncUserProfileFromAuth(params: {
+  userId: string;
+  email: string;
+  role: UserRole;
+  displayName: string;
+}) {
+  const interpreter = await prisma.interpreter.findFirst({
+    where: {
+      OR: [
+        { emailCorporativo: params.email },
+        { name: params.displayName },
+      ],
+    },
+    select: { id: true },
+  });
+
+  await prisma.userProfile.upsert({
+    where: { id: params.userId },
+    update: {
+      email: params.email,
+      displayName: params.displayName,
+      role: params.role,
+      interpreterId: interpreter?.id ?? null,
+    },
+    create: {
+      id: params.userId,
+      email: params.email,
+      displayName: params.displayName,
+      role: params.role,
+      interpreterId: interpreter?.id ?? null,
+    },
+  });
+}
+
+async function repairAuthUserAndRetry(params: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  email: string;
+  password: string;
+  requestedRole: UserRole;
+}) {
+  const serviceKey = getSupabaseServiceRoleKey();
+  console.log(`🔧 [AUTH_REPAIR] Attempting repair for ${params.email} — serviceKey available: ${!!serviceKey}`);
+  if (!serviceKey) {
+    console.warn('⚠️ [AUTH_REPAIR] SUPABASE_SERVICE_ROLE_KEY not available — skipping repair.');
+    return null;
+  }
+
+  // upsertConfirmedAuthUser handles all known failure modes:
+  //  - identities: null/empty → deletes broken user, recreates with proper identity link
+  //  - email not confirmed → updates with email_confirm: true
+  //  - user doesn't exist → creates fresh confirmed user
+  try {
+    const repairedUser = await upsertConfirmedAuthUser({
+      email: params.email,
+      password: params.password,
+      displayName: params.email.split('@')[0],
+    });
+    console.log(`🔧 [AUTH_REPAIR] upsertConfirmedAuthUser result for ${params.email}: ${repairedUser ? `id=${repairedUser.id} identities=${repairedUser.identities?.length ?? 'null'}` : 'null'}`);
+    if (!repairedUser) return null;
+
+    const retry = await params.supabase.auth.signInWithPassword({
+      email: params.email,
+      password: params.password,
+    });
+    console.log(`🔧 [AUTH_REPAIR] signInWithPassword retry for ${params.email}: ${retry.error ? `error=${retry.error.message}` : `success userId=${retry.data.user?.id}`}`);
+
+    if (retry.error || !retry.data.user) {
+      return {
+        success: false,
+        error: retry.error?.message || 'Credenciales inválidas o error de autenticación.',
+      };
+    }
+
+    const profile = await prisma.userProfile.findUnique({
+      where: { id: retry.data.user.id },
+      select: { role: true },
+    });
+
+    if (!profile) {
+      await syncUserProfileFromAuth({
+        userId: retry.data.user.id,
+        email: params.email,
+        role: params.requestedRole,
+        displayName: repairedUser.user_metadata?.display_name || params.email.split('@')[0],
+      });
+    }
+
+    console.log(`✅ [AUTH_REPAIR] Repair successful for ${params.email} — role=${profile?.role ?? params.requestedRole}`);
+    return {
+      success: true,
+      role: normalizeRbacRole(profile?.role ?? params.requestedRole),
+    };
+  } catch (repairErr) {
+    console.error(`🔴 [AUTH_REPAIR] upsertConfirmedAuthUser threw for ${params.email}:`, repairErr);
+    return null;
+  }
+}
 
 /**
  * ACTION: User Login
@@ -19,16 +145,114 @@ const AuthSchema = z.object({
 export async function login(formData: FormData) {
   const email = ((formData.get('email') as string) || '').toLowerCase().trim();
   const password = (formData.get('password') as string) || '';
+  const requestedRole = ((formData.get('role') as string) || 'interpreter').toLowerCase() as UserRole;
 
   try {
-    const validated = AuthSchema.parse({ email, password });
+    const validated = AuthSchema.parse({ email, password, role: requestedRole });
     const supabase = await createClient();
 
-    const { data, error } = await supabase.auth.signInWithPassword(validated);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: validated.email,
+      password: validated.password,
+    });
 
     if (error) {
       console.error(`🔴 [AUTH_LOGIN] Failed for ${email}:`, error.message);
-      return { success: false, error: 'Credenciales inválidas o error de autenticación.' };
+
+      // Attempt admin API repair when the service key is available.
+      // Handles: identities:null, unconfirmed email, missing user.
+      if (getSupabaseServiceRoleKey()) {
+        try {
+          const repairedLogin = await repairAuthUserAndRetry({
+            supabase,
+            email,
+            password,
+            requestedRole,
+          });
+
+          // Only short-circuit on success — on failure, fall through to
+          // the local rbac_users fallback so we don't block users who
+          // have a valid password in the local table.
+          if (repairedLogin?.success) {
+            const cookieStore = await cookies();
+            cookieStore.set('user-role', repairedLogin.role || 'interpreter', { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+            return repairedLogin;
+          }
+        } catch (repairError) {
+          console.error(`🔴 [AUTH_LOGIN] Admin API repair failed for ${email}:`, repairError);
+        }
+      }
+
+      // ── LOCAL RBAC FALLBACK ─────────────────────────────────
+      // Authenticate against the rbac_users table (works even without
+      // Supabase service key).
+      console.log(`🔧 [AUTH_LOGIN] Falling through to local RBAC fallback for ${email}`);
+      const localUser = await prisma.rbacUser.findUnique({
+        where: { email },
+        select: { id: true, email: true, name: true, role: true, password: true },
+      });
+
+      if (!localUser) {
+        console.log(`🔴 [AUTH_LOGIN] No local RBAC user found for ${email}`);
+        return { success: false, error: 'Credenciales inválidas o error de autenticación.' };
+      }
+
+      const passwordMatches = await bcrypt.compare(password, localUser.password);
+      if (!passwordMatches) {
+        console.log(`🔴 [AUTH_LOGIN] Local RBAC password mismatch for ${email}`);
+        return { success: false, error: 'Credenciales inválidas o error de autenticación.' };
+      }
+
+      const localRole = normalizeRbacRole(localUser.role);
+      if (requestedRole !== localRole) {
+        return {
+          success: false,
+          error: 'Estas credenciales no corresponden al portal seleccionado.',
+        };
+      }
+
+      // Try to provision the user in Supabase Auth for cookie-based sessions.
+      // If the service key is unavailable, sign in via NextAuth (Auth.js)
+      // credentials provider instead — this creates a JWT session cookie.
+      if (getSupabaseServiceRoleKey()) {
+        try {
+          const displayName = localUser.name || email.split('@')[0];
+          const provisionedUserId = await provisionSupabaseUserFromLocalCredentials({
+            email,
+            password,
+            role: localRole,
+            displayName,
+          });
+
+          if (provisionedUserId) {
+            const retry = await supabase.auth.signInWithPassword({
+              email: validated.email,
+              password: validated.password,
+            });
+            if (!retry.error && retry.data.user) {
+              await syncUserProfileFromAuth({
+                userId: retry.data.user.id,
+                email,
+                role: localRole,
+                displayName,
+              });
+              const cookieStore = await cookies();
+              cookieStore.set('user-role', localRole, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+              return { success: true, role: localRole };
+            }
+          }
+        } catch (fallbackError) {
+          console.error(`🔴 [AUTH_LOGIN] Supabase provisioning failed for ${email}:`, fallbackError);
+        }
+      }
+
+      // If we got here, Supabase provisioning was unavailable or failed.
+      // The client must handle NextAuth authentication through the proper
+      // route handler (/api/auth/callback/credentials) because Server
+      // Actions cannot reliably set NextAuth session cookies.
+      const cookieStore = await cookies();
+      cookieStore.set('user-role', localRole, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+      return { success: true, role: localRole, nextAuthRequired: true };
     }
 
     // Fetch minimal profile via Prisma
@@ -37,13 +261,24 @@ export async function login(formData: FormData) {
       select: { role: true },
     });
 
-    return { success: true, role: profile?.role || 'interpreter' };
+    if (!profile) {
+      await syncUserProfileFromAuth({
+        userId: data.user.id,
+        email: validated.email,
+        role: requestedRole,
+        displayName: data.user.user_metadata?.display_name || validated.email.split('@')[0],
+      });
+    }
+
+    const finalRole = normalizeRbacRole(profile?.role ?? requestedRole);
+    const cookieStore3 = await cookies();
+    cookieStore3.set('user-role', finalRole, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+    return { success: true, role: finalRole };
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       return { success: false, error: 'Email o contraseña inválidos.' };
     }
 
-    // Degradación Elegante: Controlamos el error de falta de variables sin crashear
     if (isSupabaseConfigError(err)) {
       console.warn('⚠️ [AUTH_LOGIN] Configuración de Supabase omitida.');
       return {
@@ -52,7 +287,6 @@ export async function login(formData: FormData) {
       };
     }
 
-    // Atrapamos cualquier otro error interno real
     console.error('🔴 [AUTH_LOGIN] Unexpected error:', err);
     return { success: false, error: 'Error interno del sistema.' };
   }
@@ -65,45 +299,94 @@ export async function register(formData: FormData) {
   const email = ((formData.get('email') as string) || '').toLowerCase().trim();
   const password = (formData.get('password') as string) || '';
   const name = (formData.get('name') as string) || email.split('@')[0];
-  const role = (formData.get('role') as string) || 'interpreter';
+  const role = ((formData.get('role') as string) || 'interpreter').toLowerCase() as UserRole;
 
   try {
-    const validated = AuthSchema.parse({ email, password });
+    const validated = AuthSchema.parse({ email, password, role });
     const supabase = await createClient();
+    let userId: string;
 
-    const { data, error } = await supabase.auth.signUp({
-      email: validated.email,
-      password: validated.password,
-      options: { data: { display_name: name } },
-    });
+    const serviceKey = getSupabaseServiceRoleKey();
+    if (serviceKey) {
+      try {
+        const authUser = await upsertConfirmedAuthUser({
+          email: validated.email,
+          password: validated.password,
+          displayName: name,
+        });
 
-    if (error) return { success: false, error: error.message };
-    if (!data.user) return { success: false, error: 'No se pudo crear el usuario.' };
+        if (!authUser) {
+          return { success: false, error: 'No se pudo crear la cuenta.' };
+        }
+        userId = authUser.id;
 
-    // Sync Profile via Prisma
-    const interpreter = await prisma.interpreter.findUnique({
-      where: { emailCorporativo: email },
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: validated.email,
+          password: validated.password,
+        });
+        if (signInError) {
+          console.warn(`⚠️ [AUTH_REGISTER] Auto sign-in after create failed for ${validated.email}:`, signInError.message);
+        }
+      } catch (adminError) {
+        console.error(`🔴 [AUTH_REGISTER] Admin API create failed for ${validated.email}:`, adminError);
+        return { success: false, error: 'Error al crear la cuenta. Intente nuevamente.' };
+      }
+    } else {
+      const { data, error } = await supabase.auth.signUp({
+        email: validated.email,
+        password: validated.password,
+        options: { data: { display_name: name } },
+      });
+
+      if (error) return { success: false, error: error.message };
+      if (!data.user) return { success: false, error: 'No se pudo crear el usuario.' };
+      userId = data.user.id;
+    }
+
+    const interpreter = await prisma.interpreter.findFirst({
+      where: {
+        OR: [
+          { emailCorporativo: validated.email },
+          { name: name },
+        ],
+      },
       select: { id: true },
     });
 
     await prisma.userProfile.upsert({
-      where: { id: data.user.id },
+      where: { id: userId },
       update: {
-        email,
+        email: validated.email,
         displayName: name,
-        role,
+        role: validated.role,
         interpreterId: interpreter?.id ?? null,
       },
       create: {
-        id: data.user.id,
-        email,
+        id: userId,
+        email: validated.email,
         displayName: name,
-        role,
+        role: validated.role,
         interpreterId: interpreter?.id ?? null,
       },
     });
 
-    return { success: true, role };
+    try {
+      const hashedPassword = await bcrypt.hash(validated.password, 10);
+      await (prisma as any).rbacUser.upsert({
+        where: { email: validated.email },
+        update: { password: hashedPassword, name },
+        create: {
+          email: validated.email,
+          password: hashedPassword,
+          name,
+          role: validated.role.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'INTERPRETER',
+        },
+      });
+    } catch (rbacSyncErr) {
+      console.warn(`⚠️ [AUTH_REGISTER] rbac_users sync skipped for ${validated.email}:`, rbacSyncErr);
+    }
+
+    return { success: true, role: validated.role };
   } catch (err: unknown) {
     if (err instanceof z.ZodError) return { success: false, error: 'Datos de registro inválidos.' };
 
@@ -131,10 +414,34 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
     } = await supabase.auth.getUser();
 
     let profile = null;
+    let profileUserId = user?.id;
 
-    if (user) {
+    if (!profileUserId) {
+      try {
+        const { auth: nextAuth } = await import('@/lib/auth-rbac');
+        const session = await nextAuth();
+        if (session?.user) {
+          const dbProfile = await prisma.userProfile.findFirst({
+            where: {
+              OR: [
+                { id: session.user.id },
+                { email: session.user.email || undefined }
+              ]
+            },
+            select: { id: true }
+          });
+          if (dbProfile) {
+            profileUserId = dbProfile.id;
+          }
+        }
+      } catch (authError) {
+        console.warn('⚠️ [AUTH] NextAuth session fallback failed in getCurrentProfile:', authError);
+      }
+    }
+
+    if (profileUserId) {
       profile = await prisma.userProfile.findUnique({
-        where: { id: user.id },
+        where: { id: profileUserId },
         select: {
           id: true,
           email: true,
@@ -166,6 +473,98 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
 
     if (!profile) return null;
 
+    // Self-healing: correct admin role if email matches admin patterns
+    if (profile.email && profile.role !== 'admin') {
+      const emailLower = profile.email.toLowerCase();
+      const isAdminEmail = emailLower === 'interpretersfree@gmail.com' ||
+        emailLower === 'melvinramonduranmesa@gmail.com' ||
+        emailLower === 'admin@freeinterpreters.com' ||
+        emailLower.includes('admin');
+      if (isAdminEmail) {
+        await prisma.userProfile.update({
+          where: { id: profile.id },
+          data: { role: 'admin', interpreterId: null },
+        });
+        profile = { ...profile, role: 'admin', interpreterId: null };
+        console.log(`🔧 [AUTH] Role self-healed to admin in getCurrentProfile for ${profile.id}`);
+      }
+    }
+
+    // Self-healing: link interpreter when profile exists but interpreterId is null (skip for admins)
+    if (!profile.interpreterId && profile.email && profile.role !== 'admin') {
+      try {
+        const interpreterMatch = await prisma.interpreter.findFirst({
+          where: {
+            OR: [
+              { emailCorporativo: profile.email },
+              { name: profile.displayName || profile.email?.split('@')[0] },
+            ],
+          },
+          select: { id: true },
+        });
+
+        if (interpreterMatch) {
+          await prisma.userProfile.update({
+            where: { id: profile.id },
+            data: { interpreterId: interpreterMatch.id },
+          });
+          profile = { ...profile, interpreterId: interpreterMatch.id, interpreter: null };
+          console.log(`🔧 [AUTH] Interpreter link auto-repaired in getCurrentProfile for ${profile.id} → interpreter ${interpreterMatch.id}`);
+        } else if (profile.role !== 'admin') {
+          // AUTO-CREATE: No matching interpreter — create one and link it
+          const displayName = profile.displayName || profile.email?.split('@')[0] || 'Interpreter';
+          let newInterpreter: { id: number } | null = null;
+          try {
+            newInterpreter = await prisma.interpreter.create({
+              data: {
+                externalId: `auth-${profile.id}`,
+                name: displayName,
+                emailCorporativo: profile.email,
+                status: 'Activo',
+                realtimeStatus: 'Offline',
+                tariffPerMinute: 0,
+                monthlyGoal: 2000,
+                languageA: 'Español',
+                languageB: 'Inglés',
+              },
+              select: { id: true },
+            });
+          } catch (createErr: any) {
+            if (createErr?.code === 'P2002') {
+              // Unique constraint violation — retry without emailCorporativo and with timestamp suffix
+              newInterpreter = await prisma.interpreter.create({
+                data: {
+                  externalId: `auth-${profile.id}-${Date.now()}`,
+                  name: displayName,
+                  status: 'Activo',
+                  realtimeStatus: 'Offline',
+                  tariffPerMinute: 0,
+                  monthlyGoal: 2000,
+                  languageA: 'Español',
+                  languageB: 'Inglés',
+                },
+                select: { id: true },
+              });
+            } else {
+              throw createErr;
+            }
+          }
+          if (newInterpreter) {
+            await prisma.userProfile.update({
+              where: { id: profile.id },
+              data: { interpreterId: newInterpreter.id },
+            });
+            profile = { ...profile, interpreterId: newInterpreter.id, interpreter: null };
+            console.log(`🔧 [AUTH] Interpreter auto-created and linked in getCurrentProfile for ${profile.id} → interpreter ${newInterpreter.id}`);
+          }
+        } else {
+          console.warn(`⚠️ [AUTH] Admin user ${profile.id} has no interpreterId — expected, skipping auto-create`);
+        }
+      } catch (linkErr) {
+        console.error('[AUTH] Interpreter link repair in getCurrentProfile failed:', linkErr);
+      }
+    }
+
     return {
       id: profile.id,
       email: profile.email,
@@ -192,6 +591,19 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
 }
 
 export async function logout() {
+  // Clear the role cookie
+  const cookieStore = await cookies();
+  cookieStore.delete('user-role');
+
+  // Sign out of NextAuth if a session exists
+  try {
+    const { signOut: nextAuthSignOut } = await import('@/lib/auth-rbac');
+    await nextAuthSignOut({ redirect: false });
+  } catch (_) {
+    // Ignore — may not have a NextAuth session
+  }
+
+  // Sign out of Supabase
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect('/login');
@@ -207,16 +619,7 @@ export async function requestPasswordReset(formData: FormData) {
     const proto = headersList.get('x-forwarded-proto') || 'https';
     const origin = host ? `${proto}://${host}` : '';
 
-    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
-
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('SUPABASE_CONFIG_MISSING');
-    }
-
-    const supabaseAdmin = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    );
+    const { supabaseAdmin } = await import('@/lib/supabase/admin');
 
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
@@ -239,7 +642,12 @@ export async function requestPasswordReset(formData: FormData) {
 
     return { success: true };
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === 'SUPABASE_CONFIG_MISSING') {
+    const { isAdminUnavailableError } = await import('@/lib/supabase/admin');
+    if (
+      isAdminUnavailableError(err) ||
+      (err instanceof Error &&
+        (err.message.includes('SUPABASE_SERVICE_ROLE_KEY') || err.message.includes('NEXT_PUBLIC_SUPABASE_URL')))
+    ) {
       console.warn('⚠️ [AUTH_RESET] Request password omitido por falta de configuración.');
       return { success: false, error: 'Servicio deshabilitado temporalmente.' };
     }
@@ -258,8 +666,21 @@ export async function updatePassword(formData: FormData) {
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase.auth.updateUser({ password });
+    const { data, error } = await supabase.auth.updateUser({ password });
     if (error) return { success: false, error: error.message };
+
+    if (data.user?.email) {
+      try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await (prisma as any).rbacUser.update({
+          where: { email: data.user.email.toLowerCase().trim() },
+          data: { password: hashedPassword },
+        });
+      } catch (rbacSyncErr) {
+        console.warn('⚠️ [AUTH_UPDATE_PASSWORD] rbac_users sync skipped:', rbacSyncErr);
+      }
+    }
+
     return { success: true };
   } catch (err: unknown) {
     if (isSupabaseConfigError(err)) {

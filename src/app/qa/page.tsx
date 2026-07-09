@@ -30,7 +30,6 @@ export default async function QAPage(props: PageProps) {
   if (profile?.role !== 'admin') redirect('/dashboard');
 
   const interpreters = await prisma.interpreter.findMany({
-    where: { status: 'Activo' },
     select: { id: true, name: true, externalId: true },
     orderBy: { name: 'asc' }
   });
@@ -55,26 +54,26 @@ export default async function QAPage(props: PageProps) {
         <div className="xl:col-span-2">
           <QAEngine interpreters={interpreters} />
         </div>
-        
+
         <div className="space-y-6">
           <div className="glass p-6 rounded-3xl border border-white/5 bg-slate-900/40">
             <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-               <CheckCircle2 className="text-green-400" />
-               Últimas Auditorías
+              <CheckCircle2 className="text-green-400" />
+              Últimas Auditorías
             </h3>
-            
+
             <div className="space-y-4">
               {recentScores.map(score => {
-                 const totalScoreValue = score.totalScore ? Number(score.totalScore) : 0;
-                 const isCritical = score.criticalError || totalScoreValue === 0;
-                 const isExcellent = totalScoreValue >= 85;
+                const totalScoreValue = score.totalScore ? Number(score.totalScore) : 0;
+                const isCritical = score.criticalError || totalScoreValue === 0;
+                const isExcellent = totalScoreValue >= 85;
 
-                 return (
+                return (
                   <div key={score.id} className={cn(
                     "p-4 rounded-2xl border transition-all",
-                    isCritical ? "bg-red-500/5 border-red-500/20" : 
-                    isExcellent ? "bg-green-500/5 border-green-500/20" : 
-                    "bg-orange-500/5 border-orange-500/20"
+                    isCritical ? "bg-red-500/5 border-red-500/20" :
+                      isExcellent ? "bg-green-500/5 border-green-500/20" :
+                        "bg-orange-500/5 border-orange-500/20"
                   )}>
                     <div className="flex justify-between items-start mb-2">
                       <div>
@@ -83,28 +82,28 @@ export default async function QAPage(props: PageProps) {
                       </div>
                       <span className={cn(
                         "px-3 py-1 rounded-lg text-xs font-black uppercase border",
-                        isCritical ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
-                        isExcellent ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
-                        'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                        isCritical ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                          isExcellent ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                            'bg-orange-500/10 text-orange-400 border-orange-500/20'
                       )}>
                         {totalScoreValue.toFixed(2)}%
                       </span>
                     </div>
                     <div className="mt-3 pt-3 border-t border-white/5 flex justify-between items-center">
-                       <p className="text-[10px] text-gray-500 font-mono tracking-wider">
-                         QA-{score.id} • {new Date(score.auditDate).toLocaleDateString()}
-                       </p>
-                       <p className="text-[10px] font-bold uppercase text-gray-400">
-                         {score.accionRequerida}
-                       </p>
+                      <p className="text-[10px] text-gray-500 font-mono tracking-wider">
+                        QA-{score.id} • {new Date(score.auditDate).toLocaleDateString()}
+                      </p>
+                      <p className="text-[10px] font-bold uppercase text-gray-400">
+                        {score.accionRequerida}
+                      </p>
                     </div>
                   </div>
-                 )
+                )
               })}
               {recentScores.length === 0 && (
-                 <div className="p-8 text-center border-2 border-dashed border-white/10 rounded-2xl">
-                    <p className="text-gray-500 text-sm">No hay auditorías registradas en el sistema.</p>
-                 </div>
+                <div className="p-8 text-center border-2 border-dashed border-white/10 rounded-2xl">
+                  <p className="text-gray-500 text-sm">No hay auditorías registradas en el sistema.</p>
+                </div>
               )}
             </div>
           </div>

@@ -1,13 +1,14 @@
 import React from 'react';
-import { 
-  Users, 
-  Search, 
-  Filter, 
+import {
+  Users,
+  Search,
+  Filter,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AddInterpreterButton } from '@/components/AddInterpreterButton';
 import { InterpreterActions } from '@/components/InterpreterActions';
 import { ExportInterpretersButton } from '@/components/ExportInterpretersButton';
+import { BankingInfoCard } from '@/components/admin/BankingInfoCard';
 import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -38,9 +39,15 @@ async function getInterpreters() {
         cedulaRnc: true,
         updatedAt: true,
         createdAt: true,
+        userProfile: {
+          select: {
+            id: true,
+            onboardingComplete: true,
+          },
+        },
       }
     });
-    return interpreters as any[];  
+    return interpreters as any[];
   } catch (error) {
     console.error('Error fetching interpreters from DB:', error);
     return [];
@@ -67,9 +74,9 @@ export default async function InterpretersPage() {
       <div className="flex flex-col md:flex-row gap-4 items-center">
         <div className="flex-1 relative w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search by name, ID or campaign..." 
+          <input
+            type="text"
+            placeholder="Search by name, ID or campaign..."
             className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-white focus:outline-none focus:border-indigo-500/50 transition-colors backdrop-blur-sm"
           />
         </div>
@@ -99,7 +106,7 @@ export default async function InterpretersPage() {
               <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                 <InterpreterActions interpreter={interpreter} />
               </div>
-              
+
               <div className="flex items-start gap-4 mb-4">
                 <div className="relative">
                   <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-indigo-400 font-bold text-xl border border-white/5">
@@ -127,13 +134,13 @@ export default async function InterpretersPage() {
                   <span className={cn(
                     "px-3 py-1 rounded-full text-xs font-bold",
                     isActive ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                    interpreter.status === 'Probation' ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                    "bg-slate-500/10 text-slate-400 border border-slate-500/20"
+                      interpreter.status === 'Probation' ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                        "bg-slate-500/10 text-slate-400 border border-slate-500/20"
                   )}>
                     {interpreter.status}
                   </span>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-400">Campaign</span>
                   <span className="text-sm text-slate-300 font-medium truncate max-w-[120px] text-right">
@@ -152,9 +159,22 @@ export default async function InterpretersPage() {
                   </div>
                 </div>
 
+                {/* Payroll / Banking Info */}
+                {interpreter.userProfile?.id && (
+                  <BankingInfoCard
+                    userId={interpreter.userProfile.id}
+                    bankName={interpreter.banco}
+                    bankAccount={interpreter.cuentaPago}
+                    bankAccountType={interpreter.tipoCuenta}
+                    bankCedula={interpreter.cedulaRnc}
+                    onboardingComplete={interpreter.documentosCompleto}
+                    compact
+                  />
+                )}
+
                 {/* Fixed Action Button */}
                 <div className="pt-2">
-                  <AddInterpreterButton 
+                  <AddInterpreterButton
                     label="Ajustar Meta y Perfil"
                     mode="edit"
                     initialData={interpreter}
@@ -164,7 +184,7 @@ export default async function InterpretersPage() {
             </div>
           );
         })}
-        
+
         {interpreters.length === 0 && (
           <div className="col-span-full p-20 text-center bg-slate-900/20 border border-slate-800 rounded-3xl border-dashed">
             <Users size={48} className="mx-auto text-slate-700 mb-4" />

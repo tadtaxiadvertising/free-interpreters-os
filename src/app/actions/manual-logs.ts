@@ -5,6 +5,7 @@ import { validateAction } from "@/lib/auth/actions";
 import type { ActionResult } from "@/lib/types";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { revalidateInterpreterProfileRecords } from "@/lib/cache/revalidate-interpreter";
 
 const db = prisma;
 
@@ -84,7 +85,7 @@ export async function createManualLog(data: unknown): Promise<ActionResult<{ id:
       const newLog = await tx.productionLog.create({
         data: {
           interpreterId: interpreter.id,
-          date: new Date(date),
+          date: new Date(`${date}T12:00:00Z`),
           loginTime: startDateTime,
           logoutTime: endDateTime,
           interpretedMinutes: totalMinutes,
@@ -99,6 +100,7 @@ export async function createManualLog(data: unknown): Promise<ActionResult<{ id:
     });
 
     revalidatePath("/admin/production");
+    revalidateInterpreterProfileRecords(interpreter.id);
     return { success: true, data: { id: result.id } };
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {

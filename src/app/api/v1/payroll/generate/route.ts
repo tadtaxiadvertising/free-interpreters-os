@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import crypto from 'crypto';
-import { ProductionLog } from '@prisma/client';
 import { calculateFullPayroll } from '@/services/PayrollService';
+import { PayrollGenerateSchema } from '@/lib/api-schemas';
+import { apiError, parseJsonBody } from '@/lib/api-responses';
 
 export async function POST(request: Request) {
   try {
-    const { targetDate } = await request.json().catch(() => ({}));
-    const dateToProcess = targetDate ? new Date(targetDate) : new Date();
+    const { targetDate } = await parseJsonBody(request, PayrollGenerateSchema);
+    const dateToProcess = targetDate ?? new Date();
     
     // Get day of month and day of week
     const dayOfMonth = dateToProcess.getDate().toString();
@@ -45,8 +46,8 @@ export async function POST(request: Request) {
       if (unprocessedLogs.length === 0) continue;
 
       // Calculate using unified PayrollService
-      const periodStartLogs = new Date(Math.min(...unprocessedLogs.map((l: ProductionLog) => l.date.getTime())));
-      const periodEndLogs = new Date(Math.max(...unprocessedLogs.map((l: ProductionLog) => l.date.getTime())));
+      const periodStartLogs = new Date(Math.min(...unprocessedLogs.map((l: { date: Date }) => l.date.getTime())));
+      const periodEndLogs = new Date(Math.max(...unprocessedLogs.map((l: { date: Date }) => l.date.getTime())));
       
       const calculation = await calculateFullPayroll(interpreter.id, periodStartLogs, periodEndLogs);
 
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
 
       try {
         // Atomic transaction
-        const result = await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx: any) => {
           const payroll = await tx.payrollRecord.create({
             data: {
               interpreterId: interpreter.id,
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
           // Mark logs as processed
           await tx.productionLog.updateMany({
             where: {
-              id: { in: unprocessedLogs.map((l: ProductionLog) => l.id) }
+              id: { in: unprocessedLogs.map((l: { id: number }) => l.id) }
             },
             data: {
               status: 'PROCESSED'
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, results });
 
-  } catch {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  } catch (error) {
+    return apiError({ error, fallback: 'Internal Server Error' });
   }
 }

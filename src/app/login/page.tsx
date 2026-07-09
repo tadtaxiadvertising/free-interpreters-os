@@ -5,6 +5,7 @@ import { Lock, Mail, AlertCircle, Loader2, Users, ShieldAlert } from 'lucide-rea
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { login } from '@/app/actions/auth';
+import { signIn } from 'next-auth/react';
 
 type LoginRole = 'interpreter' | 'admin';
 
@@ -23,9 +24,22 @@ export default function LoginPage() {
       const formData = new FormData(e.currentTarget);
       const result = await login(formData);
 
-      if (result?.error) {
-        setError(result.error);
+      if (!result?.success && 'error' in result) {
+        setError(result.error || 'Error de autenticación.');
       } else if (result?.success) {
+        if ('nextAuthRequired' in result && result.nextAuthRequired) {
+          // NextAuth signIn must happen client-side so the session cookie
+          // is set through the proper /api/auth/callback/credentials route.
+          const signInResult = await signIn('credentials', {
+            email: (formData.get('email') as string).toLowerCase().trim(),
+            password: formData.get('password') as string,
+            redirect: false,
+          });
+          if (signInResult?.error) {
+            setError('Authentication failed. Please try again.');
+            return;
+          }
+        }
         router.push(result.role === 'admin' ? '/admin' : '/dashboard');
       }
     } catch {
@@ -55,11 +69,10 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setRole('interpreter')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${
-                role === 'interpreter' 
-                  ? 'bg-blue-500/20 text-blue-400 shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-              }`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${role === 'interpreter'
+                ? 'bg-blue-500/20 text-blue-400 shadow-sm'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                }`}
             >
               <Users size={16} />
               Interpreter
@@ -67,11 +80,10 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setRole('admin')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${
-                role === 'admin' 
-                  ? 'bg-purple-500/20 text-purple-400 shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-              }`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${role === 'admin'
+                ? 'bg-purple-500/20 text-purple-400 shadow-sm'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                }`}
             >
               <ShieldAlert size={16} />
               Administrator
@@ -90,6 +102,7 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <input type="hidden" name="role" value={role} />
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-400 mb-2">
                 Email Address
@@ -132,11 +145,10 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full py-3 text-white font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-                role === 'admin' 
-                  ? 'bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400' 
-                  : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400'
-              }`}
+              className={`w-full py-3 text-white font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${role === 'admin'
+                ? 'bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400'
+                : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400'
+                }`}
             >
               {isLoading ? (
                 <>
