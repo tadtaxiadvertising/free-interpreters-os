@@ -59,8 +59,24 @@ export async function startCall(): Promise<ActionResult<{ sessionId: number; sta
 
       await tx.interpreter.update({
         where: { id: profile.interpreterId! },
-        data: { realtimeStatus: 'Busy' },
+        data: {
+          realtimeStatus: 'Busy',
+          statusReason: 'call_started',
+          statusChangedAt: new Date(),
+          lastActivity: new Date(),
+        },
         select: { id: true }
+      });
+
+      await tx.interpreterStatusLog.create({
+        data: {
+          interpreterId: profile.interpreterId!,
+          previousStatus: interpreter.callSessions.length > 0 ? 'Busy' : 'Online',
+          newStatus: 'Busy',
+          reason: 'call_started',
+          changedBy: 'system',
+          metadata: { source: 'startCall', sessionId: newSession.id },
+        },
       });
 
       return newSession;
@@ -105,8 +121,25 @@ export async function endCall(sessionId: number): Promise<ActionResult<{ duratio
 
       await tx.interpreter.update({
         where: { id: interpreterId },
-        data: { realtimeStatus: 'Online' },
+        data: {
+          realtimeStatus: 'Online',
+          statusReason: 'call_ended',
+          statusChangedAt: new Date(),
+          lastActivity: new Date(),
+          lastOnlineAt: new Date(),
+        },
         select: { id: true }
+      });
+
+      await tx.interpreterStatusLog.create({
+        data: {
+          interpreterId,
+          previousStatus: 'Busy',
+          newStatus: 'Online',
+          reason: 'call_ended',
+          changedBy: 'system',
+          metadata: { source: 'endCall', sessionId },
+        },
       });
 
       // Synchronize live call into ProductionLog so it appears in "Production Logs"
