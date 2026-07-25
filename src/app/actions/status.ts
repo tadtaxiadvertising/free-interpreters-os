@@ -1,6 +1,5 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/prisma';
 import type { ActionResult, RealtimeStatus } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
@@ -8,6 +7,11 @@ import { validateAction } from '@/lib/auth/actions';
 
 const db = prisma;
 
+/**
+ * ACTION: Update interpreter realtime status
+ * 
+ * Updates the interpreter's status in DB and logs the change.
+ */
 export async function updateInterpreterStatus(
   newStatus: RealtimeStatus
 ): Promise<ActionResult<{ status: RealtimeStatus }>> {
@@ -20,12 +24,41 @@ export async function updateInterpreterStatus(
       return { success: false, error: 'No interpreter linked to this account', code: 'NOT_FOUND' };
     }
 
-    // Update the status in the interpreters table via Prisma
-    await db.interpreter.update({
-      where: { id: profile.interpreterId },
-      data: { realtimeStatus: newStatus },
-      select: { id: true }
+    const interpreterId = profile.interpreterId;
+    const now = new Date();
+
+    // Get current status to log the transition
+    const current = await db.interpreter.findUnique({
+      where: { id: interpreterId },
+      select: { realtimeStatus: true },
     });
+    const previousStatus = current?.realtimeStatus || 'Offline';
+
+    // Update status + timestamps in a transaction with audit log
+    await db.$transaction([
+      db.interpreter.update({
+        where: { id: interpreterId },
+        data: {
+          realtimeStatus: newStatus,
+          statusReason: 'manual',
+          statusChangedAt: now,
+          lastActivity: now,
+          ...(newStatus === 'Online' ? { lastOnlineAt: now } : {}),
+          ...(newStatus === 'Offline' ? { lastOfflineAt: now } : {}),
+        },
+        select: { id: true },
+      }),
+      db.interpreterStatusLog.create({
+        data: {
+          interpreterId,
+          previousStatus,
+          newStatus,
+          reason: 'manual',
+          changedBy: 'interpreter',
+          metadata: { source: 'updateInterpreterStatus action' },
+        },
+      }),
+    ]);
 
     revalidatePath('/dashboard');
     return { success: true, data: { status: newStatus } };
@@ -35,4 +68,3 @@ export async function updateInterpreterStatus(
     return { success: false, error: 'Service unavailable', code: 'SERVICE_UNAVAILABLE' };
   }
 }
-

@@ -16,6 +16,14 @@ model Interpreter {
   name               String
   status             String?                  @default("Activo")
   realtimeStatus     String?                  @default("Offline") @map("realtime_status")
+  statusReason       String?                  @default("initial") @map("status_reason")
+  lastHeartbeat      DateTime?                @map("last_heartbeat") @db.Timestamptz(6)
+  lastActivity       DateTime?                @map("last_activity") @db.Timestamptz(6)
+  lastOnlineAt       DateTime?                @map("last_online_at") @db.Timestamptz(6)
+  lastOfflineAt      DateTime?                @map("last_offline_at") @db.Timestamptz(6)
+  statusChangedAt    DateTime?                @map("status_changed_at") @db.Timestamptz(6)
+  browserTabId       String?                  @map("browser_tab_id")
+  clientIp           String?                  @map("client_ip")
   campaign           String?
   languageA          String?                  @default("Español") @map("language_a")
   languageB          String?                  @default("Inglés") @map("language_b")
@@ -44,11 +52,30 @@ model Interpreter {
   productionLogs     ProductionLog[]
   qaScores           QAScore[]
   userProfile        UserProfile?
+  statusLogs         InterpreterStatusLog[]
 
   @@index([createdAt], map: "idx_interpreters_created_at")
   @@index([pais], map: "idx_interpreters_pais")
   @@index([status], map: "idx_interpreters_status")
   @@map("interpreters")
+  @@schema("public")
+}
+
+model InterpreterStatusLog {
+  id              Int      @id @default(autoincrement())
+  interpreterId   Int      @map("interpreter_id")
+  previousStatus  String?  @map("previous_status")
+  newStatus       String   @map("new_status")
+  reason          String   @default("manual")
+  changedBy       String?  @map("changed_by")
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  interpreter     Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+
+  @@index([interpreterId, createdAt(sort: Desc)], map: "idx_status_logs_interpreter_time")
+  @@index([createdAt], map: "idx_status_logs_created_at")
+  @@map("interpreter_status_logs")
   @@schema("public")
 }
 

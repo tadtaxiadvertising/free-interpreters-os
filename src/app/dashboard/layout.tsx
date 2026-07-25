@@ -4,6 +4,8 @@ import { getCurrentProfile } from '@/app/actions/auth';
 import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { getMonthBounds, sumEffectiveLogMinutes } from '@/lib/interpreter-metrics';
+import HeartbeatProvider from "@/components/HeartbeatProvider";
+import ActivityTrackerClient from "@/components/ActivityTrackerClient";
 
 export const dynamic = "force-dynamic";
 
@@ -91,15 +93,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <DashboardShell
-      role="interpreter"
-      userName={profile?.display_name || "Interpreter"}
-      interpreterId={profile?.interpreter_id}
-      userEmail={profile?.email || ''}
-      notifications={notifications}
-      ranking={ranking}
-    >
-      {children}
-    </DashboardShell>
+    <HeartbeatProvider>
+      <ActivityTrackerClient interpreterId={profile?.interpreter_id} />
+      <DashboardShell
+        role="interpreter"
+        userName={profile?.display_name || "Interpreter"}
+        interpreterId={profile?.interpreter_id}
+        userEmail={profile?.email || ''}
+        notifications={notifications}
+        ranking={ranking}
+      >
+        {children}
+      </DashboardShell>
+    </HeartbeatProvider>
   );
 }

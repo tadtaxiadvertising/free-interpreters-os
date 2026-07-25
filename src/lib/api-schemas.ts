@@ -10,8 +10,10 @@ export const ManualCallSchema = z.object({
 });
 
 export const PresenceSchema = z.object({
-  status: z.enum(['Online', 'Offline', 'Busy']).optional(),
-  type: z.string().optional(),
+  status: z.enum(['Online', 'Offline', 'Busy', 'Away']).optional(),
+  type: z.enum(['heartbeat', 'online', 'offline', 'status_change']).optional(),
+  reason: z.string().optional(),
+  tabId: z.string().optional(),
 }).passthrough();
 
 export const IncentiveTierSchema = z.object({
