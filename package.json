@@ -10,7 +10,8 @@
     "lint": "next lint .",
     "migrate": "tsx scripts/migrate.ts",
     "migrate:onboarding": "tsx scripts/migrate-onboarding.ts",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "anomaly:detect": "tsx scripts/detect-anomalies.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

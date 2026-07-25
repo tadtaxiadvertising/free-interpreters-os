@@ -48,3 +48,11 @@ SET status_reason = CASE
   ELSE 'initial'
 END
 WHERE status_reason IS NULL;
+
+-- ── Step 3: Add category to notifications ──
+
+ALTER TABLE public.notifications
+  ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'system';
+
+CREATE INDEX IF NOT EXISTS idx_notifications_category ON public.notifications (category);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications (created_at);

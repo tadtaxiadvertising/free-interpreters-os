@@ -1,4 +1,5 @@
 import RealTimeMonitor from '@/components/admin/RealTimeMonitor';
+import AlertBanner from '@/components/admin/AlertBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,11 +12,12 @@ export default function MonitoringPage() {
         </h1>
         <p className="text-gray-400 mt-1 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          Monitoreo en tiempo real de intérpretes activos · Supabase Presence
+          Monitoreo en tiempo real de intérpretes · Estados inteligentes
         </p>
       </header>
 
       <RealTimeMonitor />
+      <AlertBanner autoDetect={true} />
     </div>
   );
 }

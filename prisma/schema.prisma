@@ -253,6 +253,7 @@ model Notification {
   title     String
   message   String
   type      String?   @default("info")
+  category  String?   @default("system")
   isRead    Boolean?  @default(false) @map("is_read")
   link      String?
   createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -260,6 +261,8 @@ model Notification {
 
   @@index([isRead], map: "idx_notifications_is_read")
   @@index([userId], map: "idx_notifications_user_id")
+  @@index([category], map: "idx_notifications_category")
+  @@index([createdAt], map: "idx_notifications_created_at")
   @@map("notifications")
   @@schema("public")
 }
