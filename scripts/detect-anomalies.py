@@ -15,6 +15,7 @@ import os
 import sys
 import json
 from datetime import datetime, timezone
+from hashlib import md5
 
 try:
     import httpx
@@ -231,19 +232,47 @@ def main():
     if n_offline + n_stale + n_unknown == total and total >= 2:
         alertas.append("🚨 TODOS offline o stale — posible caida de servicio")
 
+    # ── State tracking (evitar spam si no hay cambios) ──
+    STATE_FILE = "/opt/data/.anomaly_state.json"
+    alert_hash = md5(json.dumps(alertas, sort_keys=True).encode()).hexdigest()[:8]
+    last_state = {}
+    try:
+        with open(STATE_FILE) as f:
+            last_state = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+    has_changed = alert_hash != last_state.get("alert_hash")
+    alert_count_changed = len(alertas) != last_state.get("alert_count", 0)
+    should_report = has_changed or alert_count_changed
+
+    # Guardar estado actual
+    with open(STATE_FILE, "w") as f:
+        json.dump({
+            "alert_hash": alert_hash,
+            "alert_count": len(alertas),
+            "n_active": n_active,
+            "n_idle": n_idle,
+            "n_stale": n_stale,
+            "n_offline": n_offline,
+            "n_unknown": n_unknown,
+            "last_check": now_utc.isoformat(),
+        }, f)
+
     # ── Salida final ─────────────────────────────
-    if alertas:
+    resumen = f"🟢{n_active} 🟡{n_idle} 🟠{n_stale} 🔴{n_offline} ❓{n_unknown}"
+
+    if alertas and should_report:
         log("")
         for a in alertas:
             log(a)
         log("")
-
-    resumen = f"🟢{n_active} 🟡{n_idle} 🟠{n_stale} 🔴{n_offline} ❓{n_unknown}"
-    log(f"✅ Resumen: {resumen}")
-
-    # Exit code: 1 si hay alertas (para notificación)
-    if alertas:
-        sys.exit(0)  # Salida ok, las alertas ya van en stdout
+        log(f"✅ Resumen: {resumen}")
+    elif alertas and not should_report:
+        # Sin cambios — solo resumen compacto
+        log(f"⏱️  Sin cambios desde ultimo chequeo — {resumen}")
+    else:
+        log(f"✅ {resumen}")
 
 
 if __name__ == "__main__":
