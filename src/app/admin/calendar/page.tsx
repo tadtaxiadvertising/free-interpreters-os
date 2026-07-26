@@ -73,8 +73,11 @@ export default async function AdminCalendarPage(props: { searchParams: Promise<{
         <table className="w-full text-left text-sm whitespace-nowrap border-collapse">
           <thead>
             <tr className="border-b border-white/10 bg-slate-950/80 backdrop-blur-md">
-              <th className="p-4 font-bold text-slate-200 sticky left-0 bg-slate-950 z-20 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)] border-r border-white/10 min-w-[180px] w-[180px]">
-                Intérprete
+              <th className="p-4 font-bold text-slate-200 sticky left-0 bg-slate-950 z-20 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)] border-r border-white/10 min-w-[340px] w-[340px]">
+                <div className="flex items-center gap-3">
+                  <span>Intérprete</span>
+                  <span className="text-[9px] uppercase tracking-wider font-normal text-slate-500">/ Estado</span>
+                </div>
               </th>
               {/* Resumen MTD */}
               <th className="p-4 text-center font-bold text-slate-300 sticky left-[180px] bg-slate-900/90 z-20 border-r border-white/10 min-w-[80px] w-[80px]">
@@ -97,8 +100,11 @@ export default async function AdminCalendarPage(props: { searchParams: Promise<{
           <tbody>
             {board.map((row) => (
               <tr key={row.interpreter.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
-                <td className="p-4 font-semibold sticky left-0 bg-slate-900 group-hover:bg-slate-800 z-10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)] border-r border-white/10 min-w-[180px] w-[180px] truncate">
-                  {row.interpreter.name}
+                <td className="p-4 font-semibold sticky left-0 bg-slate-900 group-hover:bg-slate-800 z-10 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.5)] border-r border-white/10 min-w-[340px] w-[340px]">
+                  <div className="flex items-center gap-3">
+                    <LiveStatusCell interpreterId={row.interpreter.id} />
+                    <span className="truncate">{row.interpreter.name}</span>
+                  </div>
                 </td>
                 
                 {/* Columnas Resumen */}

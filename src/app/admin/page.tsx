@@ -6,8 +6,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import prismaClient from '@/lib/prisma';
+import LiveRosterPanel from '@/components/admin/LiveRosterPanel';
 import { GlobalGoalsButton } from '@/components/GlobalGoalsButton';
-import { CSVChunkUploader } from '@/components/CSVChunkUploader';
 import { getSystemConfig } from '@/app/actions/settings';
 import { getMonthBounds } from '@/lib/interpreter-metrics';
 
@@ -146,25 +146,10 @@ export default async function AdminDashboard(props: PageProps) {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 space-y-6">
-          {/* Uploader de archivos optimizado (Client Component) */}
-          <CSVChunkUploader />
         </div>
 
         <div className="space-y-6">
-          <div className="glass p-6 rounded-3xl border border-white/5 bg-slate-900/40">
-            <h3 className="text-xl font-bold text-white flex items-center gap-3 mb-4">
-              Estado de Red en Vivo
-            </h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-orange-500/30 transition-colors">
-                <div className="flex items-center gap-3">
-                  <Phone className="text-orange-400" />
-                  <span className="text-white font-medium">Llamadas Activas</span>
-                </div>
-                <span className="text-2xl font-bold text-orange-400 animate-pulse">{activeCalls.length}</span>
-              </div>
-            </div>
-          </div>
+          <LiveRosterPanel />
         </div>
       </div>
     </div>
