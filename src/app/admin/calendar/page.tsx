@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth/actions';
 import { getComplianceBoard } from '@/app/actions/calendar';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, CalendarDays, TrendingUp } from 'lucide-react';
+import LiveStatusCell from '@/components/admin/LiveStatusCell';
 
 export const dynamic = 'force-dynamic';
 
