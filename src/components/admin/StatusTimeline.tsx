@@ -89,18 +89,13 @@ export default function StatusTimeline({ interpreterId, limit = 20 }: StatusTime
       try {
         const res = await fetch(`/api/v1/interpreters/${interpreterId}/status-history?limit=${limit}`);
         if (!res.ok) {
-          // Fallback: if the API doesn't exist yet, try direct fetch
-          const fallbackRes = await fetch(`/api/presence/history/${interpreterId}?limit=${limit}`);
-          if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status}`);
-          const data = await fallbackRes.json();
-          setLogs(data.logs || []);
-        } else {
-          const data = await res.json();
-          setLogs(data.logs || []);
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
+        const data = await res.json();
+        setLogs(data.logs || []);
       } catch (err) {
-        // If API doesn't exist, gracefully show empty state
-        console.warn('[StatusTimeline] API not available yet:', err);
+        // API not available yet — graceful fallback
+        console.warn('[StatusTimeline] API not available:', err);
         setLogs([]);
       } finally {
         setIsLoading(false);
