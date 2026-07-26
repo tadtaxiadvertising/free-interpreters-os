@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<style>
+  body { font-family: system-ui; padding: 2em; max-width: 900px; margin: 0 auto; }
+  h2 { color: #3b82f6; }
+  code, pre { background: #f1f5f9; padding: 0.25em 0.5em; border-radius: 4px; }
+  pre { overflow: auto; padding: 1em; }
+  .step { background: #f8fafc; border-left: 4px solid #3b82f6; padding: 1em; margin: 1em 0; }
+  .url { word-break: break-all; color: #059669; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  th, td { border: 1px solid #e2e8f0; padding: 0.5em; text-align: left; }
+  th { background: #f1f5f9; }
+</style>
+<body>
+  <h1>🚀 Free Interpreters OS — Migración + Setup</h1>
+
+  <h2>Paso 1: Ejecutar SQL en Supabase</h2>
+  <ol>
+    <li>Ir a <a class="url" href="https://kzbkygppplknynrwmtmf.supabase.co/project/kzbkygppplknynrwmtmf/editor">https://kzbkygppplknynrwmtmf.supabase.co/project/kzbkygppplknynrwmtmf/editor</a></li>
+    <li>Click en <strong>SQL Editor</strong> → <strong>New query</strong></li>
+    <li>Pegar el SQL de abajo y click <strong>Run</strong></li>
+  </ol>
+
+  <pre><code>${SQL}</code></pre>
+
+  <h2>Paso 2: Configurar CRON en EasyPanel</h2>
+  <div class="step">
+    <p><strong>Comando:</strong></p>
+    <pre>${CMD}</pre>
+    <p><strong>Variables de entorno:</strong></p>
+    <table>
+      <tr><th>Clave</th><th>Valor</th></tr>
+      <tr><td>SUPABASE_URL</td><td>https://kzbkygppplknynrwmtmf.supabase.co</td></tr>
+      <tr><td>SUPABASE_SERVICE_ROLE_KEY</td><td>eyJhbG... (tu key)</td></tr>
+    </table>
+    <p><strong>Schedule:</strong> <code>*/10 * * * *</code> (cada 10 min)</p>
+  </div>
+
+  <h2>Paso 3: Probar conexión</h2>
+  <pre><code>${PROBE}</code></pre>
+</body>
+</html>

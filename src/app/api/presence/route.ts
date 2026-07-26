@@ -128,7 +128,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, skipped: true });
       }
 
-      const { status } = body;
+      const { status = 'Away' } = body;
       const interpreter = await db.interpreter.findUnique({
         where: { id: profile.interpreterId },
         select: { realtimeStatus: true },
