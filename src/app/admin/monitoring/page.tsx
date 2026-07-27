@@ -6,18 +6,22 @@ export const dynamic = 'force-dynamic';
 export default function MonitoringPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      <header>
-        <h1 className="text-3xl font-bold text-white tracking-tight">
-          Control de Operaciones en Vivo
-        </h1>
-        <p className="text-gray-400 mt-1 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          Monitoreo en tiempo real de intérpretes · Estados inteligentes
-        </p>
+      {/* Page Header */}
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
+            <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/30" />
+            Intérpretes en Vivo
+          </h1>
+          <p className="text-gray-400 mt-1.5 ml-6">
+            Monitoreo en tiempo real con estados inteligentes y sesiones activas
+          </p>
+        </div>
+        <AlertBanner autoDetect={true} />
       </header>
 
+      {/* Main Monitor */}
       <RealTimeMonitor />
-      <AlertBanner autoDetect={true} />
     </div>
   );
 }

@@ -531,20 +531,34 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
             });
           } catch (createErr: any) {
             if (createErr?.code === 'P2002') {
-              // Unique constraint violation — retry without emailCorporativo and with timestamp suffix
-              newInterpreter = await prisma.interpreter.create({
-                data: {
-                  externalId: `auth-${profile.id}-${Date.now()}`,
-                  name: displayName,
-                  status: 'Activo',
-                  realtimeStatus: 'Offline',
-                  tariffPerMinute: 0,
-                  monthlyGoal: 2000,
-                  languageA: 'Español',
-                  languageB: 'Inglés',
+              // Unique constraint violation — find the existing interpreter and link
+              const existing = await prisma.interpreter.findFirst({
+                where: {
+                  OR: [
+                    { emailCorporativo: profile.email },
+                    { externalId: `auth-${profile.id}` },
+                  ],
                 },
                 select: { id: true },
               });
+              if (existing) {
+                newInterpreter = existing;
+              } else {
+                // Edge case: externalId collision with timestamp suffix as last resort
+                newInterpreter = await prisma.interpreter.create({
+                  data: {
+                    externalId: `auth-${profile.id}-${Date.now()}`,
+                    name: displayName,
+                    status: 'Activo',
+                    realtimeStatus: 'Offline',
+                    tariffPerMinute: 0,
+                    monthlyGoal: 2000,
+                    languageA: 'Español',
+                    languageB: 'Inglés',
+                  },
+                  select: { id: true },
+                });
+              }
             } else {
               throw createErr;
             }
