@@ -3,7 +3,8 @@
 import { useEffect, useState, useTransition, useMemo, useCallback, useRef } from 'react';
 import { createClient, isSupabaseBrowserConfigError } from '@/lib/supabase/client';
 import { getWorkdayRosterAction, getLiveRosterAction } from '@/app/actions/monitoring';
-import type { WorkdayInterpreter, MonitoredInterpreter } from '@/lib/validators/monitoring';
+import type { WorkdayInterpreter } from '@/app/actions/monitoring';
+import type { MonitoredInterpreter } from '@/lib/validators/monitoring';
 import StatusBadge from '@/components/StatusBadge';
 import StatusTimeline from '@/components/admin/StatusTimeline';
 import {
