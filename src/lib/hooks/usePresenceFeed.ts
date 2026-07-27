@@ -21,7 +21,7 @@ export function usePresenceFeed() {
     updatedAt: null,
     error: null,
   });
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
     try {
