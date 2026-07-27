@@ -1,79 +1,70 @@
 'use client';
 
+import Link from 'next/link';
 import { usePresenceFeed } from '@/lib/hooks/usePresenceFeed';
 import StatusBadge from '@/components/StatusBadge';
-import { Users, Wifi, WifiOff } from 'lucide-react';
-
-function formatTimeAgo(dateStr: string | null): string {
-  if (!dateStr) return '—';
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  if (isNaN(then)) return '—';
-  const diff = Math.floor((now - then) / 1000);
-  if (diff < 60) return `${diff}s`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}min`;
-  return `${Math.floor(diff / 3600)}h`;
-}
+import { Users, ArrowRight, Wifi, Phone, Coffee, WifiOff } from 'lucide-react';
 
 export default function LiveRosterPanel() {
-  const { byId, error } = usePresenceFeed();
+  const { byId } = usePresenceFeed();
   const interpreters = Array.from(byId.values());
 
   const online = interpreters.filter(i => i.realtimeStatus === 'Online').length;
-  const offline = interpreters.filter(i => i.realtimeStatus === 'Offline').length;
   const busy = interpreters.filter(i => i.realtimeStatus === 'Busy').length;
   const away = interpreters.filter(i => i.realtimeStatus === 'Away').length;
 
+  // Show top 5 online/busy first, then away
+  const priority = ['Online', 'Busy', 'Away', 'Offline'];
+  const sorted = [...interpreters].sort((a, b) => {
+    const pa = priority.indexOf(a.realtimeStatus || 'Offline');
+    const pb = priority.indexOf(b.realtimeStatus || 'Offline');
+    return pa - pb;
+  }).slice(0, 5);
+
   return (
-    <div className="glass p-6 rounded-3xl border border-white/5 bg-slate-900/40">
+    <div className="glass p-5 rounded-3xl border border-white/5 bg-slate-900/40">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xl font-bold text-white flex items-center gap-3">
-          <Users className="text-blue-400" />
+        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+          <Users className="text-blue-400" size={20} />
           Intérpretes en Vivo
         </h3>
-        <div className="flex items-center gap-3 text-xs">
-          <span className="text-emerald-400">🟢 {online}</span>
-          <span className="text-amber-400">🟡 {busy}</span>
-          <span className="text-orange-400">🟠 {away}</span>
-          <span className="text-slate-400">🔴 {offline}</span>
-          {error && <span className="text-rose-400 text-[10px]">⚠️ error</span>}
+        <div className="flex items-center gap-3 text-[10px] font-mono">
+          <span className="flex items-center gap-1 text-emerald-400">
+            <Wifi size={10} /> {online}
+          </span>
+          <span className="flex items-center gap-1 text-amber-400">
+            <Phone size={10} /> {busy}
+          </span>
+          <span className="flex items-center gap-1 text-orange-400">
+            <Coffee size={10} className="inline" /> {away}
+          </span>
         </div>
       </div>
 
-      <div className="space-y-2 max-h-[400px] overflow-y-auto">
-        {interpreters.length === 0 && (
-          <div className="text-center py-8 text-slate-500 text-sm">
-            <WifiOff className="mx-auto mb-2 opacity-30" size={32} />
-            Cargando...
-          </div>
+      <div className="space-y-1.5 mb-4">
+        {sorted.length === 0 && (
+          <p className="text-xs text-slate-500 text-center py-4">Cargando...</p>
         )}
-
-        {interpreters.map((i) => (
+        {sorted.map((i) => (
           <div
             key={i.id}
-            className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5"
+            className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <StatusBadge
-                status={i.realtimeStatus}
-                size="sm"
-                showTime={false}
-              />
-              <span className="text-sm font-medium text-slate-200 truncate">
-                {i.name}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono shrink-0">
-              {i.lastHeartbeat && (
-                <span className="tabular-nums">{formatTimeAgo(i.lastHeartbeat)}</span>
-              )}
-              {i.lastActivity && (
-                <span className="text-slate-600">· {formatTimeAgo(i.lastActivity)}</span>
-              )}
-            </div>
+            <span className="text-sm text-slate-200 truncate max-w-[140px]">
+              {i.name}
+            </span>
+            <StatusBadge status={i.realtimeStatus} size="sm" showTime={false} />
           </div>
         ))}
       </div>
+
+      <Link
+        href="/admin/monitoring"
+        className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 text-sm font-medium transition-all"
+      >
+        Ver todos los intérpretes
+        <ArrowRight size={14} />
+      </Link>
     </div>
   );
 }
