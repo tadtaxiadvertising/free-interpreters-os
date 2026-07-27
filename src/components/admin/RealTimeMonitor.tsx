@@ -253,7 +253,11 @@ export default function RealTimeMonitor() {
   }, []);
 
   // Merge presence into roster
-  const mergedRoster = useMemo(() => {
+  interface MonitoredInterpreterWithPresence extends MonitoredInterpreter {
+    _presenceOnline: boolean;
+  }
+
+  const mergedRoster: MonitoredInterpreterWithPresence[] = useMemo(() => {
     return roster.map((interpreter) => ({
       ...interpreter,
       _presenceOnline: onlineIds.has(interpreter.id),
@@ -299,7 +303,7 @@ export default function RealTimeMonitor() {
 
   // Group by status
   const groupedRoster = useMemo(() => {
-    const groups: Record<string, MonitoredInterpreter[]> = {
+    const groups: Record<string, MonitoredInterpreterWithPresence[]> = {
       Online: [], Busy: [], Away: [], Offline: [],
     };
     for (const i of mergedRoster) {
