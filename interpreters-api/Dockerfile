@@ -8,6 +8,12 @@ FROM node:22-alpine AS builder
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
+# Git SHA for version tracking (auto-reload on deploy)
+ARG GIT_SHA
+ENV GIT_SHA=${GIT_SHA}
+ARG BUILD_TIMESTAMP
+ENV BUILD_TIMESTAMP=${BUILD_TIMESTAMP:-$(date +%s)}
+
 # Copiar dependencias
 COPY package.json package-lock.json ./
 RUN npm ci

@@ -19,6 +19,8 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+import VersionGuard from '@/components/VersionGuard';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,6 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased font-sans selection:bg-primary selection:text-white">
+        <VersionGuard />
         <Toaster 
           position="top-right"
           toastOptions={{
