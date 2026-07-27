@@ -80,21 +80,36 @@ export const getCurrentUser = cache(async () => {
             console.log(`🔧 [AUTH] Interpreter auto-created for ${user.id} → interpreter ${newInterp.id}`);
           } catch (createErr: any) {
             if (createErr?.code === 'P2002') {
-              const fallbackInterp = await prisma.interpreter.create({
-                data: {
-                  externalId: `auth-${user.id}-${Date.now()}`,
-                  name: displayName,
-                  status: 'Activo',
-                  realtimeStatus: 'Offline',
-                  tariffPerMinute: 0,
-                  monthlyGoal: 2000,
-                  languageA: 'Español',
-                  languageB: 'Inglés',
+              // Unique constraint — find the existing one instead of creating a duplicate
+              const existing = await prisma.interpreter.findFirst({
+                where: {
+                  OR: [
+                    { emailCorporativo: user.email },
+                    { externalId: `auth-${user.id}` },
+                  ],
                 },
                 select: { id: true },
               });
-              interpreterId = fallbackInterp.id;
-              console.log(`🔧 [AUTH] Interpreter auto-created (fallback) for ${user.id} → interpreter ${fallbackInterp.id}`);
+              if (existing) {
+                interpreterId = existing.id;
+                console.log(`🔧 [AUTH] Interpreter already exists for ${user.id} → interpreter ${existing.id}`);
+              } else {
+                const fallbackInterp = await prisma.interpreter.create({
+                  data: {
+                    externalId: `auth-${user.id}-${Date.now()}`,
+                    name: displayName,
+                    status: 'Activo',
+                    realtimeStatus: 'Offline',
+                    tariffPerMinute: 0,
+                    monthlyGoal: 2000,
+                    languageA: 'Español',
+                    languageB: 'Inglés',
+                  },
+                  select: { id: true },
+                });
+                interpreterId = fallbackInterp.id;
+                console.log(`🔧 [AUTH] Interpreter auto-created (fallback) for ${user.id} → interpreter ${fallbackInterp.id}`);
+              }
             } else {
               console.error('[AUTH] Interpreter auto-creation failed:', createErr);
             }
@@ -178,19 +193,33 @@ export const getCurrentUser = cache(async () => {
               });
             } catch (createErr: any) {
               if (createErr?.code === 'P2002') {
-                newInterpreter = await prisma.interpreter.create({
-                  data: {
-                    externalId: `auth-${supabaseProfile.id}-${Date.now()}`,
-                    name: displayName,
-                    status: 'Activo',
-                    realtimeStatus: 'Offline',
-                    tariffPerMinute: 0,
-                    monthlyGoal: 2000,
-                    languageA: 'Español',
-                    languageB: 'Inglés',
+                // Find existing instead of creating a duplicate
+                const existing = await prisma.interpreter.findFirst({
+                  where: {
+                    OR: [
+                      { emailCorporativo: supabaseUser.email },
+                      { externalId: `auth-${supabaseProfile.id}` },
+                    ],
                   },
                   select: { id: true },
                 });
+                if (existing) {
+                  newInterpreter = existing;
+                } else {
+                  newInterpreter = await prisma.interpreter.create({
+                    data: {
+                      externalId: `auth-${supabaseProfile.id}-${Date.now()}`,
+                      name: displayName,
+                      status: 'Activo',
+                      realtimeStatus: 'Offline',
+                      tariffPerMinute: 0,
+                      monthlyGoal: 2000,
+                      languageA: 'Español',
+                      languageB: 'Inglés',
+                    },
+                    select: { id: true },
+                  });
+                }
               } else {
                 throw createErr;
               }
