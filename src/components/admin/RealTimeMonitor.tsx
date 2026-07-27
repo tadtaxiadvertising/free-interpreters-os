@@ -47,48 +47,56 @@ const WORKDAY_STATUS_CONFIG: Record<string, {
   icon: any;
   color: string;
   bg: string;
+  border: string;
 }> = {
   'En llamada': {
     label: 'En llamada',
     icon: PhoneCall,
     color: 'text-amber-400',
-    bg: 'bg-amber-500/10 border-amber-500/20',
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-500/20',
   },
   'Activo': {
     label: 'Activo',
     icon: PlayCircle,
     color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10 border-emerald-500/20',
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-500/20',
   },
   'Disponible': {
     label: 'Disponible',
     icon: Wifi,
     color: 'text-blue-400',
-    bg: 'bg-blue-500/10 border-blue-500/20',
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500/20',
   },
   'En pausa': {
     label: 'En pausa',
     icon: PauseCircle,
     color: 'text-orange-400',
-    bg: 'bg-orange-500/10 border-orange-500/20',
+    bg: 'bg-orange-500/10',
+    border: 'border-orange-500/20',
   },
   'Desconectado (laboró)': {
     label: 'Desconectado',
     icon: LogOut,
     color: 'text-slate-400',
-    bg: 'bg-slate-500/10 border-slate-500/20',
+    bg: 'bg-slate-500/10',
+    border: 'border-slate-500/20',
   },
   'Online sin registro': {
     label: 'Online sin registro',
     icon: AlertTriangle,
     color: 'text-yellow-400',
-    bg: 'bg-yellow-500/10 border-yellow-500/20',
+    bg: 'bg-yellow-500/10',
+    border: 'border-yellow-500/20',
   },
   'Sin actividad hoy': {
     label: 'Sin actividad',
     icon: Hourglass,
     color: 'text-gray-500',
-    bg: 'bg-gray-500/10 border-gray-500/20',
+    bg: 'bg-gray-500/10',
+    border: 'border-gray-500/20',
   },
 };
 
