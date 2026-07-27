@@ -16,7 +16,7 @@ function formatTimeAgo(dateStr: string | null): string {
 }
 
 export default function LiveRosterPanel() {
-  const { byId, error } = usePresenceFeed(15000);
+  const { byId, error } = usePresenceFeed();
   const interpreters = Array.from(byId.values());
 
   const online = interpreters.filter(i => i.realtimeStatus === 'Online').length;

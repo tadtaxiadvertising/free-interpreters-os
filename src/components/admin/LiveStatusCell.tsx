@@ -20,7 +20,7 @@ function formatTimeAgo(dateStr: string | null): string {
 }
 
 export default function LiveStatusCell({ interpreterId }: Props) {
-  const { getInterpreter, error } = usePresenceFeed(15000);
+  const { getInterpreter, error } = usePresenceFeed();
   const data: InterpreterPresence | undefined = getInterpreter(interpreterId);
 
   if (error) {

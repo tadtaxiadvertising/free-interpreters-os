@@ -16,9 +16,10 @@ export interface InterpreterPresence {
 const POLL_INTERVAL = 15000;
 
 export function usePresenceFeed() {
-  const [state, setState] = useState<{ byId: Map<number, InterpreterPresence>; updatedAt: Date | null }>({
+  const [state, setState] = useState<{ byId: Map<number, InterpreterPresence>; updatedAt: Date | null; error: string | null }>({
     byId: new Map(),
     updatedAt: null,
+    error: null,
   });
   const timerRef = useRef<ReturnType<typeof setInterval>>();
 
@@ -33,9 +34,9 @@ export function usePresenceFeed() {
       const list: InterpreterPresence[] = Array.isArray(json.interpreters) ? json.interpreters : [];
       const byId = new Map<number, InterpreterPresence>();
       for (const item of list) byId.set(item.id, item);
-      setState({ byId, updatedAt: new Date() });
-    } catch {
-      // silent — next tick retries
+      setState({ byId, updatedAt: new Date(), error: null });
+    } catch (e: any) {
+      setState((prev) => ({ ...prev, error: e?.message || 'Error de conexión' }));
     }
   }, []);
 
