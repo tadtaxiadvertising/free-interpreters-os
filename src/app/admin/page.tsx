@@ -115,7 +115,7 @@ export default async function AdminDashboard(props: PageProps) {
         {[
           { label: 'Intérpretes Activos', value: interpreters.length, sub: `${onlineCount} Online Now`, icon: Users, color: 'text-purple-400' },
           { label: 'Minutos Mensuales', value: totalMinutesMonth.toLocaleString(), sub: `MTD Production`, icon: Activity, color: 'text-blue-400' },
-          { label: 'Tasa de Adherencia', value: `${avgAdherence.toFixed(1)}%`, sub: 'Promedio Global', icon: CheckCircle, color: 'text-green-400' },
+          { label: 'Tasa de Adherencia', value: `${avgAdherence.toFixed(1)}%`, sub: 'Promedio Global', icon: CheckCircle2, color: 'text-green-400' },
           { label: 'Alertas de QA (<80%)', value: qaAlertsCount, sub: 'Evaluaciones críticas', icon: AlertTriangle, color: 'text-red-400' },
         ].map((stat, i) => (
           <div key={i} className="glass p-6 rounded-3xl border border-white/5 relative overflow-hidden group flex flex-col justify-between min-h-[160px]">
