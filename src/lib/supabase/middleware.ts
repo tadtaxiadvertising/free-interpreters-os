@@ -1,10 +1,45 @@
 import { createServerClient } from '@supabase/ssr';
+import { getToken, type JWT } from 'next-auth/jwt';
 import { NextResponse, type NextRequest } from 'next/server';
 
 type UpdateSessionResult = {
   response: NextResponse;
   hasValidSession: boolean;
 };
+
+const AUTH_SESSION_COOKIE_NAMES = [
+  'authjs.session-token',
+  '__Secure-authjs.session-token',
+  'next-auth.session-token',
+  '__Secure-next-auth.session-token',
+] as const;
+
+function hasAuthSessionCookie(request: NextRequest) {
+  return AUTH_SESSION_COOKIE_NAMES.some((name) => request.cookies.has(name));
+}
+
+async function getValidAuthToken(request: NextRequest): Promise<JWT | null> {
+  if (!hasAuthSessionCookie(request)) return null;
+
+  const secret = process.env.AUTH_SECRET?.trim() || process.env.NEXTAUTH_SECRET?.trim();
+  if (!secret) {
+    console.warn('[MIDDLEWARE] Auth.js session cookie found, but AUTH_SECRET/NEXTAUTH_SECRET is missing; treating session as invalid.');
+    return null;
+  }
+
+  for (const cookieName of AUTH_SESSION_COOKIE_NAMES) {
+    if (!request.cookies.has(cookieName)) continue;
+    const token = await getToken({
+      req: request,
+      secret,
+      cookieName,
+      secureCookie: cookieName.startsWith('__Secure-'),
+    });
+    if (token) return token;
+  }
+
+  return null;
+}
 
 function isInvalidRefreshTokenError(error: unknown) {
   if (!error || typeof error !== 'object') {
@@ -99,11 +134,10 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
     }
   }
   const { pathname } = request.nextUrl;
-  const hasNextAuthCookie =
-    request.cookies.has('next-auth.session-token') ||
-    request.cookies.has('__Secure-next-auth.session-token');
+  const validNextAuthToken = await getValidAuthToken(request);
+  const hasValidNextAuthSession = !!validNextAuthToken;
 
-  const hasValidSession = !!user || hasNextAuthCookie;
+  const hasValidSession = !!user || hasValidNextAuthSession;
 
   // 2. Public paths that don't require Supabase auth
   const publicPaths = [
@@ -122,7 +156,7 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
   // 3. Handle non-authenticated users
   // API routes pass through so route handlers can return proper 401 JSON;
   // page routes redirect to /login.
-  if (!user && !hasNextAuthCookie && !isPublic && !isApiRoute) {
+  if (!user && !hasValidNextAuthSession && !isPublic && !isApiRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     const redirectResponse = NextResponse.redirect(url);
@@ -167,11 +201,11 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
     } catch (err) {
       console.error('🔴 [MIDDLEWARE] Exception fetching user role:', err);
     }
-  } else if (hasNextAuthCookie) {
-    role = request.cookies.get('user-role')?.value || 'interpreter';
+  } else if (validNextAuthToken) {
+    role = validNextAuthToken.role === 'admin' ? 'admin' : 'interpreter';
   }
 
-  const hasSession = !!user || hasNextAuthCookie;
+  const hasSession = !!user || hasValidNextAuthSession;
 
   // 5. Handle logged-in users on public pages (like login)
   if (hasSession && pathname === '/login') {

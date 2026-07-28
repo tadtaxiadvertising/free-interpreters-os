@@ -156,7 +156,7 @@ export async function login(formData: FormData) {
           // have a valid password in the local table.
           if (repairedLogin?.success) {
             const cookieStore = await cookies();
-            cookieStore.set('user-role', repairedLogin.role || 'interpreter', { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+            cookieStore.set('user-role', repairedLogin.role || 'interpreter', { path: '/', httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7 });
             return repairedLogin;
           }
         } catch (repairError) {
@@ -218,7 +218,7 @@ export async function login(formData: FormData) {
                 displayName,
               });
               const cookieStore = await cookies();
-              cookieStore.set('user-role', localRole, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+              cookieStore.set('user-role', localRole, { path: '/', httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7 });
               return { success: true, role: localRole };
             }
           }
@@ -229,7 +229,7 @@ export async function login(formData: FormData) {
 
       // ── NEXT AUTH SESSION ─────────────────────────────────
       const cookieStore = await cookies();
-      cookieStore.set('user-role', localRole, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+      cookieStore.set('user-role', localRole, { path: '/', httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7 });
       return { success: true, role: localRole, nextAuthRequired: true };
     }
 
@@ -250,7 +250,7 @@ export async function login(formData: FormData) {
 
     const finalRole = normalizeRbacRole(profile?.role ?? requestedRole);
     const cookieStore3 = await cookies();
-    cookieStore3.set('user-role', finalRole, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+    cookieStore3.set('user-role', finalRole, { path: '/', httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7 });
     return { success: true, role: finalRole };
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
