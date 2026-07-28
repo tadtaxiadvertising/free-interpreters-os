@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { getWorkdayRosterAction, getLiveRosterAction } from '@/app/actions/monitoring';
 import type { WorkdayInterpreter } from '@/app/actions/monitoring';
 import type { MonitoredInterpreter } from '@/lib/validators/monitoring';
+import type { RealtimeChannel, REALTIME_SUBSCRIBE_STATES } from '@supabase/realtime-js';
 import StatusBadge from '@/components/StatusBadge';
 import StatusTimeline from '@/components/admin/StatusTimeline';
 import {
@@ -259,7 +260,7 @@ export default function RealTimeMonitor() {
 
   // Supabase Presence
   useEffect(() => {
-    let channel: any = null;
+    let channel: RealtimeChannel | null = null;
     try {
       const client = createClient();
       if (!client) {
@@ -284,7 +285,7 @@ export default function RealTimeMonitor() {
         setTelemetryStatus('connected');
       });
 
-      channel.subscribe(async (status) => {
+      channel.subscribe(async (status: REALTIME_SUBSCRIBE_STATES) => {
         if (status === 'SUBSCRIBED') {
           await channel!.track({
             role: 'admin-observer',
