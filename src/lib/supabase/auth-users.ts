@@ -3,10 +3,71 @@ import {
   supabaseAdmin,
   isAdminUnavailableError,
 } from '@/lib/supabase/admin';
-
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type SupabaseAdminClient = SupabaseClient;
+
+/**
+ * Repair an existing auth user — NEVER creates a new one.
+ * Only handles: fix null identities, confirm email, update password.
+ * Used during login repair to prevent unauthorized account creation.
+ */
+export async function repairAuthUser(params: {
+  email: string;
+  password: string;
+  displayName: string;
+}): Promise<User | null> {
+  try {
+    const email = normalizeAuthEmail(params.email);
+    const existingUser = await findAuthUserByEmail(supabaseAdmin, email);
+
+    // User must already exist in Supabase Auth — no auto-creation
+    if (!existingUser) {
+      console.log(`[AUTH-USERS] repairAuthUser: user ${email} does not exist — no repair possible`);
+      return null;
+    }
+
+    const userMetadata = {
+      ...(existingUser?.user_metadata ?? {}),
+      display_name: params.displayName,
+    };
+
+    // If identities is null/empty, the user is broken — delete and recreate
+    if (!existingUser.identities || existingUser.identities.length === 0) {
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(existingUser.id);
+      if (deleteError) {
+        console.error('[AUTH-USERS] Failed to delete broken user with null identities:', deleteError.message);
+        throw deleteError;
+      }
+      console.log(`[AUTH-USERS] Deleted auth user ${existingUser.id} (${email}) with null identities — recreating.`);
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: params.password,
+        email_confirm: true,
+        user_metadata: userMetadata,
+      });
+      if (error) throw error;
+      return data.user;
+    }
+
+    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
+      existingUser.id,
+      {
+        password: params.password,
+        email_confirm: true,
+        user_metadata: userMetadata,
+      }
+    );
+
+    if (error) throw error;
+    return data.user;
+  } catch (error: unknown) {
+    if (isAdminUnavailableError(error)) {
+      throw error;
+    }
+    throw error;
+  }
+}
 
 export function normalizeAuthEmail(email: string) {
   return email.toLowerCase().trim();
@@ -40,9 +101,6 @@ export async function findAuthUserByEmail(
 
 /**
  * Confirm an existing Supabase Auth user's email.
- *
- * @throws {SupabaseAdminUnavailableError} when `SUPABASE_SERVICE_ROLE_KEY` is
- *   missing. Callers should handle this (or use `isAdminUnavailableError()`).
  */
 export async function confirmAuthUserEmail(email: string): Promise<User | null> {
   try {
@@ -60,7 +118,7 @@ export async function confirmAuthUserEmail(email: string): Promise<User | null> 
     return data.user;
   } catch (error: unknown) {
     if (isAdminUnavailableError(error)) {
-      throw error; // Let callers handle this semantic error
+      throw error;
     }
     throw error;
   }
@@ -68,9 +126,9 @@ export async function confirmAuthUserEmail(email: string): Promise<User | null> 
 
 /**
  * Create or update a Supabase Auth user with a confirmed email.
- *
- * @throws {SupabaseAdminUnavailableError} when `SUPABASE_SERVICE_ROLE_KEY` is
- *   missing. Callers should handle this (or use `isAdminUnavailableError()`).
+ * WARNING: This function CREATES new auth users. Only use in admin flows
+ * where the user is pre-registered (e.g., admin creating a new interpreter).
+ * Do NOT use in login repair — use repairAuthUser() instead.
  */
 export async function upsertConfirmedAuthUser(params: {
   email: string;
@@ -118,6 +176,9 @@ export async function upsertConfirmedAuthUser(params: {
       return data.user;
     }
 
+    // ── NEW USER ──────────────────────────────────────────────
+    // Only reachable when exisingUser is null — creates a brand new auth user.
+    // This is INTENTIONAL for admin flows; login repair uses repairAuthUser().
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: params.password,
@@ -129,7 +190,7 @@ export async function upsertConfirmedAuthUser(params: {
     return data.user;
   } catch (error: unknown) {
     if (isAdminUnavailableError(error)) {
-      throw error; // Let callers handle this semantic error
+      throw error;
     }
     throw error;
   }

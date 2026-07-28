@@ -2,7 +2,7 @@
 
 import { createClient, isSupabaseConfigError } from '@/lib/supabase/server';
 import { getSupabaseServiceRoleKey } from '@/lib/supabase/admin';
-import { upsertConfirmedAuthUser } from '@/lib/supabase/auth-users';
+import { upsertConfirmedAuthUser, repairAuthUser } from '@/lib/supabase/auth-users';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import type { UserProfile, UserRole } from '@/lib/types';
@@ -88,17 +88,17 @@ async function repairAuthUserAndRetry(params: {
     return null;
   }
 
-  // upsertConfirmedAuthUser handles all known failure modes:
+  // repairAuthUser handles the known failure modes without creating new users:
   //  - identities: null/empty → deletes broken user, recreates with proper identity link
   //  - email not confirmed → updates with email_confirm: true
-  //  - user doesn't exist → creates fresh confirmed user
+  //  - user doesn't exist → returns null (no auto-creation for security)
   try {
-    const repairedUser = await upsertConfirmedAuthUser({
+    const repairedUser = await repairAuthUser({
       email: params.email,
       password: params.password,
       displayName: params.email.split('@')[0],
     });
-    console.log(`🔧 [AUTH_REPAIR] upsertConfirmedAuthUser result for ${params.email}: ${repairedUser ? `id=${repairedUser.id} identities=${repairedUser.identities?.length ?? 'null'}` : 'null'}`);
+    console.log(`🔧 [AUTH_REPAIR] repairAuthUser result for ${params.email}: ${repairedUser ? `id=${repairedUser.id} identities=${repairedUser.identities?.length ?? 'null'}` : 'null'}`);
     if (!repairedUser) return null;
 
     const retry = await params.supabase.auth.signInWithPassword({
