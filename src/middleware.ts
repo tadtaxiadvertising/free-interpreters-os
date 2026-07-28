@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
 /**
  * UNIFIED MIDDLEWARE — FREE INTERPRETERS OS
@@ -28,6 +29,40 @@ import type { NextRequest } from 'next/server';
  */
 
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://freeinterpreters.com";
+
+const AUTH_SESSION_COOKIE_NAMES = [
+  'authjs.session-token',
+  '__Secure-authjs.session-token',
+  'next-auth.session-token',
+  '__Secure-next-auth.session-token',
+] as const;
+
+function hasAuthSessionCookie(req: NextRequest) {
+  return AUTH_SESSION_COOKIE_NAMES.some((name) => req.cookies.has(name));
+}
+
+async function hasValidAuthSession(req: NextRequest) {
+  if (!hasAuthSessionCookie(req)) return false;
+
+  const secret = process.env.AUTH_SECRET?.trim() || process.env.NEXTAUTH_SECRET?.trim();
+  if (!secret) {
+    console.warn('[MIDDLEWARE] Auth.js session cookie found, but AUTH_SECRET/NEXTAUTH_SECRET is missing; treating session as invalid.');
+    return false;
+  }
+
+  for (const cookieName of AUTH_SESSION_COOKIE_NAMES) {
+    if (!req.cookies.has(cookieName)) continue;
+    const token = await getToken({
+      req,
+      secret,
+      cookieName,
+      secureCookie: cookieName.startsWith('__Secure-'),
+    });
+    if (token) return true;
+  }
+
+  return false;
+}
 
 // Pre-check logic moved inside middleware to avoid missing env vars at module load in dev mode.
 
@@ -79,9 +114,7 @@ export async function middleware(req: NextRequest) {
       (cookie) => cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')
     );
 
-  const hasNextAuthCookie =
-    req.cookies.has('next-auth.session-token') ||
-    req.cookies.has('__Secure-next-auth.session-token');
+  const hasValidNextAuthSession = await hasValidAuthSession(req);
 
   const isSupabaseSecureRoute = SUPABASE_SECURE_PREFIXES.some(
     (prefix) => pathname.startsWith(prefix)
@@ -92,7 +125,7 @@ export async function middleware(req: NextRequest) {
     (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || process.env.SUPABASE_ANON_KEY?.trim())
   );
 
-  if (HAS_SUPABASE_ENV && (hasSupabaseCookie || isSupabaseSecureRoute)) {
+  if (HAS_SUPABASE_ENV && (hasSupabaseCookie || (isSupabaseSecureRoute && !hasValidNextAuthSession))) {
     try {
       const { updateSession } = await import('@/lib/supabase/middleware');
       const refreshResult = await updateSession(req);
@@ -111,7 +144,7 @@ export async function middleware(req: NextRequest) {
   // ── 3. SUPABASE AUTH PROTECTION ───────────────────────────
   // Dashboard/Admin/Payroll/QA routes require a Supabase or NextAuth session.
   if (isSupabaseSecureRoute) {
-    if (!hasActiveSupabaseSession && !hasNextAuthCookie) {
+    if (!hasActiveSupabaseSession && !hasValidNextAuthSession) {
       const loginUrl = req.nextUrl.clone();
       loginUrl.pathname = '/login';
       return NextResponse.redirect(loginUrl);
