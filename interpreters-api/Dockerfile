@@ -14,16 +14,18 @@ ENV GIT_SHA=${GIT_SHA}
 ARG BUILD_TIMESTAMP
 ENV BUILD_TIMESTAMP=${BUILD_TIMESTAMP:-$(date +%s)}
 
-# Copiar dependencias
-COPY package.json package-lock.json ./
+# Copiar solo el subdirectorio interpreters-api (no el frontend entero)
+COPY interpreters-api/package.json interpreters-api/package-lock.json ./
 RUN npm ci
 
-# Copiar código fuente
-COPY . .
+# Copiar código fuente del backend
+COPY interpreters-api/src ./src
+COPY interpreters-api/tsconfig.json ./
+COPY prisma ./prisma
 
 # Dar permisos de ejecución a todos los binarios y compilar
 RUN chmod -R +x ./node_modules/.bin
-RUN npm run prisma:generate
+RUN npx prisma generate
 RUN npm run build
 
 # --- STAGE 2: Runner ---
@@ -37,7 +39,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 RUN chown -R apiuser:nodejs /app
 
 # Instalar solo dependencias de producción (como el usuario apiuser)
-COPY --chown=apiuser:nodejs package.json package-lock.json ./
+COPY --chown=apiuser:nodejs interpreters-api/package.json interpreters-api/package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 # Copiar build y binarios generados de Prisma desde builder
