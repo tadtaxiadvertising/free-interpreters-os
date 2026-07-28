@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition, useMemo, useCallback, useRef } from 'react';
-import { createClient, isSupabaseBrowserConfigError } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import { getWorkdayRosterAction, getLiveRosterAction } from '@/app/actions/monitoring';
 import type { WorkdayInterpreter } from '@/app/actions/monitoring';
 import type { MonitoredInterpreter } from '@/lib/validators/monitoring';
@@ -262,6 +262,10 @@ export default function RealTimeMonitor() {
     let channel: ReturnType<ReturnType<typeof createClient>['channel']> | null = null;
     try {
       const client = createClient();
+      if (!client) {
+        setTelemetryStatus('disconnected');
+        return;
+      }
       channel = client.channel('room:dashboard_presence', {
         config: { presence: { key: 'admin-observer' } },
       });
@@ -292,11 +296,8 @@ export default function RealTimeMonitor() {
         }
       });
     } catch (err) {
-      if (isSupabaseBrowserConfigError(err)) {
-        setTelemetryStatus('disconnected');
-      } else {
-        console.error('[Monitoring] Presence init error:', err);
-      }
+      setTelemetryStatus('disconnected');
+      console.warn('[Monitoring] Presence unavailable (Supabase client not configured):', err);
       return;
     }
 

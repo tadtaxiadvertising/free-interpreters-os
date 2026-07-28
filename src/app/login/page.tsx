@@ -42,7 +42,8 @@ export default function LoginPage() {
         }
         router.push(result.role === 'admin' ? '/admin' : '/dashboard');
       }
-    } catch {
+    } catch (err) {
+      console.error('🔴 [AUTH_LOGIN_PAGE] Login submit error:', err);
       setError('Invalid email or password');
     } finally {
       setIsLoading(false);

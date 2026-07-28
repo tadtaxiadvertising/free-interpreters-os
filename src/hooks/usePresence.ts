@@ -27,6 +27,10 @@ export function usePresence({ interpreterId, userEmail }: UsePresenceOptions): P
     }
 
     const client = createClient();
+    if (!client) {
+      setState('offline');
+      return;
+    }
     const presenceKey = String(interpreterId);
 
     const channel = client.channel('room:dashboard_presence', {

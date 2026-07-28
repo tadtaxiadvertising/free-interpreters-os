@@ -22,25 +22,6 @@ function normalizeRbacRole(role: string | null | undefined): UserRole {
   return role?.toLowerCase() === 'admin' ? 'admin' : 'interpreter';
 }
 
-async function provisionSupabaseUserFromLocalCredentials(params: {
-  email: string;
-  password: string;
-  role: UserRole;
-  displayName: string;
-}): Promise<string | null> {
-  if (!getSupabaseServiceRoleKey()) {
-    return null;
-  }
-
-  const authUser = await upsertConfirmedAuthUser({
-    email: params.email,
-    password: params.password,
-    displayName: params.displayName,
-  });
-
-  return authUser?.id || null;
-}
-
 async function syncUserProfileFromAuth(params: {
   userId: string;
   email: string;
@@ -211,20 +192,20 @@ export async function login(formData: FormData) {
         };
       }
 
-      // Try to provision the user in Supabase Auth for cookie-based sessions.
-      // If the service key is unavailable, sign in via NextAuth (Auth.js)
-      // credentials provider instead — this creates a JWT session cookie.
+      // Try to repair an existing Supabase Auth user (login still works via NextAuth).
+      // If the user doesn't exist yet in Supabase Auth, skip provisioning —
+      // the client falls through to NextAuth credentials provider instead.
+      // This prevents unauthorized account creation from local-only credentials.
       if (getSupabaseServiceRoleKey()) {
         try {
           const displayName = localUser.name || email.split('@')[0];
-          const provisionedUserId = await provisionSupabaseUserFromLocalCredentials({
+          const repairedUser = await repairAuthUser({
             email,
             password,
-            role: localRole,
             displayName,
           });
 
-          if (provisionedUserId) {
+          if (repairedUser) {
             const retry = await supabase.auth.signInWithPassword({
               email: validated.email,
               password: validated.password,
@@ -242,14 +223,11 @@ export async function login(formData: FormData) {
             }
           }
         } catch (fallbackError) {
-          console.error(`🔴 [AUTH_LOGIN] Supabase provisioning failed for ${email}:`, fallbackError);
+          console.error(`🔴 [AUTH_LOGIN] Supabase repair failed for ${email}:`, fallbackError);
         }
       }
 
-      // If we got here, Supabase provisioning was unavailable or failed.
-      // The client must handle NextAuth authentication through the proper
-      // route handler (/api/auth/callback/credentials) because Server
-      // Actions cannot reliably set NextAuth session cookies.
+      // ── NEXT AUTH SESSION ─────────────────────────────────
       const cookieStore = await cookies();
       cookieStore.set('user-role', localRole, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
       return { success: true, role: localRole, nextAuthRequired: true };

@@ -21,9 +21,8 @@ function getSupabaseBrowserConfig() {
     console.error(`   NEXT_PUBLIC_SUPABASE_URL / SUPABASE_URL: ${url ? 'SET' : 'MISSING'}`);
     console.error(`   NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_ANON_KEY: ${key ? 'SET' : 'MISSING'}`);
     console.error('   NOTE: NEXT_PUBLIC_ vars must be set in Easypanel env for client-side to work.');
-    console.error('   Available env keys:', Object.keys(process.env).filter(k => k.includes('SUPABASE')).join(', ') || 'NONE');
-
-    throw new Error(SUPABASE_BROWSER_CONFIG_ERROR);
+    console.error('   The app will run with degraded features (no realtime Presence, no browser-side auth).');
+    return null;
   }
 
   return { url, key };
@@ -34,7 +33,9 @@ export function isSupabaseBrowserConfigError(error: unknown): boolean {
 }
 
 export function createClient() {
-  const { url, key } = getSupabaseBrowserConfig();
+  const config = getSupabaseBrowserConfig();
+  if (!config) return null;
+  const { url, key } = config;
 
   return createBrowserClient(
     url,
