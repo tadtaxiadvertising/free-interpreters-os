@@ -259,7 +259,7 @@ export default function RealTimeMonitor() {
 
   // Supabase Presence
   useEffect(() => {
-    let channel: ReturnType<ReturnType<typeof createClient>['channel']> | null = null;
+    let channel: any = null;
     try {
       const client = createClient();
       if (!client) {

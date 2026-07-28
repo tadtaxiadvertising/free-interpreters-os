@@ -18,7 +18,7 @@ interface UsePresenceOptions {
 
 export function usePresence({ interpreterId, userEmail }: UsePresenceOptions): PresenceState {
   const [state, setState] = useState<PresenceState>('loading');
-  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null);
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
     if (!interpreterId) {
