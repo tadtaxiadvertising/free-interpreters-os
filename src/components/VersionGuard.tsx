@@ -51,7 +51,7 @@ export default function VersionGuard() {
 
         // First visit — store and return
         if (!stored) {
-          setStoredBuildTs(serverBuildTs);
+          storeBuildTs(serverBuildTs);
           return;
         }
 
