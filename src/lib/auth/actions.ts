@@ -34,17 +34,10 @@ export const getCurrentUser = cache(async () => {
       if (!supabaseProfile && user.email) {
         console.log(`🔧 [AUTH] Self-healing profile auto-creation for user: ${user.email}`);
 
-        // Determine default role based on email matches
-        const emailLower = user.email.toLowerCase();
-        let role = 'interpreter';
-        if (
-          emailLower === 'interpretersfree@gmail.com' ||
-          emailLower === 'melvinramonduranmesa@gmail.com' ||
-          emailLower === 'admin@freeinterpreters.com' ||
-          emailLower.includes('admin')
-        ) {
-          role = 'admin';
-        }
+        // Default role is always 'interpreter' on auto-provision.
+        // Admin must be assigned explicitly by an authorized operator
+        // via admin action or direct DB assignment.
+        const role: UserRole = 'interpreter';
 
         // Link with an interpreter profile — broader matching (email or name)
         const interpreter = await prisma.interpreter.findFirst({
@@ -135,22 +128,8 @@ export const getCurrentUser = cache(async () => {
         });
       }
 
-      // Self-healing: correct admin role if email matches admin patterns
-      if (supabaseProfile && supabaseProfile.email && supabaseProfile.role !== 'admin') {
-        const emailLower = supabaseProfile.email.toLowerCase();
-        const isAdminEmail = emailLower === 'interpretersfree@gmail.com' ||
-          emailLower === 'melvinramonduranmesa@gmail.com' ||
-          emailLower === 'admin@freeinterpreters.com' ||
-          emailLower.includes('admin');
-        if (isAdminEmail) {
-          await prisma.userProfile.update({
-            where: { id: supabaseProfile.id },
-            data: { role: 'admin', interpreterId: null },
-          });
-          supabaseProfile = { ...supabaseProfile, role: 'admin', interpreterId: null };
-          console.log(`🔧 [AUTH] Role self-healed to admin for ${supabaseProfile.id}`);
-        }
-      }
+      // Admin promotion removed from runtime flow. Admin status is explicit-only;
+      // granting admin requires a direct DB operation by an authorized operator.
 
       // Self-healing: link interpreter when profile exists but interpreterId is null (skip for admins)
       if (supabaseProfile && !supabaseProfile.interpreterId && supabaseUser?.email && supabaseProfile.role !== 'admin') {

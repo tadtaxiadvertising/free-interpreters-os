@@ -51,17 +51,10 @@ export default async function InterpreterDashboard() {
   if (!profile) {
     console.warn(`[DASHBOARD] Profile missing for user ${userId}, attempting auto-repair...`);
     try {
-      // Determine role from email before interpreter logic
-      const emailLower = (user.email || '').toLowerCase();
-      let role: string = 'interpreter';
-      if (
-        emailLower === 'interpretersfree@gmail.com' ||
-        emailLower === 'melvinramonduranmesa@gmail.com' ||
-        emailLower === 'admin@freeinterpreters.com' ||
-        emailLower.includes('admin')
-      ) {
-        role = 'admin';
-      }
+      // Determine role for new profile — default is interpreter.
+      // Admin promotion is explicit-only (DB/admin action), never inferred
+      // from email patterns to prevent unauthorized escalation.
+      const role: string = 'interpreter';
 
       // Use Prisma for auto-repair — broader matching (email or name)
       const interpreter = await prisma.interpreter.findFirst({
@@ -174,22 +167,8 @@ export default async function InterpreterDashboard() {
 
   }
 
-  // Self-healing: correct admin role if email matches admin patterns
-  if (profile && profile.email && profile.role !== 'admin') {
-    const emailLower = profile.email.toLowerCase();
-    const isAdminEmail = emailLower === 'interpretersfree@gmail.com' ||
-      emailLower === 'melvinramonduranmesa@gmail.com' ||
-      emailLower === 'admin@freeinterpreters.com' ||
-      emailLower.includes('admin');
-    if (isAdminEmail) {
-      await prisma.userProfile.update({
-        where: { id: userId },
-        data: { role: 'admin', interpreterId: null },
-      });
-      profile = { ...profile, role: 'admin', interpreter_id: null };
-      console.log(`🔧 [DASHBOARD] Role self-healed to admin for ${userId}`);
-    }
-  }
+  // Admin promotion removed from runtime flow. Admin status is explicit-only;
+  // granting admin requires a direct DB operation by an authorized operator.
 
   // ── AUTO-REPAIR: Link interpreter when profile exists but interpreter_id is null (skip for admins) ──
   if (profile && !profile.interpreter_id && profile.role !== 'admin') {

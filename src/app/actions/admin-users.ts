@@ -226,18 +226,7 @@ export async function syncAllSupabaseUsers() {
       });
 
       if (!existing) {
-        // Auto-detect role
-        const emailLower = sUser.email.toLowerCase();
-        let role = 'interpreter';
-        
-        if (
-          emailLower === 'interpretersfree@gmail.com' ||
-          emailLower === 'melvinramonduranmesa@gmail.com' ||
-          emailLower === 'admin@freeinterpreters.com' ||
-          emailLower.includes('admin')
-        ) {
-          role = 'admin';
-        }
+        // Role is explicit-only on admin sync. Do not promote by email pattern.
 
         // Auto-link to matching physical interpreter by email
         const interpreter = await prisma.interpreter.findUnique({
