@@ -239,7 +239,7 @@ export async function syncAllSupabaseUsers() {
             id: sUser.id,
             email: sUser.email,
             displayName: sUser.user_metadata?.display_name || sUser.email.split('@')[0],
-            role: role,
+            role: 'interpreter',
             interpreterId: interpreter ? interpreter.id : null,
             onboardingComplete: true
           }
