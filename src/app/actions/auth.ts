@@ -277,7 +277,9 @@ export async function register(formData: FormData) {
   const email = ((formData.get('email') as string) || '').toLowerCase().trim();
   const password = (formData.get('password') as string) || '';
   const name = (formData.get('name') as string) || email.split('@')[0];
-  const role = ((formData.get('role') as string) || 'interpreter').toLowerCase() as UserRole;
+  // Role is never taken from client input. Registrations always register
+  // interpreters; admin assignment is an explicit privileged operation.
+  const role: UserRole = 'interpreter';
 
   try {
     const validated = AuthSchema.parse({ email, password, role });
@@ -451,22 +453,10 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
 
     if (!profile) return null;
 
-    // Self-healing: correct admin role if email matches admin patterns
-    if (profile.email && profile.role !== 'admin') {
-      const emailLower = profile.email.toLowerCase();
-      const isAdminEmail = emailLower === 'interpretersfree@gmail.com' ||
-        emailLower === 'melvinramonduranmesa@gmail.com' ||
-        emailLower === 'admin@freeinterpreters.com' ||
-        emailLower.includes('admin');
-      if (isAdminEmail) {
-        await prisma.userProfile.update({
-          where: { id: profile.id },
-          data: { role: 'admin', interpreterId: null },
-        });
-        profile = { ...profile, role: 'admin', interpreterId: null };
-        console.log(`🔧 [AUTH] Role self-healed to admin in getCurrentProfile for ${profile.id}`);
-      }
-    }
+           // Admin promotion removed from runtime flow. Admin status is now
+           // explicit-only; granting admin requires a direct DB operation by an
+           // authorized operator. This prevents email-pattern guessing from
+           // escalating arbitrary accounts to admin (CVE-like auth bypass).
 
     // Self-healing: link interpreter when profile exists but interpreterId is null (skip for admins)
     if (!profile.interpreterId && profile.email && profile.role !== 'admin') {
