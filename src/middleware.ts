@@ -74,9 +74,21 @@ export async function middleware(req: NextRequest) {
   const origin = req.headers.get('origin');
 
   // ── 0. HEALTH CHECK — INSTANT EXIT ────────────────────────
-  // Zero I/O, zero DB, zero auth. Keeps Easypanel happy.
+  // Zero I/O, zero imports, zero auth.
+  // This MUST be the absolute first check before ANY import or env read
+  // to avoid cascading failure when the container cold-starts.
   if (pathname === '/api/health') {
-    return NextResponse.next();
+    return new NextResponse(
+      JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString(), service: 'free-interpreters-os' }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    );
   }
 
   // ── 1. CORS PREFLIGHT ─────────────────────────────────────

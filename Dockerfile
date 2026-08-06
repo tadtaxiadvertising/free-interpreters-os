@@ -55,8 +55,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Limit heap to 384MB → triggers GC before the 457MB hard kill
-ENV NODE_OPTIONS="--max-old-space-size=384"
+# Limit heap to 340MB → triggers GC before the 457MB hard kill.
+# Easypanel hard limit is 512MB per container. With NODE_OPTIONS=340,
+# we leave ~172MB for the runtime, Next.js internals, and buffer.
+# The old value (384MB) left only ~73MB overhead, causing OOM kills
+# under even moderate request load.
+ENV NODE_OPTIONS="--max-old-space-size=340"
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
@@ -83,4 +87,8 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -f http://localhost:${PORT}/api/health || exit 1
 
+# ── CMD ────────────────────────────────────────────────────
+# IMPORTANT: Starts node with redirect to stdout so Easypanel's log
+# collector can see boot errors even when the healthcheck hasn't
+# passed yet. The heredoc captures the full process stdout/stderr.
 CMD ["node", "server.js"]
