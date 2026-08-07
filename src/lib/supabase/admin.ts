@@ -72,41 +72,44 @@ const SERVICE_ROLE_KEY_REAL = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJz
 
 let _serviceKeyWarningLogged = false;
 
+/**
+ * Resolves the Supabase service-role / secret key.
+ *
+ * Priority:
+ *   1. `SUPABASE_SERVICE_ROLE_KEY` env (legacy JWT `eyJ…` OR new-format `sb_secret_…`).
+ *   2. `SUPABASE_SERVICE_KEY` env (same accepted formats).
+ *   3. Hardcoded legacy fallback — SECURITY DEBT: keep only until a real secret is
+ *      configured in the runtime environment (Easypanel). The embedded key grants
+ *      full access and MUST be rotated out of source as soon as a valid env secret
+ *      is in place.
+ */
 export function getSupabaseServiceRoleKey() {
   const value1 = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (value1 && !value1.startsWith('sb_secret_')) return value1;
-
   const value2 = process.env.SUPABASE_SERVICE_KEY?.trim();
-  if (value2 && !value2.startsWith('sb_secret_')) return value2;
+  const envKey = value1 || value2;
 
-  // Hardcoded fallback: real service_role key
-  // Only used when env var is missing or is an EasyPanel placeholder (sb_secret_)
-  if (!value1 || value1.startsWith('sb_secret_')) {
-    if (!_serviceKeyWarningLogged) {
-      _serviceKeyWarningLogged = true;
-      console.warn(
-        '⚠️ [SUPABASE_ADMIN] Using hardcoded service_role key fallback. ' +
-        'Set SUPABASE_SERVICE_ROLE_KEY in EasyPanel env vars.'
-      );
-    }
-    return SERVICE_ROLE_KEY_REAL;
-  }
+  // Accept any non-empty value: legacy JWTs (`eyJ…`) and the modern
+  // `sb_secret_…` format are both valid Supabase secret keys.
+  if (envKey) return envKey;
 
   // Also check globalThis just in case it's in a weird context
   if (typeof globalThis !== 'undefined' && (globalThis as any).process?.env?.SUPABASE_SERVICE_ROLE_KEY) {
-     return (globalThis as any).process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
+     const globalKey = ((globalThis as any).process.env.SUPABASE_SERVICE_ROLE_KEY as string).trim();
+     if (globalKey) return globalKey;
   }
 
-  // Log once per process so we can diagnose auth failures in Easypanel
+  // Hardcoded fallback: real service_role key (legacy JWT).
+  // Only reached when no env var is set.
   if (!_serviceKeyWarningLogged) {
     _serviceKeyWarningLogged = true;
     console.warn(
       '⚠️ [SUPABASE_ADMIN] SUPABASE_SERVICE_ROLE_KEY is not set. ' +
-      'Admin operations will be unavailable.'
+      'Falling back to the embedded legacy key. ' +
+      'Set SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY) in EasyPanel env vars ' +
+      'and rotate the embedded key to avoid leaving a service-role secret in source.'
     );
   }
-
-  return '';
+  return SERVICE_ROLE_KEY_REAL;
 }
 
 // ---------------------------------------------------------------------------
