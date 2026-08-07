@@ -28,6 +28,10 @@ import { getToken } from 'next-auth/jwt';
  * ============================================================
  */
 
+// ANON KEY FIX: La key real de Supabase (NO el placeholder sb_publishable_)
+// Obtenida desde Supabase Dashboard → Project Settings → API
+const SUPABASE_ANON_KEY_REAL = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6Ymt5Z3BwcGxrbnlucndtdG1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMTQ4OTYsImV4cCI6MjA5Mjg5MDg5Nn0.1KafepcZR8r-_TAYNEmA0cxO6gviIeL-2ydi4LSsleo";
+
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://freeinterpreters.com";
 
 const AUTH_SESSION_COOKIE_NAMES = [

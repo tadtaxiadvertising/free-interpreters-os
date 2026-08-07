@@ -81,8 +81,11 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
   // Fallback to non-public variants (common in Easypanel runtime).
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
     || process.env.SUPABASE_URL?.trim();
+  // ANON KEY FIX: real key from Supabase Dashboard
+  // Falls back to env var, then hardcoded real key
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
-    || process.env.SUPABASE_ANON_KEY?.trim();
+    || process.env.SUPABASE_ANON_KEY?.trim()
+    || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6Ymt5Z3BwcGxrbnlucndtdG1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMTQ4OTYsImV4cCI6MjA5Mjg5MDg5Nn0.1KafepcZR8r-_TAYNEmA0cxO6gviIeL-2ydi4LSsleo";
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error(

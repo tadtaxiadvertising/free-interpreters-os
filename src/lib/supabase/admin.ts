@@ -66,14 +66,31 @@ export function isAdminUnavailableError(error: unknown): error is SupabaseAdminU
 // Service-role key resolution (tolerant — logs once, returns empty string)
 // ---------------------------------------------------------------------------
 
+// SERVICE_ROLE KEY FIX: real key from Supabase Dashboard
+// Falls back to env var, then hardcoded real key
+const SERVICE_ROLE_KEY_REAL = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6Ymt5Z3BwcGxrbnlucndtdG1mIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzMxNDg5NiwiZXhwIjoyMDkyODkwODk2fQ.uT9CWgUxbexehLt-0T7zv2wm4TYMzEXerQKgLfJdAL8";
+
 let _serviceKeyWarningLogged = false;
 
 export function getSupabaseServiceRoleKey() {
   const value1 = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (value1) return value1;
+  if (value1 && !value1.startsWith('sb_secret_')) return value1;
 
   const value2 = process.env.SUPABASE_SERVICE_KEY?.trim();
-  if (value2) return value2;
+  if (value2 && !value2.startsWith('sb_secret_')) return value2;
+
+  // Hardcoded fallback: real service_role key
+  // Only used when env var is missing or is an EasyPanel placeholder (sb_secret_)
+  if (!value1 || value1.startsWith('sb_secret_')) {
+    if (!_serviceKeyWarningLogged) {
+      _serviceKeyWarningLogged = true;
+      console.warn(
+        '⚠️ [SUPABASE_ADMIN] Using hardcoded service_role key fallback. ' +
+        'Set SUPABASE_SERVICE_ROLE_KEY in EasyPanel env vars.'
+      );
+    }
+    return SERVICE_ROLE_KEY_REAL;
+  }
 
   // Also check globalThis just in case it's in a weird context
   if (typeof globalThis !== 'undefined' && (globalThis as any).process?.env?.SUPABASE_SERVICE_ROLE_KEY) {
