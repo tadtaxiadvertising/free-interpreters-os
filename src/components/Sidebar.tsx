@@ -18,7 +18,8 @@ import {
   Clock,
   MessageSquare,
   Briefcase,
-  Key
+  Key,
+  Mic2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/types';
@@ -40,6 +41,7 @@ export const adminMenu: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Command Center', href: '/admin', exact: true },
   { icon: Users, label: 'Interpreter Roster', href: '/interpreters' },
   { icon: UserPlus, label: 'Recruitment', href: '/recruitment' },
+  { icon: Mic2, label: 'Roleplays', href: '/admin/roleplays' },
   { icon: Clock, label: 'Production Logs', href: '/production' },
   { icon: Clock, label: 'Calendario de Metas', href: '/admin/calendar' },
   { icon: ShieldCheck, label: 'Quality Assurance', href: '/qa' },
@@ -51,6 +53,7 @@ export const adminMenu: MenuItem[] = [
 
 export const interpreterMenu: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Mi Dashboard', href: '/dashboard', exact: true },
+  { icon: Mic2, label: 'Mis Roleplays', href: '/dashboard/roleplays' },
   { icon: Clock, label: 'Calendario de Metas', href: '/dashboard/calendar' },
   { icon: Trophy, label: 'Mi Ranking', href: '/dashboard/ranking' },
   { icon: DollarSign, label: 'Mis Ganancias', href: '/dashboard/earnings' },

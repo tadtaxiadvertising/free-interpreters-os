@@ -164,7 +164,7 @@ export default async function RecruitmentPage() {
                   </span>
                 </td>
                 <td className="py-6 px-4">
-                  {candidate.resultRoleplay ? (
+                  {candidate.resultRoleplay !== null && candidate.resultRoleplay !== undefined ? (
                     <div className="flex items-center gap-2">
                       <div className="w-12 bg-white/5 h-1.5 rounded-full overflow-hidden">
                         <div 

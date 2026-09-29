@@ -17,9 +17,6 @@ const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://freeinterpreters
 const nextConfig: NextConfig = {
   output: 'standalone',
 
-  // React Compiler para optimización automática de renders
-  experimental: { reactCompiler: true },
-
   // Prisma debe ser external para evitar bundling en el serverless edge
   serverExternalPackages: ['@prisma/client', '@prisma/adapter-pg', 'prisma', 'pg', 'bcryptjs'],
 
@@ -82,6 +79,7 @@ const nextConfig: NextConfig = {
               "img-src 'self' data: blob:",
               "font-src 'self'",
               "connect-src 'self' https://kzbkygppplknynrwmtmf.supabase.co wss://kzbkygppplknynrwmtmf.supabase.co https://freeinterpreters.com https://app.freeinterpreters.com",
+              "media-src 'self' https://kzbkygppplknynrwmtmf.supabase.co blob:",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self' https://app.freeinterpreters.com https://freeinterpreters.com",
