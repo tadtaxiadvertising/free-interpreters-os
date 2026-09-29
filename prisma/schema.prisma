@@ -51,6 +51,7 @@ model Interpreter {
   payrollRecords     PayrollRecord[]
   productionLogs     ProductionLog[]
   qaScores           QAScore[]
+  roleplaySessions   RoleplaySession[]
   userProfile        UserProfile?
   statusLogs         InterpreterStatusLog[]
   roleplaySessions   RoleplaySession[]
@@ -222,6 +223,39 @@ model RecruitmentCandidate {
   @@index([fechaPostulacion], map: "idx_recruitment_candidates_fecha_postulacion")
   @@index([status], map: "idx_recruitment_candidates_status")
   @@map("recruitment_candidates")
+  @@schema("public")
+}
+
+enum RoleplayStatus {
+  PENDING
+  EVALUATED
+
+  @@schema("public")
+}
+
+/// Audio binaries belong in Supabase Storage. This table stores only their
+/// immutable storage object keys and the relational metadata needed for QA workflows.
+model RoleplaySession {
+  id                   String         @id @default(dbgenerated("(gen_random_uuid())::text"))
+  interpreterId        Int?           @map("interpreter_id")
+  recruitmentCandidateId Int?         @map("recruitment_candidate_id")
+  baseAudioUrl         String         @map("base_audio_url")
+  recordedAudioUrl     String?        @map("recorded_audio_url")
+  status               RoleplayStatus @default(PENDING)
+  evaluatorId          String?        @map("evaluator_id") @db.Uuid
+  qaScoreId            Int?           @unique @map("qa_score_id")
+  submittedAt          DateTime?      @map("submitted_at") @db.Timestamptz(6)
+  evaluatedAt          DateTime?      @map("evaluated_at") @db.Timestamptz(6)
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  interpreter          Interpreter?   @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+  recruitmentCandidate RecruitmentCandidate? @relation(fields: [recruitmentCandidateId], references: [id], onDelete: Cascade)
+  qaScore              QAScore?       @relation(fields: [qaScoreId], references: [id], onDelete: SetNull)
+
+  @@index([interpreterId, status], map: "idx_roleplay_sessions_interpreter_status")
+  @@index([recruitmentCandidateId, status], map: "idx_roleplay_sessions_candidate_status")
+  @@index([status, createdAt(sort: Desc)], map: "idx_roleplay_sessions_status_created")
+  @@map("roleplay_sessions")
   @@schema("public")
 }
 
