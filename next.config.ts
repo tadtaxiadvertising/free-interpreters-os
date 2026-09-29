@@ -80,6 +80,7 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
+              "media-src 'self' blob: https://kzbkygppplknynrwmtmf.supabase.co",
               "font-src 'self'",
               "connect-src 'self' https://kzbkygppplknynrwmtmf.supabase.co wss://kzbkygppplknynrwmtmf.supabase.co https://freeinterpreters.com https://app.freeinterpreters.com",
               "frame-ancestors 'none'",

@@ -1,0 +1,6 @@
+import { redirect } from 'next/navigation';
+import { getCurrentUser } from '@/lib/auth/actions';
+import prisma from '@/lib/prisma';
+import { CreateRoleplayForm } from '@/components/roleplays/CreateRoleplayForm';
+export const dynamic = 'force-dynamic';
+export default async function NewRoleplayPage({ searchParams }: { searchParams: Promise<{ candidateId?: string }> }) { const user = await getCurrentUser(); if (!user) redirect('/login'); if (user.profile?.role !== 'admin') redirect('/dashboard'); const [{ candidateId }, interpreters, candidates] = await Promise.all([searchParams, prisma.interpreter.findMany({ select: { id: true, name: true, emailCorporativo: true }, orderBy: { name: 'asc' } }), prisma.recruitmentCandidate.findMany({ select: { id: true, name: true, email: true }, orderBy: { name: 'asc' } })]); return <main className="space-y-6 p-8"><header><p className="text-sm font-bold uppercase tracking-widest text-blue-300">Administración</p><h1 className="mt-2 text-3xl font-bold text-white">Crear roleplay</h1></header><CreateRoleplayForm interpreters={interpreters.map((item) => ({ id: item.id, name: item.name, email: item.emailCorporativo }))} candidates={candidates} initialCandidateId={candidateId ? Number(candidateId) : undefined} /></main>; }

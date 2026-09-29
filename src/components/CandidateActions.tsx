@@ -9,6 +9,7 @@ import {
   Loader2,
   AlertTriangle,
   Mail
+  ,Mic
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -88,6 +89,7 @@ export function CandidateActions({ candidate }: CandidateActionsProps) {
               <Edit size={16} />
               Edit Application
             </button>
+            <button className="w-full px-4 py-2 text-left text-sm text-blue-300 hover:bg-blue-500/10 flex items-center gap-3" onClick={() => router.push(`/admin/roleplays/new?candidateId=${candidate.id}`)}><Mic size={16} />Crear Roleplay</button>
             <button 
               className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-white/5 flex items-center gap-3 transition-colors"
               onClick={() => setIsOpen(false)}

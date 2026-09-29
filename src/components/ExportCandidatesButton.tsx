@@ -47,7 +47,7 @@ export function ExportCandidatesButton({ data }: ExportCandidatesButtonProps) {
       candidate.englishLevel || 'N/A',
       candidate.speedtestMbps ? `${candidate.speedtestMbps} Mbps` : 'N/A',
       candidate.status,
-      candidate.resultRoleplay ? `${candidate.resultRoleplay}%` : 'N/A',
+      candidate.resultRoleplay !== null && candidate.resultRoleplay !== undefined ? `${candidate.resultRoleplay}%` : 'N/A',
       new Date(candidate.fechaPostulacion).toLocaleDateString()
     ].join(','));
 

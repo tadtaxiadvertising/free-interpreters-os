@@ -51,6 +51,7 @@ model Interpreter {
   payrollRecords     PayrollRecord[]
   productionLogs     ProductionLog[]
   qaScores           QAScore[]
+  roleplaySessions   RoleplaySession[]
   userProfile        UserProfile?
   statusLogs         InterpreterStatusLog[]
 
@@ -158,6 +159,7 @@ model QAScore {
   createdAt           DateTime?      @default(now()) @map("created_at") @db.Timestamptz(6)
   interpreter         Interpreter?   @relation(fields: [interpreterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   productionLog       ProductionLog? @relation(fields: [productionLogId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  roleplaySession     RoleplaySession?
 
   @@index([auditDate], map: "idx_qa_scores_audit_date")
   @@index([interpreterId], map: "idx_qa_scores_interpreter_id")
@@ -215,10 +217,61 @@ model RecruitmentCandidate {
   notas            String?
   createdAt        DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  roleplaySessions RoleplaySession[]
 
   @@index([fechaPostulacion], map: "idx_recruitment_candidates_fecha_postulacion")
   @@index([status], map: "idx_recruitment_candidates_status")
   @@map("recruitment_candidates")
+  @@schema("public")
+}
+
+enum RoleplayStatus {
+  PENDING
+  EVALUATED
+
+  @@schema("public")
+}
+
+/// Audio binaries belong in Supabase Storage. This table stores only their
+/// immutable storage object keys and the relational metadata needed for QA workflows.
+model RoleplaySession {
+  id                   String         @id @default(dbgenerated("(gen_random_uuid())::text"))
+  interpreterId        Int?           @map("interpreter_id")
+  recruitmentCandidateId Int?         @map("recruitment_candidate_id")
+  baseAudioUrl         String         @map("base_audio_url")
+  recordedAudioUrl     String?        @map("recorded_audio_url")
+  status               RoleplayStatus @default(PENDING)
+  evaluatorId          String?        @map("evaluator_id") @db.Uuid
+  qaScoreId            Int?           @unique @map("qa_score_id")
+  submittedAt          DateTime?      @map("submitted_at") @db.Timestamptz(6)
+  evaluatedAt          DateTime?      @map("evaluated_at") @db.Timestamptz(6)
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  interpreter          Interpreter?   @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+  recruitmentCandidate RecruitmentCandidate? @relation(fields: [recruitmentCandidateId], references: [id], onDelete: Cascade)
+  qaScore              QAScore?       @relation(fields: [qaScoreId], references: [id], onDelete: SetNull)
+  accessGrants         RoleplayAccess[]
+
+  @@index([interpreterId, status], map: "idx_roleplay_sessions_interpreter_status")
+  @@index([recruitmentCandidateId, status], map: "idx_roleplay_sessions_candidate_status")
+  @@index([status, createdAt(sort: Desc)], map: "idx_roleplay_sessions_status_created")
+  @@index([status, submittedAt(sort: Desc)], map: "idx_roleplay_sessions_status_submitted")
+  @@map("roleplay_sessions")
+  @@schema("public")
+}
+
+model RoleplayAccess {
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  sessionId String   @map("session_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  session   RoleplaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("roleplay_access")
   @@schema("public")
 }
 
