@@ -342,9 +342,21 @@ const EvaluateRoleplaySchema = z.object({
 
 export type EvaluateRoleplayInput = z.infer<typeof EvaluateRoleplaySchema>;
 
-export async function evaluateRoleplay(rawInput: EvaluateRoleplayInput) {
+export async function evaluateRoleplay(_prevState: any, formData: FormData) {
   const auth = await validateAction('admin');
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
+
+  // Parse form data
+  const rawInput = {
+    sessionId: formData.get('sessionId') as string,
+    protocolScore: parseInt(formData.get('protocolScore') as string) || 0,
+    interpretationScore: parseInt(formData.get('interpretationScore') as string) || 0,
+    languageScore: parseInt(formData.get('languageScore') as string) || 0,
+    serviceScore: parseInt(formData.get('serviceScore') as string) || 0,
+    technicalScore: parseInt(formData.get('technicalScore') as string) || 0,
+    criticalError: formData.get('criticalError') === 'on',
+    comments: formData.get('comments') as string || '',
+  };
 
   const parseResult = EvaluateRoleplaySchema.safeParse(rawInput);
   if (!parseResult.success) return { success: false, error: 'Invalid input', code: 'VALIDATION_ERROR' };
