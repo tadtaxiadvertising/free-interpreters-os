@@ -122,8 +122,7 @@ export async function confirmBaseAudioUpload(sessionId: string, uploadPath: stri
 
 const SubmitResponseSchema = z.object({
   sessionId: z.string().min(1),
-  mimeType: z.string(),
-  size: z.number().int().positive().max(15 * 1024 * 1024),
+  scenarioId: z.string().min(1).optional(),
 });
 
 export type SubmitResponseInput = z.infer<typeof SubmitResponseSchema>;
@@ -136,15 +135,17 @@ export async function submitRoleplayResponse(rawInput: SubmitResponseInput) {
   if (!parseResult.success) return { success: false, error: 'Invalid input', code: 'VALIDATION_ERROR' };
   const input = parseResult.data;
 
-  const validation = validateAudioFile(new File([], 'test', { type: input.mimeType }));
-  if (!validation.valid || !validation.extension) {
-    return { success: false, error: validation.error, code: 'VALIDATION_ERROR' };
-  }
-
   try {
     const session = await db.roleplaySession.findUnique({
       where: { id: input.sessionId },
-      select: { id: true, recordedAudioUrl: true, interpreterId: true, recruitmentCandidateId: true, status: true },
+      select: { 
+        id: true, 
+        recordedAudioUrl: true, 
+        interpreterId: true, 
+        recruitmentCandidateId: true, 
+        status: true,
+        currentScenarioIndex: true,
+      },
     });
 
     if (!session) {
@@ -163,15 +164,16 @@ export async function submitRoleplayResponse(rawInput: SubmitResponseInput) {
       return { success: false, error: 'Unauthorized', code: 'FORBIDDEN' };
     }
 
-    const responsePath = getResponseAudioPath(session.id, validation.extension!);
-    const uploadResult = await createSignedUploadUrl(session.id, input.mimeType, false);
+    // Client will upload directly to /api/roleplay/convert-audio
+    // We just return success and the session info for the client to call the API
+    const scenarioId = input.scenarioId || `scenario_${session.currentScenarioIndex}`;
 
     return { 
       success: true, 
       data: { 
-        uploadUrl: uploadResult.uploadUrl,
-        uploadPath: uploadResult.path,
-        responsePath,
+        sessionId: session.id,
+        scenarioId,
+        convertApiUrl: '/api/roleplay/convert-audio',
       } 
     };
   } catch (error: unknown) {
@@ -183,8 +185,8 @@ export async function submitRoleplayResponse(rawInput: SubmitResponseInput) {
 
 const ConfirmResponseSchema = z.object({
   sessionId: z.string().min(1),
-  uploadPath: z.string().min(1),
-  responsePath: z.string().min(1),
+  scenarioId: z.string().min(1).optional(),
+  recordedAudioUrl: z.string().min(1),
 });
 
 export type ConfirmResponseInput = z.infer<typeof ConfirmResponseSchema>;
@@ -201,7 +203,14 @@ export async function confirmRoleplayResponse(rawInput: ConfirmResponseInput) {
     const result = await db.$transaction(async (tx) => {
       const session = await tx.roleplaySession.findUnique({
         where: { id: input.sessionId },
-        select: { id: true, recordedAudioUrl: true, interpreterId: true, recruitmentCandidateId: true, status: true },
+        select: { 
+          id: true, 
+          recordedAudioUrl: true, 
+          interpreterId: true, 
+          recruitmentCandidateId: true, 
+          status: true,
+          currentScenarioIndex: true,
+        },
       });
 
       if (!session || session.status !== 'PENDING' || session.recordedAudioUrl) {
@@ -212,7 +221,7 @@ export async function confirmRoleplayResponse(rawInput: ConfirmResponseInput) {
         throw new Error('Unauthorized');
       }
 
-      const signedUrl = await confirmUpload(input.uploadPath);
+      const scenarioId = input.scenarioId || `scenario_${session.currentScenarioIndex}`;
 
       const updated = await tx.roleplaySession.update({
         where: { 
@@ -220,23 +229,23 @@ export async function confirmRoleplayResponse(rawInput: ConfirmResponseInput) {
           recordedAudioUrl: null,
         },
         data: {
-          recordedAudioUrl: signedUrl,
+          recordedAudioUrl: input.recordedAudioUrl,
           submittedAt: new Date(),
+          currentScenarioIndex: { increment: 1 },
         },
         select: { id: true },
       });
 
       if (!updated) {
-        await deleteAudio(input.uploadPath);
         throw new Error('Concurrent submission detected');
       }
 
-      return signedUrl;
+      return { recordedAudioUrl: input.recordedAudioUrl };
     });
 
     revalidatePath('/dashboard/roleplays');
     revalidatePath('/admin/roleplays');
-    return { success: true, data: { recordedAudioUrl: result } };
+    return { success: true, data: result };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Confirm Response Error:', message);

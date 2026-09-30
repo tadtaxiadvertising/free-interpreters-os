@@ -30,6 +30,7 @@ export default function RoleplayRoomPage() {
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const scenarioIndexRef = useRef(0);
 
   // Fetch session data on mount
   useEffect(() => {
@@ -160,28 +161,32 @@ export default function RoleplayRoomPage() {
     try {
       const submitResult = await submitRoleplayResponse({
         sessionId,
-        mimeType: recordingBlob.type,
-        size: recordingBlob.size,
       });
 
       if (!submitResult.success || !submitResult.data) throw new Error(submitResult.error);
 
-      const { uploadUrl, uploadPath, responsePath } = submitResult.data;
+      const { sessionId: submittedSessionId, scenarioId, convertApiUrl } = submitResult.data;
 
-      // Upload directly to Supabase using signed URL
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': recordingBlob.type },
-        body: recordingBlob,
+      // Upload to conversion API (handles WebM -> MP3 conversion)
+      const formData = new FormData();
+      formData.append('audio', recordingBlob);
+      formData.append('sessionId', submittedSessionId);
+      formData.append('scenarioId', `scenario_${scenarioIndexRef.current}`);
+
+      const convertRes = await fetch(convertApiUrl, {
+        method: 'POST',
+        body: formData,
       });
 
-      if (!uploadRes.ok) throw new Error('Upload failed');
+      const convertResult = await convertRes.json();
 
-      // Confirm upload
+      if (!convertResult.success) throw new Error(convertResult.error || 'Conversion failed');
+
+      // Confirm the MP3 upload
       const confirmResult = await confirmRoleplayResponse({
-        sessionId,
-        uploadPath,
-        responsePath,
+        sessionId: submittedSessionId,
+        scenarioId: `scenario_${scenarioIndexRef.current}`,
+        recordedAudioUrl: convertResult.data.mp3Url,
       });
 
       if (!confirmResult.success) throw new Error(confirmResult.error);

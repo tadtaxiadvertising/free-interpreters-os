@@ -440,6 +440,8 @@ model RoleplaySession {
   submittedAt             DateTime? @map("submitted_at")
   evaluatedAt             DateTime? @map("evaluated_at")
   createdAt               DateTime  @default(now()) @map("created_at")
+  completedAt             DateTime? @map("completed_at")
+  currentScenarioIndex    Int       @default(0) @map("current_scenario_index")
   updatedAt               DateTime  @updatedAt @map("updated_at")
 
   interpreter             Interpreter?         @relation(fields: [interpreterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
