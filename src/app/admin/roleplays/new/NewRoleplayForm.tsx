@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Mic2, Loader2, User, UserPlus, AlertCircle } from 'lucide-react';
+import { 
+  Mic2, Loader2, ArrowLeft, User, UserPlus, AlertCircle, 
+  Plus, Trash2, GripVertical, Clock, FileText, 
+  ChevronUp, ChevronDown
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ScenarioCard } from './ScenarioCard';
 
 interface Participant {
   id: number;
@@ -13,56 +18,116 @@ interface Participant {
   emailCorporativo?: string;
 }
 
+interface Scenario {
+  id: string;
+  title: string;
+  baseAudioFile: File | null;
+  baseAudioPreview: string;
+  durationLimitSec: number;
+  scriptPrompt: string;
+}
+
 interface NewRoleplayFormProps {
   interpreters: Participant[];
   candidates: Participant[];
 }
 
+function generateId() {
+  return Math.random().toString(36).substring(2, 10);
+}
+
 export default function NewRoleplayForm({ interpreters, candidates }: NewRoleplayFormProps) {
   const [participantType, setParticipantType] = useState<'interpreter' | 'candidate'>('interpreter');
   const [selectedParticipantId, setSelectedParticipantId] = useState<string>('');
-  const [baseAudioFile, setBaseAudioFile] = useState<File | null>(null);
-  const [baseAudioPreview, setBaseAudioPreview] = useState<string>('');
+  const [scenarios, setScenarios] = useState<Scenario[]>([
+    { id: generateId(), title: '', baseAudioFile: null, baseAudioPreview: '', durationLimitSec: 0, scriptPrompt: '' }
+  ]);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ link: string; participantName: string } | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
-  const handleAudioSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 15 * 1024 * 1024) {
-        setError('File must be less than 15 MB');
-        return;
-      }
-      const validTypes = ['audio/webm', 'audio/mp4', 'audio/ogg', 'audio/mpeg'];
-      if (!validTypes.some(t => file.type.startsWith(t))) {
-        setError('Invalid audio format. Use webm, mp4, ogg, or mp3');
-        return;
-      }
-      setBaseAudioFile(file);
-      setBaseAudioPreview(URL.createObjectURL(file));
-      setError(null);
+  const participants = participantType === 'interpreter' ? interpreters : candidates;
+
+  const addScenario = useCallback(() => {
+    setScenarios(prev => [...prev, { 
+      id: generateId(), 
+      title: '', 
+      baseAudioFile: null, 
+      baseAudioPreview: '', 
+      durationLimitSec: 0, 
+      scriptPrompt: '' 
+    }]);
+  }, []);
+
+  const removeScenario = useCallback((id: string) => {
+    setScenarios(prev => prev.filter(s => s.id !== id));
+  }, []);
+
+  const updateScenario = useCallback((id: string, updates: Partial<Scenario>) => {
+    setScenarios(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  }, []);
+
+  const moveScenario = useCallback(function(id: string, direction: 'up' | 'down') {
+    setScenarios(prev => {
+      const index = prev.findIndex(s => s.id === id);
+      if (index === -1) return prev;
+      if (direction === 'up' && index === 0) return prev;
+      if (direction === 'down' && index === prev.length - 1) return prev;
+      
+      const newScenarios = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      [newScenarios[index], newScenarios[targetIndex]] = [newScenarios[targetIndex], newScenarios[index]];
+      return newScenarios;
+    });
+  }, []);
+
+
+  const validateForm = () => {
+    if (!selectedParticipantId) {
+      setError('Please select a participant');
+      return false;
     }
+    if (scenarios.length === 0) {
+      setError('Please add at least one scenario');
+      return false;
+    }
+    for (const scenario of scenarios) {
+      if (!scenario.title.trim()) {
+        setError('All scenarios must have a title');
+        return false;
+      }
+      if (!scenario.baseAudioFile) {
+        setError('All scenarios must have a base audio file');
+        return false;
+      }
+    }
+    return true;
   };
 
   const handleCreate = async () => {
-    if (!baseAudioFile) {
-      setError('Please select a base audio file');
-      return;
-    }
-    if (!selectedParticipantId) {
-      setError('Please select a participant');
-      return;
-    }
+    if (!validateForm()) return;
 
     setIsCreating(true);
     setError(null);
 
     try {
+      // First create the session with the first scenario's base audio
+      const firstScenario = scenarios[0];
+      if (!firstScenario.baseAudioFile) {
+        throw new Error('First scenario must have base audio');
+      }
+
       const formData = new FormData();
-      formData.append('baseAudio', baseAudioFile);
+      formData.append('baseAudio', firstScenario.baseAudioFile);
       formData.append('participantType', participantType);
       formData.append('participantId', selectedParticipantId);
+      formData.append('scenarios', JSON.stringify(scenarios.map(s => ({
+        title: s.title,
+        durationLimitSec: s.durationLimitSec || 0,
+        scriptPrompt: s.scriptPrompt,
+        baseAudioFile: s.baseAudioFile ? 'pending' : undefined // We'll upload separately
+      }))));
 
       const res = await fetch('/api/admin/roleplays', {
         method: 'POST',
@@ -72,6 +137,26 @@ export default function NewRoleplayForm({ interpreters, candidates }: NewRolepla
       const data = await res.json();
 
       if (!data.success) throw new Error(data.error || 'Failed to create roleplay');
+
+      // Upload additional scenario base audios
+      for (let i = 1; i < scenarios.length; i++) {
+        const scenario = scenarios[i];
+        if (scenario.baseAudioFile) {
+          const audioFormData = new FormData();
+          audioFormData.append('baseAudio', scenario.baseAudioFile);
+          audioFormData.append('sessionId', data.data.sessionId);
+          audioFormData.append('scenarioIndex', i.toString());
+          
+          const audioRes = await fetch('/api/admin/roleplays/scenarios/audio', {
+            method: 'POST',
+            body: audioFormData,
+          });
+          
+          if (!audioRes.ok) {
+            console.warn(`Failed to upload audio for scenario ${i}`);
+          }
+        }
+      }
 
       setSuccess({ 
         link: data.data.inviteLink || `${window.location.origin}/roleplays/${data.data.sessionId}`,
@@ -86,7 +171,6 @@ export default function NewRoleplayForm({ interpreters, candidates }: NewRolepla
     }
   };
 
-  const participants = participantType === 'interpreter' ? interpreters : candidates;
 
   if (success) {
     return (
@@ -98,6 +182,7 @@ export default function NewRoleplayForm({ interpreters, candidates }: NewRolepla
         <p className="text-gray-400 mb-6">
           Session created for <span className="font-bold text-white">{success.participantName}</span>
         </p>
+        <p className="text-gray-400 mb-6">{scenarios.length} scenario(s) configured</p>
         <div className="mb-6 p-4 bg-slate-900/50 rounded-xl">
           <input 
             type="text" 
@@ -177,18 +262,73 @@ export default function NewRoleplayForm({ interpreters, candidates }: NewRolepla
       </div>
 
       <div>
-        <h3 className="text-lg font-bold text-white mb-4">Base Audio</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-white">Scenarios</h3>
+          <button
+            onClick={addScenario}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors flex items-center gap-2"
+          >
+            <Plus size={18} />
+            Add Scenario
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {scenarios.map((scenario, index) => (
+            <div key={scenario.id} className="group" onDragStart={() => setDraggingId(scenario.id)} onDragEnd={() => setDraggingId(null)}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-medium text-gray-400">Scenario {index + 1}</span>
+                <span className="text-xs text-gray-500">(drag to reorder)</span>
+              </div>
+              <ScenarioCard
+                scenario={scenario}
+                index={index}
+                onUpdate={updateScenario}
+                onRemove={removeScenario}
+                onMoveUp={() => moveScenario(scenario.id, 'up')}
+                onMoveDown={() => moveScenario(scenario.id, 'down')}
+                isDragging={draggingId === scenario.id}
+              />
+            </div>
+          ))}
+          
+          {scenarios.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              No scenarios added yet. Click "Add Scenario" to start.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-lg font-bold text-white mb-4">Base Audio (Legacy - First Scenario Only)</h3>
         <div className="space-y-4">
           <input
             type="file"
             accept="audio/*"
-            onChange={handleAudioSelect}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                if (file.size > 15 * 1024 * 1024) {
+                  setError('File must be less than 15 MB');
+                  return;
+                }
+                const validTypes = ['audio/webm', 'audio/mp4', 'audio/ogg', 'audio/mpeg'];
+                if (!validTypes.some(t => file.type.startsWith(t))) {
+                  setError('Invalid audio format. Use webm, mp4, ogg, or mp3');
+                  return;
+                }
+                // Update first scenario's audio
+                setScenarios(prev => prev.map((s, i) => i === 0 ? { ...s, baseAudioFile: file, baseAudioPreview: URL.createObjectURL(file) } : s));
+                setError(null);
+              }
+            }}
             className="w-full bg-slate-950 border border-white/10 rounded-xl py-3 px-4 text-white focus:border-blue-500 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-500"
           />
-          {baseAudioPreview && (
+          {scenarios[0]?.baseAudioPreview && (
             <div className="space-y-2">
               <p className="text-sm font-bold text-gray-300">Preview:</p>
-              <audio src={baseAudioPreview} controls className="w-full" />
+              <audio src={scenarios[0].baseAudioPreview} controls className="w-full" />
             </div>
           )}
         </div>
@@ -203,10 +343,10 @@ export default function NewRoleplayForm({ interpreters, candidates }: NewRolepla
 
       <button
         onClick={handleCreate}
-        disabled={isCreating || !baseAudioFile || !selectedParticipantId}
+        disabled={isCreating || !selectedParticipantId || scenarios.length === 0}
         className={cn(
           "w-full py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-3",
-          isCreating || !baseAudioFile || !selectedParticipantId
+          isCreating || !selectedParticipantId || scenarios.length === 0
             ? "bg-slate-800 text-slate-500 cursor-not-allowed"
             : "bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20"
         )}
