@@ -77,6 +77,11 @@ async function repairAuthUserAndRetry(params: {
   //  - email not confirmed → updates with email_confirm: true
   //  - user doesn't exist → returns null (no auto-creation for security)
   try {
+    const oldProfile = await prisma.userProfile.findFirst({
+      where: { email: params.email },
+      select: { id: true, interpreterId: true },
+    });
+
     const repairedUser = await repairAuthUser({
       email: params.email,
       password: params.password,
@@ -98,9 +103,15 @@ async function repairAuthUserAndRetry(params: {
       };
     }
 
+    // If auth user was recreated (new UUID), clean up old profile and sync new one
+    if (oldProfile && oldProfile.id !== retry.data.user.id) {
+      console.log(`🔧 [AUTH_REPAIR] Auth user recreated with new UUID (${oldProfile.id} → ${retry.data.user.id}), cleaning up old profile`);
+      await prisma.userProfile.delete({ where: { id: oldProfile.id } });
+    }
+
     const profile = await prisma.userProfile.findUnique({
       where: { id: retry.data.user.id },
-      select: { role: true },
+      select: { id: true, role: true, interpreterId: true },
     });
 
     if (!profile) {
@@ -109,6 +120,12 @@ async function repairAuthUserAndRetry(params: {
         email: params.email,
         role: resolveUserRoleByEmail(params.email, params.requestedRole),
         displayName: repairedUser.user_metadata?.display_name || params.email.split('@')[0],
+      });
+    } else if (oldProfile?.interpreterId && !profile.interpreterId) {
+      // Preserve interpreter link if it existed on old profile
+      await prisma.userProfile.update({
+        where: { id: profile.id },
+        data: { interpreterId: oldProfile.interpreterId },
       });
     }
 
@@ -208,6 +225,11 @@ export async function login(formData: FormData) {
       // This prevents unauthorized account creation from local-only credentials.
       if (getSupabaseServiceRoleKey()) {
         try {
+          const oldProfile = await prisma.userProfile.findFirst({
+            where: { email },
+            select: { id: true, interpreterId: true },
+          });
+
           const displayName = localUser.name || email.split('@')[0];
           const repairedUser = await repairAuthUser({
             email,
@@ -221,12 +243,19 @@ export async function login(formData: FormData) {
               password: validated.password,
             });
             if (!retry.error && retry.data.user) {
+              // If auth user was recreated (new UUID), clean up old profile
+              if (oldProfile && oldProfile.id !== retry.data.user.id) {
+                console.log(`🔧 [AUTH_LOGIN] Auth user recreated with new UUID (${oldProfile.id} → ${retry.data.user.id}), cleaning up old profile`);
+                await prisma.userProfile.delete({ where: { id: oldProfile.id } });
+              }
+
               await syncUserProfileFromAuth({
                 userId: retry.data.user.id,
                 email,
                 role: resolveUserRoleByEmail(email, localRole),
                 displayName,
               });
+
               const cookieStore = await cookies();
               cookieStore.set('user-role', localRole, { path: '/', httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7 });
               return { success: true, role: localRole };
