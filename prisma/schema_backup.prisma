@@ -1,0 +1,480 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["public"]
+}
+
+
+
+model Interpreter {
+  id                 Int                      @id @default(autoincrement())
+  externalId         String                   @unique @map("external_id")
+  name               String
+  status             String?                  @default("Activo")
+  realtimeStatus     String?                  @default("Offline") @map("realtime_status")
+  statusReason       String?                  @default("initial") @map("status_reason")
+  lastHeartbeat      DateTime?                @map("last_heartbeat") @db.Timestamptz(6)
+  lastActivity       DateTime?                @map("last_activity") @db.Timestamptz(6)
+  lastOnlineAt       DateTime?                @map("last_online_at") @db.Timestamptz(6)
+  lastOfflineAt      DateTime?                @map("last_offline_at") @db.Timestamptz(6)
+  statusChangedAt    DateTime?                @map("status_changed_at") @db.Timestamptz(6)
+  browserTabId       String?                  @map("browser_tab_id")
+  clientIp           String?                  @map("client_ip")
+  campaign           String?
+  languageA          String?                  @default("Español") @map("language_a")
+  languageB          String?                  @default("Inglés") @map("language_b")
+  emailCorporativo   String?                  @unique @map("email_corporativo")
+  telefono           String?
+  pais               String?
+  metodoPago         String?                  @default("Transferencia Bancaria") @map("metodo_pago")
+  cuentaPago         String?                  @map("cuenta_pago")
+  documentosCompleto Boolean?                 @default(false) @map("documentos_completo")
+  notas              String?
+  tariffPerMinute    Decimal                  @map("tariff_per_minute") @db.Decimal(10, 2)
+  createdAt          DateTime?                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime?                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  banco              String?
+  tipoCuenta         String?                  @map("tipo_cuenta")
+  cedulaRnc          String?                  @map("cedula_rnc")
+  monthlyGoal        Int                      @default(2000) @map("monthly_goal")
+  paymentFrequency   String?                  @default("Monthly") @map("payment_frequency")
+  paymentDay         String?                  @default("1") @map("payment_day")
+  shiftStart         String?                  @default("09:00") @map("shift_start")
+  shiftEnd           String?                  @default("17:00") @map("shift_end")
+  callSessions       CallSession[]
+  accountRates       InterpreterAccountRate[]
+  auditLogs          PayrateAuditLog[]
+  payrollRecords     PayrollRecord[]
+  productionLogs     ProductionLog[]
+  qaScores           QAScore[]
+  roleplaySessions   RoleplaySession[]
+  userProfile        UserProfile?
+  statusLogs         InterpreterStatusLog[]
+
+  @@index([createdAt], map: "idx_interpreters_created_at")
+  @@index([pais], map: "idx_interpreters_pais")
+  @@index([status], map: "idx_interpreters_status")
+  @@map("interpreters")
+  @@schema("public")
+}
+
+model InterpreterStatusLog {
+  id              Int      @id @default(autoincrement())
+  interpreterId   Int      @map("interpreter_id")
+  previousStatus  String?  @map("previous_status")
+  newStatus       String   @map("new_status")
+  reason          String   @default("manual")
+  changedBy       String?  @map("changed_by")
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  interpreter     Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+
+  @@index([interpreterId, createdAt(sort: Desc)], map: "idx_status_logs_interpreter_time")
+  @@index([createdAt], map: "idx_status_logs_created_at")
+  @@map("interpreter_status_logs")
+  @@schema("public")
+}
+
+model Account {
+  id               Int                      @id @default(autoincrement())
+  name             String                   @unique
+  description      String?
+  createdAt        DateTime?                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime?                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  interpreterRates InterpreterAccountRate[]
+  productionLogs   ProductionLog[]
+
+  @@map("accounts")
+  @@schema("public")
+}
+
+model InterpreterAccountRate {
+  id            Int          @id @default(autoincrement())
+  interpreterId Int?         @map("interpreter_id")
+  accountId     Int?         @map("account_id")
+  tariffPerHour Decimal      @map("tariff_per_hour") @db.Decimal(10, 2)
+  createdAt     DateTime?    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime?    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  account       Account?     @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  interpreter   Interpreter? @relation(fields: [interpreterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([interpreterId, accountId])
+  @@map("interpreter_account_rates")
+  @@schema("public")
+}
+
+model ProductionLog {
+  id                 Int          @id @default(autoincrement())
+  interpreterId      Int?         @map("interpreter_id")
+  accountId          Int?         @map("account_id")
+  date               DateTime     @db.Date
+  campaign           String?
+  scheduledHours     String?      @map("scheduled_hours")
+  loginTime          DateTime?    @map("login_time") @db.Timestamptz(6)
+  logoutTime         DateTime?    @map("logout_time") @db.Timestamptz(6)
+  connectedHours     Decimal?     @map("connected_hours") @db.Decimal(10, 2)
+  interpretedMinutes Int?         @default(0) @map("interpreted_minutes")
+  callsAttended      Int?         @default(0) @map("calls_attended")
+  adherence          Decimal?     @db.Decimal(5, 2)
+  status             String
+  observaciones      String?
+  createdAt          DateTime?    @default(now()) @map("created_at") @db.Timestamptz(6)
+  verifiedMinutes    Int?         @map("verified_minutes")
+  isSettled          Boolean      @default(false) @map("is_settled")
+  payrollRecordId    String?      @map("payroll_record_id")
+  account            Account?     @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payrollRecord      PayrollRecord? @relation(fields: [payrollRecordId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  interpreter        Interpreter? @relation(fields: [interpreterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  qaScore            QAScore?
+
+  @@index([date], map: "idx_production_logs_date")
+  @@index([interpreterId, date], map: "idx_production_logs_interpreter_date")
+  @@index([status], map: "idx_production_logs_status")
+  @@map("production_logs")
+  @@schema("public")
+}
+
+model QAScore {
+  id                  Int            @id @default(autoincrement())
+  productionLogId     Int?           @unique @map("production_log_id")
+  interpreterId       Int?           @map("interpreter_id")
+  auditDate           DateTime       @map("audit_date") @db.Timestamptz(6)
+  auditor             String?
+  callDuration        Int?           @map("call_duration")
+  callType            String?        @map("call_type")
+  protocolScore       Decimal?       @map("protocol_score") @db.Decimal(5, 2)
+  interpretationScore Decimal?       @map("interpretation_score") @db.Decimal(5, 2)
+  languageScore       Decimal?       @map("language_score") @db.Decimal(5, 2)
+  serviceScore        Decimal?       @map("service_score") @db.Decimal(5, 2)
+  technicalScore      Decimal?       @map("technical_score") @db.Decimal(5, 2)
+  totalScore          Decimal?       @map("total_score") @db.Decimal(5, 2)
+  criticalError       Boolean?       @default(false) @map("critical_error")
+  comentarios         String?
+  accionRequerida     String?        @map("accion_requerida")
+  createdAt           DateTime?      @default(now()) @map("created_at") @db.Timestamptz(6)
+  interpreter         Interpreter?   @relation(fields: [interpreterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  productionLog       ProductionLog? @relation(fields: [productionLogId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  roleplaySession     RoleplaySession?
+
+  @@index([auditDate], map: "idx_qa_scores_audit_date")
+  @@index([interpreterId], map: "idx_qa_scores_interpreter_id")
+  @@map("qa_scores")
+  @@schema("public")
+}
+
+model PayrollRecord {
+  id                   String       @id @default(dbgenerated("(gen_random_uuid())::text"))
+  periodStart          DateTime     @map("period_start") @db.Date
+  periodEnd            DateTime     @map("period_end") @db.Date
+  interpreterId        Int?         @map("interpreter_id")
+  totalMinutes         Int          @map("total_minutes")
+  grossTotal           Decimal      @map("gross_total") @db.Decimal(10, 2)
+  qualityBonus         Decimal?     @default(0) @map("quality_bonus") @db.Decimal(10, 2)
+  penalidades          Decimal?     @default(0) @map("penalidades") @db.Decimal(10, 2)
+  transferDeduction    Decimal?     @default(0) @map("transfer_deduction") @db.Decimal(10, 2)
+  netTotal             Decimal      @map("net_total") @db.Decimal(10, 2)
+  status               String?      @default("Pendiente")
+  paymentDate          DateTime?    @map("payment_date") @db.Timestamptz(6)
+  createdAt            DateTime?    @default(now()) @map("created_at") @db.Timestamptz(6)
+  verifiedMinutes      Int?         @map("verified_minutes")
+  incentivesTotal      Decimal      @default(0) @map("incentives_total") @db.Decimal(10, 2)
+  paidAt               DateTime?    @map("paid_at") @db.Timestamptz(6)
+  transactionReference String?      @map("transaction_reference")
+  reconciliationHash   String?      @unique @map("reconciliation_hash")
+  interpreter          Interpreter? @relation(fields: [interpreterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  productionLogs       ProductionLog[]
+  callSessions         CallSession[]
+
+  @@unique([interpreterId, periodStart, periodEnd], map: "unique_payroll_per_interpreter_period")
+  @@index([interpreterId], map: "idx_payroll_records_interpreter")
+  @@index([periodStart, periodEnd], map: "idx_payroll_records_period")
+  @@index([status], map: "idx_payroll_records_status")
+  @@map("payroll_records")
+  @@schema("public")
+}
+
+model RecruitmentCandidate {
+  id               Int       @id @default(autoincrement())
+  name             String
+  email            String    @unique
+  telefono         String?
+  pais             String?
+  fuente           String?
+  englishLevel     String?   @map("english_level")
+  speedtestMbps    Int?      @map("speedtest_mbps")
+  status           String?   @default("Aplicante")
+  fechaPostulacion DateTime  @default(now()) @map("fecha_postulacion") @db.Timestamptz(6)
+  fechaEntrevista  DateTime? @map("fecha_entrevista") @db.Timestamptz(6)
+  resultRoleplay   Int?      @map("result_roleplay")
+  fechaOferta      DateTime? @map("fecha_oferta") @db.Timestamptz(6)
+  fechaInicio      DateTime? @map("fecha_inicio") @db.Timestamptz(6)
+  responsable      String?
+  notas            String?
+  createdAt        DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  roleplaySessions RoleplaySession[]
+
+  @@index([fechaPostulacion], map: "idx_recruitment_candidates_fecha_postulacion")
+  @@index([status], map: "idx_recruitment_candidates_status")
+  @@map("recruitment_candidates")
+  @@schema("public")
+}
+
+model SystemConfig {
+  id          Int       @id @default(autoincrement())
+  key         String    @unique
+  value       String
+  description String?
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?   @map("updated_by")
+
+  @@map("system_configs")
+  @@schema("public")
+}
+
+model PayrateAuditLog {
+  id            Int          @id @default(autoincrement())
+  interpreterId Int?         @map("interpreter_id")
+  oldRate       Decimal?     @map("old_rate") @db.Decimal(10, 2)
+  newRate       Decimal      @map("new_rate") @db.Decimal(10, 2)
+  changedBy     String       @map("changed_by")
+  changedAt     DateTime?    @default(now()) @map("changed_at") @db.Timestamptz(6)
+  details       String?
+  interpreter   Interpreter? @relation(fields: [interpreterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("payrate_audit_log")
+  @@schema("public")
+}
+
+model Notification {
+  id        String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userId    String?   @map("user_id") @db.Uuid
+  title     String
+  message   String
+  type      String?   @default("info")
+  category  String?   @default("system")
+  isRead    Boolean?  @default(false) @map("is_read")
+  link      String?
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([isRead], map: "idx_notifications_is_read")
+  @@index([userId], map: "idx_notifications_user_id")
+  @@index([category], map: "idx_notifications_category")
+  @@index([createdAt], map: "idx_notifications_created_at")
+  @@map("notifications")
+  @@schema("public")
+}
+
+model Message {
+  id         String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  senderId   String    @map("sender_id") @db.Uuid
+  receiverId String    @map("receiver_id") @db.Uuid
+  content    String
+  isRead     Boolean?  @default(false) @map("is_read")
+  createdAt  DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+  @@map("messages")
+  @@schema("public")
+}
+
+model UserProfile {
+  id                 String       @id @db.Uuid
+  email              String       @unique
+  displayName        String?      @map("display_name")
+  role               String?      @default("interpreter")
+  interpreterId      Int?         @unique @map("interpreter_id")
+  createdAt          DateTime?    @default(now()) @map("created_at") @db.Timestamptz(6)
+  termsAcceptedAt    DateTime?    @map("terms_accepted_at") @db.Timestamptz(6)
+  signatureDate      DateTime?    @map("signature_date") @db.Timestamptz(6)
+  bankName           String?      @map("bank_name")
+  bankAccount        String?      @map("bank_account")
+  bankCedula         String?      @map("bank_cedula")
+  onboardingComplete Boolean      @default(false) @map("onboarding_complete")
+  bankAccountType    String?      @map("bank_account_type")
+  interpreter        Interpreter? @relation(fields: [interpreterId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([onboardingComplete], map: "idx_user_profiles_onboarding", where: raw("(onboarding_complete = false)"))
+  @@map("user_profiles")
+  @@schema("public")
+}
+
+model CallSession {
+  id              Int          @id @default(autoincrement())
+  interpreterId   Int?         @map("interpreter_id")
+  startedAt       DateTime?    @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt         DateTime?    @map("ended_at") @db.Timestamptz(6)
+  durationSeconds Int?         @map("duration_seconds")
+  tariffSnapshot  Decimal      @map("tariff_snapshot") @db.Decimal(10, 2)
+  callCost        Decimal?     @map("call_cost") @db.Decimal(10, 2)
+  notes           String?
+  createdAt       DateTime?    @default(now()) @map("created_at") @db.Timestamptz(6)
+  isSettled       Boolean      @default(false) @map("is_settled")
+  payrollRecordId String?      @map("payroll_record_id")
+  interpreter     Interpreter? @relation(fields: [interpreterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  payrollRecord   PayrollRecord? @relation(fields: [payrollRecordId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([interpreterId], map: "idx_call_sessions_interpreter_id")
+@@index([startedAt], map: "idx_call_sessions_started_at")
+  @@map("call_sessions")
+  @@schema("public")
+}
+
+model RbacUser {
+  id               String         @id @default(cuid())
+  email            String         @unique
+  password         String
+  name             String
+  role             RbacRole       @default(INTERPRETER)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  ownedAccounts    VaultAccount[] @relation("HolderVaultAccounts")
+  assignedAccounts VaultAccount[] @relation("InterpreterAssigned")
+  sentMessages     VaultMessage[] @relation("MessageAuthor")
+  receivedMessages VaultMessage[] @relation("MessageRecipient")
+
+  @@index([role])
+  @@map("rbac_users")
+  @@schema("public")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@map("password_reset_tokens")
+  @@schema("public")
+}
+
+
+
+model VaultAccount {
+  id            String            @id @default(cuid())
+  platformName  String
+  url           String?
+  vpnConfig     String?
+  credentials   String
+  notes         String?
+  holderId      String
+  interpreterId String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  holder        RbacUser          @relation("HolderVaultAccounts", fields: [holderId], references: [id], onDelete: Cascade)
+  interpreter   RbacUser?         @relation("InterpreterAssigned", fields: [interpreterId], references: [id])
+  attachments   VaultAttachment[]
+
+  @@index([holderId])
+  @@index([interpreterId])
+  @@map("vault_accounts")
+  @@schema("public")
+}
+
+model VaultAttachment {
+  id         String       @id @default(cuid())
+  fileName   String
+  fileUrl    String
+  fileSize   Int          @default(0)
+  mimeType   String       @default("application/octet-stream")
+  accountId  String
+  uploadedAt DateTime     @default(now())
+  account    VaultAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("vault_attachments")
+  @@schema("public")
+}
+
+model VaultMessage {
+  id          String             @id @default(cuid())
+  content     String
+  status      VaultMessageStatus @default(PENDING_ADMIN)
+  authorId    String
+  recipientId String?
+  createdAt   DateTime           @default(now())
+  author      RbacUser           @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  recipient   RbacUser?          @relation("MessageRecipient", fields: [recipientId], references: [id])
+
+  @@index([authorId])
+  @@index([recipientId])
+  @@index([status])
+  @@map("vault_messages")
+  @@schema("public")
+}
+
+enum RbacRole {
+  ADMIN
+  HOLDER
+  INTERPRETER
+
+  @@schema("public")
+}
+
+enum VaultMessageStatus {
+  PENDING_ADMIN
+  APPROVED
+  REJECTED
+
+  @@schema("public")
+}
+
+model RoleplaySession {
+  id                      String    @id @default(cuid())
+  interpreterId           Int?      @map("interpreter_id")
+  recruitmentCandidateId  Int?      @map("recruitment_candidate_id")
+  baseAudioUrl            String    @map("base_audio_url")
+  recordedAudioUrl        String?   @map("recorded_audio_url")
+  status                  RoleplayStatus @default(PENDING)
+  evaluatorId             String?   @map("evaluator_id")
+  qaScoreId               Int?      @unique @map("qa_score_id")
+  submittedAt             DateTime? @map("submitted_at")
+  evaluatedAt             DateTime? @map("evaluated_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  interpreter             Interpreter?         @relation(fields: [interpreterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  recruitmentCandidate    RecruitmentCandidate? @relation(fields: [recruitmentCandidateId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  qaScore                 QAScore?             @relation(fields: [qaScoreId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  access                  RoleplayAccess?
+
+  @@index([interpreterId, status], map: "idx_roleplay_interpreter_status")
+  @@index([recruitmentCandidateId, status], map: "idx_roleplay_candidate_status")
+  @@index([status, createdAt], map: "idx_roleplay_status_created")
+  @@index([status, submittedAt], map: "idx_roleplay_status_submitted")
+  @@map("roleplay_sessions")
+  @@schema("public")
+}
+
+model RoleplayAccess {
+  id        String   @id @default(cuid())
+  sessionId String   @map("session_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session   RoleplaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId], map: "roleplay_access_session_id_key")
+  @@index([tokenHash], map: "idx_roleplay_access_token_hash")
+  @@index([expiresAt], map: "idx_roleplay_access_expires")
+  @@map("roleplay_access")
+  @@schema("public")
+}
+
+enum RoleplayStatus {
+  PENDING
+  EVALUATED
+
+  @@schema("public")
+}
