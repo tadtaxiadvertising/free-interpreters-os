@@ -135,6 +135,7 @@ model ProductionLog {
   @@index([date], map: "idx_production_logs_date")
   @@index([interpreterId, date], map: "idx_production_logs_interpreter_date")
   @@index([status], map: "idx_production_logs_status")
+  @@unique([interpreterId, date], map: "unique_manual_log_per_day", where: { status: "Manual" })
   @@map("production_logs")
   @@schema("public")
 }
@@ -322,7 +323,8 @@ model CallSession {
   payrollRecord   PayrollRecord? @relation(fields: [payrollRecordId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([interpreterId], map: "idx_call_sessions_interpreter_id")
-@@index([startedAt], map: "idx_call_sessions_started_at")
+  @@index([startedAt], map: "idx_call_sessions_started_at")
+  @@unique([interpreterId], map: "unique_active_call", where: { endedAt: null })
   @@map("call_sessions")
   @@schema("public")
 }

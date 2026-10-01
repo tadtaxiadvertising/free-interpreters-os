@@ -14,7 +14,6 @@ import { OnboardingGate } from '@/components/OnboardingGate';
 import { getCurrentProfile } from '@/app/actions/auth';
 import prismaClient from '@/lib/prisma';
 import { getDayBounds, getMonthBounds, sumEffectiveLogMinutes } from '@/lib/interpreter-metrics';
-import { resolveUserRoleByEmail } from '@/lib/admin-identity';
 const prisma = prismaClient;
 
 // ── Santo Domingo working-days helper ──
@@ -46,223 +45,60 @@ export default async function InterpreterDashboard() {
   const { userId, user } = await auth();
   if (!userId || !user) redirect('/login');
 
-  let profile = await getCurrentProfile();
-
-  // ── AUTO-REPAIR: If profile is missing but user exists in Auth ──
-  if (!profile) {
-    console.warn(`[DASHBOARD] Profile missing for user ${userId}, attempting auto-repair...`);
-    try {
-      // Determine role for new profile — default is interpreter.
-      // Admin promotion is explicit-only (DB/admin action), never inferred
-      // from email patterns to prevent unauthorized escalation.
-      const role = resolveUserRoleByEmail(user.email, 'interpreter');
-
-      // Use Prisma for auto-repair — broader matching (email or name)
-      const interpreter = await prisma.interpreter.findFirst({
-        where: {
-          OR: [
-            { emailCorporativo: user.email },
-            { name: user.displayName || user.email?.split('@')[0] },
-          ],
-        },
-        select: { id: true }
-      });
-
-      // AUTO-CREATE: If no matching interpreter, create one (only for interpreters)
-      let interpreterId: number | null = role === 'interpreter' ? (interpreter?.id || null) : null;
-      if (!interpreterId && role === 'interpreter') {
-        const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter';
-        try {
-          const newInterp = await prisma.interpreter.create({
-            data: {
-              externalId: `auth-${userId}`,
-              name: displayName,
-              emailCorporativo: user.email || undefined,
-              status: 'Activo',
-              realtimeStatus: 'Offline',
-              tariffPerMinute: 0,
-              monthlyGoal: 2000,
-              languageA: 'Español',
-              languageB: 'Inglés',
-            },
-            select: { id: true },
-          });
-          interpreterId = newInterp.id;
-          console.log(`🔧 [DASHBOARD] Interpreter auto-created for ${userId} → interpreter ${newInterp.id}`);
-        } catch (createErr: any) {
-          if (createErr?.code === 'P2002') {
-            // Find existing instead of creating a duplicate
-            const existing = await prisma.interpreter.findFirst({
-              where: {
-                OR: [
-                  { emailCorporativo: user.email || undefined },
-                  { externalId: `auth-${userId}` },
-                ],
-              },
-              select: { id: true },
-            });
-            if (existing) {
-              interpreterId = existing.id;
-              console.log(`🔧 [DASHBOARD] Interpreter already exists for ${userId} → interpreter ${existing.id}`);
-            } else {
-              const fallbackInterp = await prisma.interpreter.create({
-                data: {
-                  externalId: `auth-${userId}-${Date.now()}`,
-                  name: displayName,
-                  status: 'Activo',
-                  realtimeStatus: 'Offline',
-                  tariffPerMinute: 0,
-                  monthlyGoal: 2000,
-                  languageA: 'Español',
-                  languageB: 'Inglés',
-                },
-                select: { id: true },
-              });
-              interpreterId = fallbackInterp.id;
-              console.log(`🔧 [DASHBOARD] Interpreter auto-created (fallback) for ${userId} → interpreter ${fallbackInterp.id}`);
-            }
-          } else {
-            console.error('[DASHBOARD] Interpreter auto-creation failed:', createErr);
-          }
-        }
-      }
-
-      const newProfile: any = await prisma.userProfile.upsert({
-        where: { id: userId },
-        update: {
-          email: user.email || '',
-          displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
-          role: role,
-          interpreterId: interpreterId,
-        },
-        create: {
-          id: userId,
-          email: user.email || '',
-          displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter',
-          role: role,
-          interpreterId: interpreterId,
-        }
-      });
-
-      if (newProfile) {
-        console.log(`[DASHBOARD] Profile auto-repaired for ${userId}`);
-        profile = {
-          id: newProfile.id,
-          email: newProfile.email,
-          role: newProfile.role as any,
-          interpreter_id: newProfile.interpreterId,
-          display_name: newProfile.displayName || '',
-          terms_accepted_at: newProfile.termsAcceptedAt?.toISOString() || null,
-          signature_date: newProfile.signatureDate?.toISOString() || null,
-          bank_name: newProfile.bankName,
-          bank_account: newProfile.bankAccount,
-          bank_account_type: newProfile.bankAccountType,
-          bank_cedula: newProfile.bankCedula,
-          onboarding_complete: newProfile.onboardingComplete || false,
-          created_at: newProfile.createdAt.toISOString(),
-        };
-      }
-    } catch (err) {
-      console.error('[DASHBOARD] Auto-repair failed via Prisma:', err);
-    }
-
-  }
-
-  // Admin promotion removed from runtime flow. Admin status is explicit-only;
-  // granting admin requires a direct DB operation by an authorized operator.
-
-  // ── AUTO-REPAIR: Link interpreter when profile exists but interpreter_id is null (skip for admins) ──
-  if (profile && !profile.interpreter_id && profile.role !== 'admin') {
-    console.warn(`[DASHBOARD] Profile exists for ${userId} but interpreter_id is null, attempting link repair...`);
-    try {
-      const interpreterMatch = await prisma.interpreter.findFirst({
-        where: {
-          OR: [
-            { emailCorporativo: user.email },
-            { name: user.displayName || user.email?.split('@')[0] },
-          ],
-        },
-        select: { id: true },
-      });
-
-      if (interpreterMatch) {
-        await prisma.userProfile.update({
-          where: { id: userId },
-          data: { interpreterId: interpreterMatch.id },
-        });
-        profile = {
-          ...profile,
-          interpreter_id: interpreterMatch.id,
-        };
-        console.log(`[DASHBOARD] Interpreter link auto-repaired for ${userId} → interpreter ${interpreterMatch.id}`);
-      } else {
-        // AUTO-CREATE: No matching interpreter — create one and link it (admins excluded by outer condition)
-        const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Interpreter';
-        let newInterpreter: { id: number } | null = null;
-        try {
-          newInterpreter = await prisma.interpreter.create({
-            data: {
-              externalId: `auth-${userId}`,
-              name: displayName,
-              emailCorporativo: user.email || undefined,
-              status: 'Activo',
-              realtimeStatus: 'Offline',
-              tariffPerMinute: 0,
-              monthlyGoal: 2000,
-              languageA: 'Español',
-              languageB: 'Inglés',
-            },
-            select: { id: true },
-          });
-        } catch (createErr: any) {
-          if (createErr?.code === 'P2002') {
-            // Find existing instead of creating a duplicate
-            const existing = await prisma.interpreter.findFirst({
-              where: {
-                OR: [
-                  { emailCorporativo: user.email || undefined },
-                  { externalId: `auth-${userId}` },
-                ],
-              },
-              select: { id: true },
-            });
-            if (existing) {
-              newInterpreter = existing;
-            } else {
-              newInterpreter = await prisma.interpreter.create({
-                data: {
-                  externalId: `auth-${userId}-${Date.now()}`,
-                  name: displayName,
-                  status: 'Activo',
-                  realtimeStatus: 'Offline',
-                  tariffPerMinute: 0,
-                  monthlyGoal: 2000,
-                  languageA: 'Español',
-                  languageB: 'Inglés',
-                },
-                select: { id: true },
-              });
-            }
-          } else {
-            throw createErr;
-          }
-        }
-        if (newInterpreter) {
-          await prisma.userProfile.update({
-            where: { id: userId },
-            data: { interpreterId: newInterpreter.id },
-          });
-          profile = { ...profile, interpreter_id: newInterpreter.id };
-          console.log(`🔧 [DASHBOARD] Interpreter auto-created and linked for ${userId} → interpreter ${newInterpreter.id}`);
-        }
-      }
-    } catch (err) {
-      console.error('[DASHBOARD] Interpreter link repair failed:', err);
-    }
-  }
+  const profile = await getCurrentProfile();
 
   if (profile && profile.role === 'admin') {
     redirect('/admin');
+  }
+
+  if (!profile || !profile.interpreter_id) {
+    return (
+      <div className="flex items-center justify-center min-h-[80vh]">
+        <div className="glass p-10 rounded-[2.5rem] text-center max-w-lg border border-white/5 shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-32 bg-orange-500/10 blur-[100px] rounded-full -mr-16 -mt-16" />
+
+          <div className="relative z-10">
+            <div className="w-20 h-20 bg-orange-500/10 rounded-3xl flex items-center justify-center text-orange-400 mx-auto mb-6 border border-orange-500/20">
+              <ShieldCheck size={40} />
+            </div>
+
+            <h2 className="text-3xl font-black text-white mb-4 tracking-tight">Acceso Restringido</h2>
+            <p className="text-slate-300 leading-relaxed mb-8">
+              {!profile
+                ? "No pudimos localizar tu perfil de usuario en el sistema."
+                : "Tu cuenta de usuario no está vinculada a un perfil de intérprete activo."}
+              <br />
+              <span className="text-slate-500 text-sm mt-4 block">
+                Por favor, contacta al administrador para completar tu vinculación de ID corporativo.
+              </span>
+            </p>
+
+            <div className="flex flex-col gap-3">
+              <a
+                href="/dashboard"
+                className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white px-6 py-4 rounded-2xl font-bold transition-all border border-white/5"
+              >
+                <RefreshCw size={18} />
+                Reintentar Conexión
+              </a>
+              <a
+                href="/login"
+                className="flex items-center justify-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium"
+              >
+                <LogIn size={14} />
+                Cerrar Sesión e Identificarse
+              </a>
+            </div>
+
+            <div className="mt-10 pt-8 border-t border-white/5">
+              <p className="text-[10px] text-orange-500 font-black uppercase tracking-[0.2em]">
+                System Diagnostic: {profile ? 'INTERPRETER_LINK_MISSING' : 'PROFILE_MISSING_IN_DB'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const { startOfMonth, endOfMonth } = getMonthBounds();

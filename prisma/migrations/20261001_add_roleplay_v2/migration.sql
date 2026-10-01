@@ -98,3 +98,10 @@ CREATE INDEX IF NOT EXISTS "idx_roleplay_sessions_status_created"
 
 CREATE INDEX IF NOT EXISTS "idx_roleplay_sessions_status_submitted" 
   ON "public"."roleplay_sessions" ("status", "submitted_at");
+
+-- XOR constraint: exactly one of interpreter_id or recruitment_candidate_id must be set
+DO $$ BEGIN
+  ALTER TABLE "public"."roleplay_sessions"
+    ADD CONSTRAINT "roleplay_session_xor_subject" 
+    CHECK (((interpreter_id IS NOT NULL)::int + (recruitment_candidate_id IS NOT NULL)::int) = 1);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

@@ -21,7 +21,7 @@ export async function startCall(): Promise<ActionResult<{ sessionId: number; sta
 
     // 1. Get profile and check active calls in a single lean query
     const profile = await db.userProfile.findUnique({
-      where: { id: auth.user.id },
+      where: { id: auth.user.userId },
       select: { 
         interpreterId: true,
         interpreter: {

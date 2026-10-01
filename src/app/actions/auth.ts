@@ -10,6 +10,7 @@ import { resolveRbacRoleByEmail, resolveUserRoleByEmail } from '@/lib/admin-iden
 import prismaClient from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { getCurrentActor } from '@/lib/auth/current-actor';
 
 const prisma = prismaClient;
 
@@ -433,174 +434,53 @@ export async function register(formData: FormData) {
 
 /**
  * ACTION: Get Current User Profile (Selective)
+ * Uses CurrentActor abstraction — NO auto-provisioning, NO silent repairs.
+ * Returns null if profile doesn't exist (caller must handle).
  */
 export async function getCurrentProfile(): Promise<UserProfile | null> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const actor = await getCurrentActor();
+    if (!actor || !actor.profileId) return null;
 
-    let profile = null;
-    let profileUserId = user?.id;
-
-    if (!profileUserId) {
-      try {
-        const { auth: nextAuth } = await import('@/lib/auth-rbac');
-        const session = await nextAuth();
-        if (session?.user) {
-          const dbProfile = await prisma.userProfile.findFirst({
-            where: {
-              OR: [
-                { id: session.user.id },
-                { email: session.user.email || undefined }
-              ]
-            },
-            select: { id: true }
-          });
-          if (dbProfile) {
-            profileUserId = dbProfile.id;
-          }
-        }
-      } catch (authError) {
-        console.warn('⚠️ [AUTH] NextAuth session fallback failed in getCurrentProfile:', authError);
-      }
-    }
-
-    if (profileUserId) {
-      profile = await prisma.userProfile.findUnique({
-        where: { id: profileUserId },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          interpreterId: true,
-          displayName: true,
-          termsAcceptedAt: true,
-          signatureDate: true,
-          bankName: true,
-          bankAccount: true,
-          bankAccountType: true,
-          bankCedula: true,
-          onboardingComplete: true,
-          createdAt: true,
-          interpreter: {
-            select: {
-              id: true,
-              externalId: true,
-              name: true,
-              status: true,
-              realtimeStatus: true,
-              tariffPerMinute: true,
-              emailCorporativo: true,
-            },
+    let profile = await prisma.userProfile.findUnique({
+      where: { id: actor.profileId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        interpreterId: true,
+        displayName: true,
+        termsAcceptedAt: true,
+        signatureDate: true,
+        bankName: true,
+        bankAccount: true,
+        bankAccountType: true,
+        bankCedula: true,
+        onboardingComplete: true,
+        createdAt: true,
+        interpreter: {
+          select: {
+            id: true,
+            externalId: true,
+            name: true,
+            status: true,
+            realtimeStatus: true,
+            tariffPerMinute: true,
+            emailCorporativo: true,
           },
         },
-      });
-    }
+      },
+    });
 
     if (!profile) return null;
 
-    const resolvedRole = resolveUserRoleByEmail(profile.email, profile.role);
+    let resolvedRole = resolveUserRoleByEmail(profile.email, profile.role);
     if (profile.role !== resolvedRole) {
       await prisma.userProfile.update({
         where: { id: profile.id },
         data: { role: resolvedRole, interpreterId: resolvedRole === 'admin' ? null : undefined },
       });
       profile = { ...profile, role: resolvedRole, interpreterId: resolvedRole === 'admin' ? null : profile.interpreterId, interpreter: resolvedRole === 'admin' ? null : profile.interpreter };
-    }
-
-    // General admin promotion remains removed from runtime flow; only the
-    // protected owner identity above is force-repaired so it cannot be
-    // downgraded by auto-provisioning or sync paths.
-
-    // Self-healing: link interpreter when profile exists but interpreterId is null (skip for admins)
-    if (!profile.interpreterId && profile.email && profile.role !== 'admin') {
-      try {
-        const interpreterMatch = await prisma.interpreter.findFirst({
-          where: {
-            OR: [
-              { emailCorporativo: profile.email },
-              { name: profile.displayName || profile.email?.split('@')[0] },
-            ],
-          },
-          select: { id: true },
-        });
-
-        if (interpreterMatch) {
-          await prisma.userProfile.update({
-            where: { id: profile.id },
-            data: { interpreterId: interpreterMatch.id },
-          });
-          profile = { ...profile, interpreterId: interpreterMatch.id, interpreter: null };
-          console.log(`🔧 [AUTH] Interpreter link auto-repaired in getCurrentProfile for ${profile.id} → interpreter ${interpreterMatch.id}`);
-        } else if (profile.role !== 'admin') {
-          // AUTO-CREATE: No matching interpreter — create one and link it
-          const displayName = profile.displayName || profile.email?.split('@')[0] || 'Interpreter';
-          let newInterpreter: { id: number } | null = null;
-          try {
-            newInterpreter = await prisma.interpreter.create({
-              data: {
-                externalId: `auth-${profile.id}`,
-                name: displayName,
-                emailCorporativo: profile.email,
-                status: 'Activo',
-                realtimeStatus: 'Offline',
-                tariffPerMinute: 0,
-                monthlyGoal: 2000,
-                languageA: 'Español',
-                languageB: 'Inglés',
-              },
-              select: { id: true },
-            });
-          } catch (createErr: any) {
-            if (createErr?.code === 'P2002') {
-              // Unique constraint violation — find the existing interpreter and link
-              const existing = await prisma.interpreter.findFirst({
-                where: {
-                  OR: [
-                    { emailCorporativo: profile.email },
-                    { externalId: `auth-${profile.id}` },
-                  ],
-                },
-                select: { id: true },
-              });
-              if (existing) {
-                newInterpreter = existing;
-              } else {
-                // Edge case: externalId collision with timestamp suffix as last resort
-                newInterpreter = await prisma.interpreter.create({
-                  data: {
-                    externalId: `auth-${profile.id}-${Date.now()}`,
-                    name: displayName,
-                    status: 'Activo',
-                    realtimeStatus: 'Offline',
-                    tariffPerMinute: 0,
-                    monthlyGoal: 2000,
-                    languageA: 'Español',
-                    languageB: 'Inglés',
-                  },
-                  select: { id: true },
-                });
-              }
-            } else {
-              throw createErr;
-            }
-          }
-          if (newInterpreter) {
-            await prisma.userProfile.update({
-              where: { id: profile.id },
-              data: { interpreterId: newInterpreter.id },
-            });
-            profile = { ...profile, interpreterId: newInterpreter.id, interpreter: null };
-            console.log(`🔧 [AUTH] Interpreter auto-created and linked in getCurrentProfile for ${profile.id} → interpreter ${newInterpreter.id}`);
-          }
-        } else {
-          console.warn(`⚠️ [AUTH] Admin user ${profile.id} has no interpreterId — expected, skipping auto-create`);
-        }
-      } catch (linkErr) {
-        console.error('[AUTH] Interpreter link repair in getCurrentProfile failed:', linkErr);
-      }
     }
 
     return {

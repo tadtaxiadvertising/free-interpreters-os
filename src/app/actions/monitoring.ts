@@ -240,7 +240,7 @@ export async function adminOverrideStatus(
           newStatus,
           reason: reason || 'admin_override',
           changedBy: 'admin',
-          metadata: { adminId: auth.profile?.id },
+          metadata: { adminId: auth.user.userId },
         },
       }),
     ]);

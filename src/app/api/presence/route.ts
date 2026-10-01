@@ -7,6 +7,28 @@ import { apiError, parseJsonBody } from '@/lib/api-responses';
 const db = prisma;
 const GRACE_PERIOD_MS = 30_000; // 30 seconds grace before marking offline
 
+// Valid presence states
+const PRESENCE_STATES = ['Online', 'Offline', 'Away', 'Busy'] as const;
+type PresenceState = typeof PRESENCE_STATES[number];
+
+// Valid event types
+const EVENT_TYPES = ['heartbeat', 'online', 'offline', 'status_change'] as const;
+type EventType = typeof EVENT_TYPES[number];
+
+function normalizeEventType(body: any): EventType | null {
+  // Support both `type` (new) and `status` (legacy) for backward compatibility
+  if (EVENT_TYPES.includes(body.type)) return body.type;
+  if (PRESENCE_STATES.includes(body.status)) return 'status_change';
+  return null;
+}
+
+function normalizeState(body: any): PresenceState {
+  if (PRESENCE_STATES.includes(body.status)) return body.status;
+  if (body.type === 'online') return 'Online';
+  if (body.type === 'offline') return 'Offline';
+  return 'Away';
+}
+
 export async function POST(req: Request) {
   try {
     const userData = await getCurrentUser();
@@ -19,13 +41,20 @@ export async function POST(req: Request) {
     const profile = userData.profile;
     const now = new Date();
 
+    const eventType = normalizeEventType(body);
+    const targetState = normalizeState(body);
+
+    if (!eventType) {
+      return NextResponse.json({ success: false, error: 'Invalid presence event type' }, { status: 400 });
+    }
+
     // ── HEARTBEAT ─────────────────────────────────────────────
-    // Just update lastHeartbeat and lastActivity, no status change
-    if (body.type === 'heartbeat') {
+    // Just update lastHeartbeat, no status change
+    if (eventType === 'heartbeat') {
       if (profile?.interpreterId) {
         await db.interpreter.update({
           where: { id: profile.interpreterId },
-          data: { lastHeartbeat: now, lastActivity: now },
+          data: { lastHeartbeat: now },
           select: { id: true },
         });
       }
@@ -33,7 +62,7 @@ export async function POST(req: Request) {
     }
 
     // ── ONLINE ────────────────────────────────────────────────
-    if (body.type === 'online') {
+    if (eventType === 'online' || targetState === 'Online') {
       if (!profile?.interpreterId) {
         return NextResponse.json({ success: true, skipped: true });
       }
@@ -77,7 +106,7 @@ export async function POST(req: Request) {
     }
 
     // ── OFFLINE (tab closed / logout) ────────────────────────
-    if (body.type === 'offline') {
+    if (eventType === 'offline' || targetState === 'Offline') {
       if (!profile?.interpreterId) {
         return NextResponse.json({ success: true, skipped: true });
       }
@@ -123,36 +152,39 @@ export async function POST(req: Request) {
     }
 
     // ── STATUS CHANGE (away, busy, etc.) ─────────────────────
-    if (body.type === 'status_change') {
+    if (eventType === 'status_change' || PRESENCE_STATES.includes(targetState)) {
       if (!profile?.interpreterId) {
         return NextResponse.json({ success: true, skipped: true });
       }
 
-      const { status = 'Away' } = body;
       const interpreter = await db.interpreter.findUnique({
         where: { id: profile.interpreterId },
         select: { realtimeStatus: true },
       });
       const previousStatus = interpreter?.realtimeStatus || 'Offline';
 
-      await db.$transaction([
-        db.interpreter.update({
-          where: { id: profile.interpreterId },
-          data: {
-            realtimeStatus: status,
+      const updateData: Record<string, any> = {
+            realtimeStatus: targetState,
             statusReason: body.reason || 'manual',
             lastActivity: now,
             statusChangedAt: now,
-            ...(status === 'Online' ? { lastOnlineAt: now } : {}),
-            ...(status === 'Offline' ? { lastOfflineAt: now } : {}),
-          },
-          select: { id: true },
-        }),
+          };
+          // Use type assertion to avoid TypeScript narrowing in this branch
+          const state = targetState as PresenceState;
+          if (state === 'Online') updateData.lastOnlineAt = now;
+          if (state === 'Offline') updateData.lastOfflineAt = now;
+
+          await db.$transaction([
+            db.interpreter.update({
+              where: { id: profile.interpreterId },
+              data: updateData,
+              select: { id: true },
+            }),
         db.interpreterStatusLog.create({
           data: {
             interpreterId: profile.interpreterId,
             previousStatus,
-            newStatus: status,
+            newStatus: targetState,
             reason: body.reason || 'manual',
             changedBy: 'interpreter',
             metadata: { tabId: body.tabId || null },
@@ -160,7 +192,7 @@ export async function POST(req: Request) {
         }),
       ]);
 
-      return NextResponse.json({ success: true, status });
+      return NextResponse.json({ success: true, status: targetState });
     }
 
     return NextResponse.json({ success: false, error: 'Unknown presence type' }, { status: 400 });

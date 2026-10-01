@@ -19,26 +19,28 @@ const BankingDetailsSchema = z.object({
 
 /**
  * Accept legal terms — records the signatureDate on the user's profile.
- * GUARD: Rejects if onboarding is already complete.
+ * GUARD: Rejects if onboarding is already complete (canonical state).
  */
 export async function acceptTerms(): Promise<ActionResult> {
   const auth = await validateAction();
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    // ── Guard: block if onboarding already completed ──
-    const isRbacUser = auth.user.id.startsWith('c');
-    if (!isRbacUser) {
+    const actor = auth.user;
+    const isAuthJsUser = actor.provider === 'authjs';
+
+    // ── Guard: block if onboarding already completed (canonical state) ──
+    if (!isAuthJsUser) {
       const profile = await db.userProfile.findUnique({
-        where: { id: auth.user.id },
+        where: { id: actor.userId },
         select: { onboardingComplete: true },
       });
       if (profile?.onboardingComplete) {
         return { success: false, error: 'Onboarding ya fue completado — no puedes modificar los datos', code: 'CONFLICT' };
       }
-    } else if (auth.profile?.interpreterId) {
+    } else if (actor.interpreterId) {
       const interpreter = await db.interpreter.findUnique({
-        where: { id: auth.profile.interpreterId },
+        where: { id: actor.interpreterId },
         select: { documentosCompleto: true },
       });
       if (interpreter?.documentosCompleto) {
@@ -47,12 +49,12 @@ export async function acceptTerms(): Promise<ActionResult> {
     }
 
     const now = new Date();
-    let changedInterpreterId = auth.profile?.interpreterId ?? null;
+    let changedInterpreterId = actor.interpreterId ?? null;
 
-    if (isRbacUser) {
-      if (auth.profile?.interpreterId) {
+    if (isAuthJsUser) {
+      if (actor.interpreterId) {
         const interpreter = await db.interpreter.findUnique({
-          where: { id: auth.profile.interpreterId }
+          where: { id: actor.interpreterId }
         });
         if (interpreter) {
           const currentNotas = interpreter.notas || '';
@@ -70,7 +72,7 @@ export async function acceptTerms(): Promise<ActionResult> {
       }
     } else {
       await db.userProfile.update({
-        where: { id: auth.user.id },
+        where: { id: actor.userId },
         data: {
           termsAcceptedAt: now,
           signatureDate: now,
@@ -89,7 +91,7 @@ export async function acceptTerms(): Promise<ActionResult> {
 
 /**
  * Save RD banking details for the interpreter's payment profile.
- * GUARD: Rejects if onboarding is already complete.
+ * GUARD: Rejects if onboarding is already complete (canonical state).
  */
 export async function saveBankingDetails(data: {
   bankName: string;
@@ -101,19 +103,21 @@ export async function saveBankingDetails(data: {
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    // ── Guard: block if onboarding already completed ──
-    const isRbacUser = auth.user.id.startsWith('c');
-    if (!isRbacUser) {
+    const actor = auth.user;
+    const isAuthJsUser = actor.provider === 'authjs';
+
+    // ── Guard: block if onboarding already completed (canonical state) ──
+    if (!isAuthJsUser) {
       const existingProfile = await db.userProfile.findUnique({
-        where: { id: auth.user.id },
+        where: { id: actor.userId },
         select: { onboardingComplete: true },
       });
       if (existingProfile?.onboardingComplete) {
         return { success: false, error: 'Onboarding ya fue completado — los datos bancarios no pueden ser modificados', code: 'CONFLICT' };
       }
-    } else if (auth.profile?.interpreterId) {
+    } else if (actor.interpreterId) {
       const existingInterpreter = await db.interpreter.findUnique({
-        where: { id: auth.profile.interpreterId },
+        where: { id: actor.interpreterId },
         select: { documentosCompleto: true },
       });
       if (existingInterpreter?.documentosCompleto) {
@@ -122,12 +126,12 @@ export async function saveBankingDetails(data: {
     }
 
     const validated = BankingDetailsSchema.parse(data);
-    let changedInterpreterId = auth.profile?.interpreterId ?? null;
+    let changedInterpreterId = actor.interpreterId ?? null;
 
-    if (isRbacUser) {
-      if (auth.profile?.interpreterId) {
+    if (isAuthJsUser) {
+      if (actor.interpreterId) {
         await db.interpreter.update({
-          where: { id: auth.profile.interpreterId },
+          where: { id: actor.interpreterId },
           data: {
             banco: validated.bankName,
             cuentaPago: validated.bankAccount,
@@ -136,7 +140,7 @@ export async function saveBankingDetails(data: {
           },
           select: { id: true }
         });
-        changedInterpreterId = auth.profile.interpreterId;
+        changedInterpreterId = actor.interpreterId;
       } else {
         return { success: false, error: 'No interpreter profile linked to this RBAC user', code: 'NOT_FOUND' };
       }
@@ -145,7 +149,7 @@ export async function saveBankingDetails(data: {
       await db.$transaction(async (tx) => {
         // 1. Update User Profile
         const profile = await tx.userProfile.update({
-          where: { id: auth.user.id },
+          where: { id: actor.userId },
           data: {
             bankName: validated.bankName,
             bankAccount: validated.bankAccount,
@@ -185,28 +189,30 @@ export async function saveBankingDetails(data: {
 
 /**
  * Mark onboarding as complete — enables full dashboard access.
- * GUARD: Rejects if onboarding was already completed (prevents re-submission).
+ * GUARD: Rejects if onboarding was already completed (canonical state).
+ * Updates BOTH canonical and legacy fields in a single transaction for Supabase users.
  */
 export async function completeOnboarding(): Promise<ActionResult> {
   const auth = await validateAction();
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    const isRbacUser = auth.user.id.startsWith('c');
-    let changedInterpreterId = auth.profile?.interpreterId ?? null;
+    const actor = auth.user;
+    const isAuthJsUser = actor.provider === 'authjs';
+    let changedInterpreterId = actor.interpreterId ?? null;
 
-    // ── Guard: prevent re-submission if already complete ──
-    if (!isRbacUser) {
+    // ── Guard: prevent re-submission if already complete (canonical state) ──
+    if (!isAuthJsUser) {
       const existingProfile = await db.userProfile.findUnique({
-        where: { id: auth.user.id },
+        where: { id: actor.userId },
         select: { onboardingComplete: true },
       });
       if (existingProfile?.onboardingComplete) {
         return { success: false, error: 'Onboarding ya fue completado previamente', code: 'CONFLICT' };
       }
-    } else if (auth.profile?.interpreterId) {
+    } else if (actor.interpreterId) {
       const existingInterpreter = await db.interpreter.findUnique({
-        where: { id: auth.profile.interpreterId },
+        where: { id: actor.interpreterId },
         select: { documentosCompleto: true },
       });
       if (existingInterpreter?.documentosCompleto) {
@@ -214,10 +220,10 @@ export async function completeOnboarding(): Promise<ActionResult> {
       }
     }
 
-    if (isRbacUser) {
-      if (auth.profile?.interpreterId) {
+    if (isAuthJsUser) {
+      if (actor.interpreterId) {
         await db.interpreter.update({
-          where: { id: auth.profile.interpreterId },
+          where: { id: actor.interpreterId },
           data: {
             documentosCompleto: true,
             metodoPago: 'Transferencia Bancaria',
@@ -225,15 +231,16 @@ export async function completeOnboarding(): Promise<ActionResult> {
           },
           select: { id: true }
         });
-        changedInterpreterId = auth.profile.interpreterId;
+        changedInterpreterId = actor.interpreterId;
       } else {
         return { success: false, error: 'No interpreter profile linked to this RBAC user', code: 'NOT_FOUND' };
       }
     } else {
       // ── Execute in Transaction for Supabase User ──────────────────────────
+      // Update BOTH canonical (user_profiles.onboardingComplete) and legacy (interpreters.documentosCompleto)
       await db.$transaction(async (tx) => {
         const profile = await tx.userProfile.update({
-          where: { id: auth.user.id },
+          where: { id: actor.userId },
           data: { onboardingComplete: true },
           select: { interpreterId: true }
         });
@@ -263,6 +270,7 @@ export async function completeOnboarding(): Promise<ActionResult> {
 
 /**
  * Get onboarding status for the current user.
+ * Returns canonical state for Supabase users, legacy state for Auth.js users.
  */
 export async function getOnboardingStatus(): Promise<ActionResult<{
   termsAccepted: boolean;
@@ -273,11 +281,11 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
   if ('error' in auth) return { success: false, error: auth.error, code: auth.code };
 
   try {
-    const isRbacUser = auth.user.id.startsWith('c');
+    const actor = auth.user;
+    const isAuthJsUser = actor.provider === 'authjs';
 
-    if (isRbacUser) {
-      if (!auth.profile?.interpreterId) {
-        // If not linked to an interpreter profile, onboarding is not applicable or incomplete
+    if (isAuthJsUser) {
+      if (!actor.interpreterId) {
         return {
           success: true,
           data: {
@@ -289,7 +297,7 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
       }
 
       const interpreter = await db.interpreter.findUnique({
-        where: { id: auth.profile.interpreterId },
+        where: { id: actor.interpreterId },
         select: {
           documentosCompleto: true,
           banco: true,
@@ -315,7 +323,7 @@ export async function getOnboardingStatus(): Promise<ActionResult<{
       };
     } else {
       const profile = await db.userProfile.findUnique({
-        where: { id: auth.user.id },
+        where: { id: actor.userId },
         select: {
           termsAcceptedAt: true,
           bankName: true,

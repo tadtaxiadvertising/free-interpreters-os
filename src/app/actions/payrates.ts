@@ -45,7 +45,7 @@ export async function updatePayrate(
         interpreterId: interpreterId,
         oldRate: oldRate,
         newRate: newRate,
-        changedBy: auth.user.id,
+        changedBy: auth.user.userId,
       },
       select: { id: true }
     });

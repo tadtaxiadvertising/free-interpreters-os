@@ -35,7 +35,7 @@ export async function updateInterpreterProfile(rawInput: ProfileUpdateInput): Pr
   try {
     // 1. Update UserProfile via Prisma
     const profile = await db.userProfile.update({
-      where: { id: auth.user.id },
+      where: { id: auth.user.userId },
       data: {
         bankName: input.bankName,
         bankAccount: input.bankAccount,

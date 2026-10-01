@@ -1,6 +1,6 @@
 # Project Status — Free Interpreters OS
 
-## 1. Project Current State (v3.0.0)
+## 1. Project Current State (v3.6.0 - Enterprise Stabilized)
 
 ### ✅ Completed Milestones
 
@@ -8,6 +8,16 @@
 - **Unified Middleware**: Integrated Supabase session refresh and Auth.js protection in a single `src/middleware.ts`.
 - **Infrastructure Stabilization**: Resolved Prisma connection pool exhaustion and Auth.js host trust issues in production.
 - **Security Hardening**: Implemented `withSecurity` wrapper with `req.clone()` to prevent "body already consumed" errors.
+- **Enterprise Stabilization (v3.6.0)**: Complete enterprise-grade stabilization per skill spec:
+  - **Auth Consolidation**: Single `CurrentActor` abstraction, removed `startsWith('c')` heuristic, removed auto-provisioning on reads
+  - **Onboarding Unification**: Single canonical state (`user_profiles.onboarding_complete`), transactional writes, backfill migration
+  - **Payment Domain Unification**: `BankFormRD` as single source of truth, masked summary in Settings, "Solicitar cambio" flow
+  - **Ranking Privacy & Performance**: Private API for interpreters (own data only), admin API for full leaderboard, configurable weights via SystemConfig, SQL aggregation
+  - **Presence Consolidation**: Unified contract (`type` vs `status`), state machine (Offline/Online/Away/Busy), separated `lastHeartbeat` vs `lastActivity`, fixed multi-tab
+  - **Production & Payroll Hardening**: Partial unique index on active calls, atomic `endCall`, batch CSV import with `csv-parse`, fingerprint idempotency, unique constraint on manual logs
+  - **Roleplay Audit**: XOR constraint at DB level, consolidated 3 duplicate migrations into 1
+  - **Tests & CI/CD**: Vitest + React Testing Library, 28 passing tests, CI workflow with validation gate
+  - **Documentation Alignment**: Version drift fixed (Next 15.2.6, React 19.0.0, Prisma 7.8.0)
 
 ### 🛠️ In-Progress / Ongoing
 

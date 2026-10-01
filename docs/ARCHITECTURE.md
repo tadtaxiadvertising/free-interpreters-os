@@ -3,8 +3,8 @@
 > **Architecture**: Unified Data Layer (Direct Prisma) + Decoupled REST for Clients
 > **Runtime**: Easypanel (Docker/VPS) — Self-Hosted
 > **Auth**: Supabase Auth (native, with RLS)
-> **Framework**: Next.js 16.2.4 (Monorepo deployment)
-> **Last Updated**: 2026-05-02
+> **Framework**: Next.js 15.2.6 (Monorepo deployment)
+> **Last Updated**: 2026-10-01
 
 ---
 
@@ -12,12 +12,12 @@
 
 | Layer       | Technology                            | Version  | Service           | Rationale                                    |
 | :---------- | :------------------------------------ | :------- | :---------------- | :------------------------------------------- |
-| Framework   | Next.js (App Router)                  | 16.2.4   | Both              | SSR/SSG + API Routes + Server Actions        |
-| Runtime     | React                                 | 19.2.4   | Both              | Concurrent features, Server Components       |
+| Framework   | Next.js (App Router)                  | 15.2.6   | Both              | SSR/SSG + API Routes + Server Actions        |
+| Runtime     | React                                 | 19.0.0   | Both              | Concurrent features, Server Components       |
 | Auth        | Supabase Auth                         | 2.105.1  | Frontend (SSR)    | Native auth, RLS integration, free tier      |
 | Database    | Supabase PostgreSQL                   | —        | Backend only      | Managed Postgres, connection pooling         |
 | ORM         | Prisma + `@prisma/adapter-pg`         | 7.8.0    | Backend only      | Type-safe queries, ESM support, pg adapter   |
-| Validation  | Zod                                   | 4.3.6    | Both              | Runtime + compile-time type safety           |
+| Validation  | Zod                                   | 4.4.3    | Both              | Runtime + compile-time type safety           |
 | Styling     | Tailwind CSS + Lucide Icons           | v4       | Frontend only     | Utility-first, tree-shakeable                |
 | Deployment  | Easypanel (Docker on VPS)             | —        | Both              | Self-hosted, webhook-driven CI/CD            |
 
@@ -73,11 +73,11 @@
 
 > **Memory Constraint**: The Easypanel VPS allocates ~457 MB to the API container. The `pg.Pool` is configured with `max: 20` connections and `connectionTimeoutMillis: 2000` to stay within budget. Always use port **6543** (transaction pooler) for `DATABASE_URL` in production.
 
-## 3. Breaking Changes Log (Next.js 16.2.4)
+## 3. Breaking Changes Log (Next.js 15.2.6)
 
 ### 3.1 Async Dynamic Route Parameters
 
-In Next.js 16+, `params` in dynamic API route handlers are delivered as a **Promise**. All `[id]`-style routes must `await params` before accessing fields.
+In Next.js 15+, `params` in dynamic API route handlers are delivered as a **Promise**. All `[id]`-style routes must `await params` before accessing fields.
 
 ```typescript
 // ✅ Required pattern for all dynamic routes
@@ -93,7 +93,7 @@ export async function GET(
 
 ### 3.2 Middleware → Proxy Transition
 
-As documented in the Next.js 16 specifications and verified by our deployment logs, the `middleware.ts` convention is deprecated.
+As documented in the Next.js 15 specifications and verified by our deployment logs, the `middleware.ts` convention is deprecated.
 
 - **Current State**: `src/middleware.ts` handles **only** Supabase Auth session refreshing.
 - **Future State**: All interceptor logic should move to the **Proxy** layer.

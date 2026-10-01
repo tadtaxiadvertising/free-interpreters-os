@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { RealtimePresenceState, RealtimePresenceJoinPayload, RealtimePresenceLeavePayload } from '@supabase/supabase-js';
+import type { RealtimePresenceState } from '@supabase/supabase-js';
 import type { PresenceState } from '@/contexts/PresenceContext';
 
 interface PresenceTrackPayload {
@@ -19,6 +19,13 @@ interface UsePresenceOptions {
 export function usePresence({ interpreterId, userEmail }: UsePresenceOptions): PresenceState {
   const [state, setState] = useState<PresenceState>('loading');
   const channelRef = useRef<any>(null);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+
+  // Update lastActivity on user interaction
+  const handleActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+  }, []);
 
   useEffect(() => {
     if (!interpreterId) {
@@ -68,12 +75,48 @@ export function usePresence({ interpreterId, userEmail }: UsePresenceOptions): P
         });
         setState('online');
 
+        // Send online event to API (new contract: type)
         fetch('/api/presence', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ status: 'Online' }),
+          body: JSON.stringify({ type: 'online' }),
         }).catch(() => { });
+
+        // Start heartbeat interval (every 15 seconds)
+        heartbeatIntervalRef.current = setInterval(() => {
+          fetch('/api/presence', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ type: 'heartbeat' }),
+          }).catch(() => { });
+        }, 15_000);
+
+        // Track user activity for lastActivity
+        window.addEventListener('mousemove', handleActivity);
+        window.addEventListener('keydown', handleActivity);
+        window.addEventListener('click', handleActivity);
+        window.addEventListener('scroll', handleActivity, { passive: true });
+
+        // Send lastActivity periodically (every 30 seconds)
+        const activityInterval = setInterval(() => {
+          fetch('/api/presence', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ type: 'status_change', status: 'Online' }),
+          }).catch(() => { });
+        }, 30_000);
+
+        return () => {
+          clearInterval(heartbeatIntervalRef.current!);
+          clearInterval(activityInterval);
+          window.removeEventListener('mousemove', handleActivity);
+          window.removeEventListener('keydown', handleActivity);
+          window.removeEventListener('click', handleActivity);
+          window.removeEventListener('scroll', handleActivity);
+        };
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         setState('offline');
         console.error('[Presence] Channel error:', err);
@@ -83,7 +126,7 @@ export function usePresence({ interpreterId, userEmail }: UsePresenceOptions): P
     const handleBeforeUnload = () => {
       navigator.sendBeacon(
         '/api/presence',
-        JSON.stringify({ status: 'Offline' })
+        JSON.stringify({ type: 'offline' })
       );
 
       if (channelRef.current) {
@@ -95,6 +138,10 @@ export function usePresence({ interpreterId, userEmail }: UsePresenceOptions): P
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
 
       if (channelRef.current) {
         channelRef.current.untrack();
@@ -108,10 +155,10 @@ export function usePresence({ interpreterId, userEmail }: UsePresenceOptions): P
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ status: 'Offline' }),
+        body: JSON.stringify({ type: 'offline' }),
       }).catch(() => { });
     };
-  }, [interpreterId, userEmail]);
+  }, [interpreterId, userEmail, handleActivity]);
 
   return state;
 }

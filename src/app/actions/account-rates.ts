@@ -121,7 +121,7 @@ export async function setInterpreterAccountRate(
           interpreterId,
           oldRate: oldRate?.tariffPerHour,
           newRate: tariffPerHour,
-          changedBy: auth.user.id
+          changedBy: auth.user.userId
         },
         select: { id: true }
       });

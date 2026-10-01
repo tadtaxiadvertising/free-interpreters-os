@@ -406,7 +406,7 @@ export async function evaluateRoleplay(_prevState: any, formData: FormData) {
           qaScoreId: null as any,
           recordedAudioUrl: { not: null },
         },
-        data: { evaluatorId: auth.user.id },
+        data: { evaluatorId: auth.user.userId },
         select: { id: true },
       });
 
