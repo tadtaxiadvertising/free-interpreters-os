@@ -13,7 +13,7 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 
 # Clean install of all dependencies (needed for build & Prisma client)
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # --- STAGE 2: Builder ---
 FROM node:22-alpine AS builder

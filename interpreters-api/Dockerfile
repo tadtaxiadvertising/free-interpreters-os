@@ -16,7 +16,7 @@ ENV BUILD_TIMESTAMP=${BUILD_TIMESTAMP:-$(date +%s)}
 
 # Copiar solo el subdirectorio interpreters-api (no el frontend entero)
 COPY interpreters-api/package.json interpreters-api/package-lock.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copiar código fuente del backend
 COPY interpreters-api/src ./src
