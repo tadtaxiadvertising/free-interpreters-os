@@ -107,7 +107,7 @@ async function repairAuthUserAndRetry(params: {
     // If auth user was recreated (new UUID), clean up old profile and sync new one
     if (oldProfile && oldProfile.id !== retry.data.user.id) {
       console.log(`🔧 [AUTH_REPAIR] Auth user recreated with new UUID (${oldProfile.id} → ${retry.data.user.id}), cleaning up old profile`);
-      await prisma.userProfile.delete({ where: { id: oldProfile.id } });
+      await prisma.userProfile.deleteMany({ where: { id: oldProfile.id } });
     }
 
     const profile = await prisma.userProfile.findUnique({
@@ -247,7 +247,7 @@ export async function login(formData: FormData) {
               // If auth user was recreated (new UUID), clean up old profile
               if (oldProfile && oldProfile.id !== retry.data.user.id) {
                 console.log(`🔧 [AUTH_LOGIN] Auth user recreated with new UUID (${oldProfile.id} → ${retry.data.user.id}), cleaning up old profile`);
-                await prisma.userProfile.delete({ where: { id: oldProfile.id } });
+                await prisma.userProfile.deleteMany({ where: { id: oldProfile.id } });
               }
 
               await syncUserProfileFromAuth({
