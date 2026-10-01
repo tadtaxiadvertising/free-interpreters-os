@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { join } from 'path';
-import { writeFile, unlink } from 'fs/promises';
+import { writeFile, unlink, readFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import ffmpegPath from 'ffmpeg-static';
 import { spawn } from 'child_process';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false } }
-);
 
 const BUCKET = 'roleplay-audio';
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
@@ -22,6 +16,15 @@ const ALLOWED_MIME_TYPES = [
   'audio/ogg',
   'audio/mpeg',
 ];
+
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Supabase environment variables not configured');
+  }
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 function validateAudioFile(file: File): { valid: boolean; error?: string } {
   if (file.size === 0) {
@@ -96,7 +99,7 @@ export async function POST(req: NextRequest) {
     const webmExt = file.type.includes('webm') ? 'webm' : 'webm';
     const webmPath = `responses/${sessionId}/${scenarioId}.${webmExt}`;
     
-    const { error: uploadError } = await supabaseAdmin.storage
+    const { error: uploadError } = await getSupabaseAdmin().storage
       .from(BUCKET)
       .upload(webmPath, file, { contentType: file.type, upsert: true });
 
@@ -125,7 +128,7 @@ export async function POST(req: NextRequest) {
     
     // Upload MP3 to Supabase
     const mp3Path = `responses/${sessionId}/${scenarioId}.mp3`;
-    const { error: mp3UploadError } = await supabaseAdmin.storage
+    const { error: mp3UploadError } = await getSupabaseAdmin().storage
       .from(BUCKET)
       .upload(mp3Path, mp3Buffer, { contentType: 'audio/mpeg', upsert: true });
 
@@ -138,7 +141,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get signed URL for the MP3
-    const { data: signedUrlData } = await supabaseAdmin.storage
+    const { data: signedUrlData } = await getSupabaseAdmin().storage
       .from(BUCKET)
       .createSignedUrl(mp3Path, 60 * 60 * 24 * 365); // 1 year
 
@@ -148,7 +151,7 @@ export async function POST(req: NextRequest) {
     const signedUrl = signedUrlData.signedUrl;
 
     // Delete the original WebM file (optional - keep both or remove)
-    await supabaseAdmin.storage.from(BUCKET).remove([webmPath]);
+    await getSupabaseAdmin().storage.from(BUCKET).remove([webmPath]);
 
     return NextResponse.json({ 
       success: true, 
@@ -165,10 +168,4 @@ export async function POST(req: NextRequest) {
       error: error instanceof Error ? error.message : 'Internal server error' 
     }, { status: 500 });
   }
-}
-
-// Helper to read file
-async function readFile(path: string): Promise<Buffer> {
-  const { readFile } = await import('fs/promises');
-  return readFile(path);
 }
