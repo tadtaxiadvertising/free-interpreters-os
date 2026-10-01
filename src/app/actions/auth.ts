@@ -24,6 +24,24 @@ function normalizeRbacRole(role: string | null | undefined): UserRole {
   return role?.toLowerCase() === 'admin' ? 'admin' : 'interpreter';
 }
 
+// Repair cooldown to prevent infinite loops (5 minutes)
+const repairCooldown = new Map<string, number>();
+const REPAIR_COOLDOWN_MS = 5 * 60 * 1000;
+
+function canAttemptRepair(email: string): boolean {
+  const lastAttempt = repairCooldown.get(email);
+  if (!lastAttempt) return true;
+  if (Date.now() - lastAttempt > REPAIR_COOLDOWN_MS) {
+    repairCooldown.delete(email);
+    return true;
+  }
+  return false;
+}
+
+function recordRepairAttempt(email: string) {
+  repairCooldown.set(email, Date.now());
+}
+
 async function syncUserProfileFromAuth(params: {
   userId: string;
   email: string;
@@ -107,6 +125,7 @@ async function repairAuthUserAndRetry(params: {
     // If auth user was recreated (new UUID), clean up old profile and sync new one
     if (oldProfile && oldProfile.id !== retry.data.user.id) {
       console.log(`🔧 [AUTH_REPAIR] Auth user recreated with new UUID (${oldProfile.id} → ${retry.data.user.id}), cleaning up old profile`);
+      // Use deleteMany to avoid P2025 error if record doesn't exist
       await prisma.userProfile.deleteMany({ where: { id: oldProfile.id } });
     }
 
@@ -164,8 +183,9 @@ export async function login(formData: FormData) {
 
       // Attempt admin API repair when the service key is available.
       // Handles: identities:null, unconfirmed email, missing user.
-      if (getSupabaseServiceRoleKey()) {
+      if (getSupabaseServiceRoleKey() && canAttemptRepair(email)) {
         try {
+          recordRepairAttempt(email);
           const repairedLogin = await repairAuthUserAndRetry({
             supabase,
             email,
@@ -224,8 +244,9 @@ export async function login(formData: FormData) {
       // If the user doesn't exist yet in Supabase Auth, skip provisioning —
       // the client falls through to NextAuth credentials provider instead.
       // This prevents unauthorized account creation from local-only credentials.
-      if (getSupabaseServiceRoleKey()) {
+      if (getSupabaseServiceRoleKey() && canAttemptRepair(email)) {
         try {
+          recordRepairAttempt(email);
           const oldProfile = await prisma.userProfile.findFirst({
             where: { email },
             select: { id: true, interpreterId: true },
