@@ -5,7 +5,7 @@ import { getMonthBounds, sumEffectiveLogMinutes } from '@/lib/interpreter-metric
 
 const db = prisma;
 
-interface MetricUpdateResult {
+export interface MetricUpdateResult {
   interpreterId: number;
   period: string;
   interpretedMinutes: number;

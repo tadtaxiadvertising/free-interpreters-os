@@ -72,13 +72,17 @@ import { resolveCurrentIdentity } from '@/lib/identity/resolve-user';
 import prisma from '@/lib/prisma';
 import { createSignedUploadUrl, getBaseAudioPath, validateAudioFile } from '@/lib/roleplay';
 
-const mockResolveIdentity = resolveCurrentIdentity as vi.Mock;
+const mockResolveIdentity = resolveCurrentIdentity as any;
 const mockPrisma = prisma as any;
-const mockCreateSignedUploadUrl = createSignedUploadUrl as vi.Mock;
-const mockGetBaseAudioPath = getBaseAudioPath as vi.Mock;
-const mockValidateAudioFile = validateAudioFile as vi.Mock;
+const mockCreateSignedUploadUrl = createSignedUploadUrl as any;
+const mockGetBaseAudioPath = getBaseAudioPath as any;
+const mockValidateAudioFile = validateAudioFile as any;
 const mockRepository = roleplayRepository as any;
 const mockAccessRepo = roleplayAccessRepository as any;
+
+type AssessmentResult = 
+  | { sessionId: string; status: string; uploadUrl?: string; uploadPath?: string; inviteToken?: string; access?: any }
+  | { sessionId: string; status: string; error: string; code: string };
 
 describe('Roleplay Service', () => {
   beforeEach(() => {
@@ -94,7 +98,7 @@ describe('Roleplay Service', () => {
     mockValidateAudioFile.mockReturnValue({ valid: true, extension: 'webm' });
     mockGetBaseAudioPath.mockReturnValue('base/session-123.webm');
     mockCreateSignedUploadUrl.mockResolvedValue({ uploadUrl: 'https://upload.url', path: 'base/session-123.webm' });
-    mockPrisma.$transaction.mockImplementation(async (fn) => fn(mockPrisma));
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => fn(mockPrisma));
     mockPrisma.roleplayScenario.createMany.mockResolvedValue({ count: 2 });
     mockPrisma.roleplaySession.create.mockResolvedValue({ id: 'session-123' });
     mockPrisma.roleplaySession.update.mockResolvedValue({ id: 'session-123' });
@@ -102,7 +106,7 @@ describe('Roleplay Service', () => {
 
   describe('createOrResumeAssessment', () => {
     it('should create new assessment for interpreter', async () => {
-      mockRepository.findActiveSession.mockResolvedValue(null);
+      mockPrisma.roleplaySession.findFirst.mockResolvedValue(null);
       mockPrisma.roleplaySession.create.mockResolvedValue({
         id: 'session-123',
         status: 'DRAFT',
@@ -123,6 +127,7 @@ describe('Roleplay Service', () => {
         data: expect.objectContaining({
           interpreterId: 1,
           recruitmentCandidateId: null,
+          baseAudioUrl: 'base/session-123.webm',
           status: 'DRAFT',
         }),
       }));
@@ -145,7 +150,7 @@ describe('Roleplay Service', () => {
     });
 
     it('should create access for candidate', async () => {
-      mockRepository.findActiveSession.mockResolvedValue(null);
+      mockPrisma.roleplaySession.findFirst.mockResolvedValue(null);
       mockPrisma.roleplaySession.create.mockResolvedValue({ id: 'session-456', status: 'DRAFT', baseAudioUrl: 'base/session-456.webm' });
       mockAccessRepo.getOrCreateAccess.mockResolvedValue({ id: 'access-1', rawToken: 'token-123' });
 
@@ -156,11 +161,12 @@ describe('Roleplay Service', () => {
         baseAudioSize: 1024,
       });
 
-      expect(result.inviteToken).toBeUndefined(); // Access repo returns without rawToken for existing
+      expect(result.inviteToken).toBeUndefined();
       expect(result.access).toBeDefined();
     });
 
     it('should reject invalid audio MIME type', async () => {
+      mockRepository.findActiveSession.mockResolvedValue(null);
       mockValidateAudioFile.mockReturnValue({ valid: false, error: 'Invalid MIME type' });
 
       const result = await roleplayService.createOrResumeAssessment({
@@ -170,8 +176,15 @@ describe('Roleplay Service', () => {
         baseAudioSize: 1024,
       });
 
-      expect(result.success).toBeFalsy();
-      expect(result.code).toBe('VALIDATION_ERROR');
+      console.log('Result:', result); // Debug logging
+      expect(result).toBeDefined();
+      if (!result) {
+        throw new Error('Result is undefined');
+      }
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.code).toBe('VALIDATION_ERROR');
+      }
     });
   });
 
@@ -222,13 +235,14 @@ describe('Roleplay Service', () => {
         recordedAudioUrl: null,
         submittedAt: null,
       });
-      mockPrisma.$transaction.mockImplementation(async (fn) => fn(mockPrisma));
       mockRepository.transitionStatus.mockResolvedValue({ id: 'session-123', status: 'SUBMITTED' });
 
       const result = await roleplayService.submitAssessment('session-123');
 
       expect(result.success).toBe(true);
-      expect(result.data?.status).toBe('SUBMITTED');
+      if (result.success) {
+        expect(result.data?.status).toBe('SUBMITTED');
+      }
     });
 
     it('should reject if scenarios incomplete', async () => {
@@ -240,14 +254,16 @@ describe('Roleplay Service', () => {
         status: 'IN_PROGRESS',
         scenarios: [
           { id: 'scenario-1', responses: [{ id: 'resp-1' }] },
-          { id: 'scenario-2', responses: [] }, // Incomplete
+          { id: 'scenario-2', responses: [] },
         ],
       });
 
       const result = await roleplayService.submitAssessment('session-123');
 
       expect(result.success).toBe(false);
-      expect(result.code).toBe('INVALID_STATE');
+      if (!result.success) {
+        expect(result.code).toBe('INVALID_STATE');
+      }
     });
 
     it('should reject double submission', async () => {
@@ -256,21 +272,23 @@ describe('Roleplay Service', () => {
         id: 'session-123',
         interpreterId: 1,
         recruitmentCandidateId: null,
-        status: 'SUBMITTED', // Already submitted
+        status: 'SUBMITTED',
         scenarios: [],
       });
 
       const result = await roleplayService.submitAssessment('session-123');
 
       expect(result.success).toBe(false);
-      expect(result.code).toBe('INVALID_STATE');
+      if (!result.success) {
+        expect(result.code).toBe('INVALID_STATE');
+      }
     });
   });
 
   describe('evaluateAssessment', () => {
     it('should evaluate with weighted scoring', async () => {
       mockResolveIdentity.mockResolvedValue({ userId: 'eval-1', email: 'eval@example.com', role: 'admin' });
-      mockRepository.findById.mockResolvedValue({
+      mockPrisma.roleplaySession.findUnique.mockResolvedValue({
         id: 'session-123',
         interpreterId: 1,
         recruitmentCandidateId: null,
@@ -279,7 +297,7 @@ describe('Roleplay Service', () => {
         qaScoreId: null,
         evaluatorId: null,
       });
-      mockPrisma.$transaction.mockImplementation(async (fn) => {
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => {
         const tx = {
           roleplaySession: {
             findUnique: vi.fn().mockResolvedValue({
@@ -303,7 +321,6 @@ describe('Roleplay Service', () => {
       mockPrisma.interpreter.findUnique.mockResolvedValue({ name: 'Test Interpreter', emailCorporativo: 'interp@example.com' });
       mockPrisma.userProfile.findUnique.mockResolvedValue({ id: 'profile-1' });
       mockPrisma.notification.create.mockResolvedValue({});
-      mockRepository.findForQueue.mockResolvedValue({ sessions: [], total: 0 });
 
       const result = await roleplayService.evaluateAssessment('session-123', {
         protocolScore: 8,
@@ -321,7 +338,7 @@ describe('Roleplay Service', () => {
 
     it('should set score to 0 for critical error', async () => {
       mockResolveIdentity.mockResolvedValue({ userId: 'eval-1', email: 'eval@example.com', role: 'admin' });
-      mockRepository.findById.mockResolvedValue({
+      mockPrisma.roleplaySession.findUnique.mockResolvedValue({
         id: 'session-123',
         interpreterId: 1,
         recruitmentCandidateId: null,
@@ -330,7 +347,7 @@ describe('Roleplay Service', () => {
         qaScoreId: null,
         evaluatorId: null,
       });
-      mockPrisma.$transaction.mockImplementation(async (fn) => {
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => {
         const tx = {
           roleplaySession: {
             findUnique: vi.fn().mockResolvedValue({
@@ -384,7 +401,9 @@ describe('Roleplay Service', () => {
       const result = await roleplayService.cancelAssessment('session-123');
 
       expect(result.success).toBe(false);
-      expect(result.code).toBe('INVALID_STATE');
+      if (!result.success) {
+        expect(result.code).toBe('INVALID_STATE');
+      }
     });
   });
 });

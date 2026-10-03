@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getOnboardingState, acceptTerms, saveBankingDetails, completeOnboarding } from '@/services/onboarding/onboarding-service';
 
 vi.mock('@/lib/identity/resolve-user', () => ({
@@ -27,9 +27,19 @@ import { resolveCurrentIdentity } from '@/lib/identity/resolve-user';
 import prisma from '@/lib/prisma';
 import { revalidateInterpreterProfileRecords } from '@/lib/cache/revalidate-interpreter';
 
-const mockResolveIdentity = resolveCurrentIdentity as vi.Mock;
+const mockResolveIdentity = resolveCurrentIdentity as any;
 const mockPrisma = prisma as any;
-const mockRevalidate = revalidateInterpreterProfileRecords as vi.Mock;
+const mockRevalidate = revalidateInterpreterProfileRecords as any;
+
+type OnboardingStateResult = { success: true; data: any } | { success: false; error: string; code: string };
+
+function isSuccess<T>(result: { success: true; data: T } | { success: false; error: string; code: string }): result is { success: true; data: T } {
+  return result.success;
+}
+
+function isError(result: { success: true; data: any } | { success: false; error: string; code: string }): result is { success: false; error: string; code: string } {
+  return !result.success;
+}
 
 describe('Onboarding Service', () => {
   beforeEach(() => {
@@ -39,7 +49,7 @@ describe('Onboarding Service', () => {
     mockPrisma.userProfile.update.mockResolvedValue({});
     mockPrisma.interpreter.findUnique.mockResolvedValue(null);
     mockPrisma.interpreter.update.mockResolvedValue({});
-    mockPrisma.$transaction.mockImplementation(async (fn) => fn(mockPrisma));
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => fn(mockPrisma));
     mockRevalidate.mockResolvedValue(undefined);
   });
 
@@ -55,7 +65,9 @@ describe('Onboarding Service', () => {
       const result = await getOnboardingState();
 
       expect(result.success).toBe(true);
-      expect(result.data?.status).toBe('COMPLETED');
+      if (result.success) {
+        expect(result.data.status).toBe('COMPLETED');
+      }
     });
 
     it('should return onboarding state for Supabase user', async () => {
@@ -93,10 +105,12 @@ describe('Onboarding Service', () => {
       const result = await getOnboardingState();
 
       expect(result.success).toBe(true);
-      expect(result.data?.status).toBe('IN_PROGRESS');
-      expect(result.data?.step).toBe('banking');
-      expect(result.data?.hasTerms).toBe(true);
-      expect(result.data?.hasBanking).toBe(false);
+      if (result.success) {
+        expect(result.data.status).toBe('IN_PROGRESS');
+        expect(result.data.step).toBe('banking');
+        expect(result.data.hasTerms).toBe(true);
+        expect(result.data.hasBanking).toBe(false);
+      }
     });
 
     it('should return not found for missing profile', async () => {
@@ -106,7 +120,9 @@ describe('Onboarding Service', () => {
       const result = await getOnboardingState();
 
       expect(result.success).toBe(false);
-      expect(result.code).toBe('NOT_FOUND');
+      if (!result.success) {
+        expect(result.code).toBe('NOT_FOUND');
+      }
     });
   });
 
@@ -166,7 +182,9 @@ describe('Onboarding Service', () => {
       const result = await acceptTerms();
 
       expect(result.success).toBe(false);
-      expect(result.code).toBe('CONFLICT');
+      if (!result.success) {
+        expect(result.code).toBe('CONFLICT');
+      }
     });
   });
 
@@ -187,7 +205,7 @@ describe('Onboarding Service', () => {
         bankCedula: '123-4567890-1',
       };
 
-      mockPrisma.$transaction.mockImplementation(async (fn) => {
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => {
         const tx = {
           userProfile: { update: vi.fn().mockResolvedValue({ interpreterId: 10 }) },
           interpreter: { update: vi.fn().mockResolvedValue({}) },
@@ -218,7 +236,9 @@ describe('Onboarding Service', () => {
       const result = await saveBankingDetails(invalidData);
 
       expect(result.success).toBe(false);
-      expect(result.code).toBe('VALIDATION_ERROR');
+      if (!result.success) {
+        expect(result.code).toBe('VALIDATION_ERROR');
+      }
     });
   });
 
@@ -232,7 +252,7 @@ describe('Onboarding Service', () => {
         onboardingStatus: 'IN_PROGRESS',
       });
 
-      mockPrisma.$transaction.mockImplementation(async (fn) => {
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => {
         const tx = {
           userProfile: { update: vi.fn().mockResolvedValue({ interpreterId: 10 }) },
           interpreter: { update: vi.fn().mockResolvedValue({}) },
@@ -268,7 +288,9 @@ describe('Onboarding Service', () => {
       const result = await completeOnboarding();
 
       expect(result.success).toBe(false);
-      expect(result.code).toBe('CONFLICT');
+      if (!result.success) {
+        expect(result.code).toBe('CONFLICT');
+      }
     });
   });
 });
