@@ -46,7 +46,7 @@ export async function createRoleplaySession(rawInput: CreateRoleplaySessionInput
         interpreterId: input.interpreterId ?? null,
         recruitmentCandidateId: input.recruitmentCandidateId ?? null,
         baseAudioUrl: getBaseAudioPath('', validation.extension), // placeholder, will update after upload
-        status: 'PENDING',
+        status: 'DRAFT',
       },
       select: { id: true },
     });
@@ -152,8 +152,9 @@ export async function submitRoleplayResponse(rawInput: SubmitResponseInput) {
       return { success: false, error: 'Session not found', code: 'NOT_FOUND' };
     }
 
-    if (session.status !== 'PENDING') {
-      return { success: false, error: 'Session is not in PENDING state', code: 'INVALID_STATE' };
+    const validSubmitStates = ['INVITED', 'STARTED', 'IN_PROGRESS', 'PENDING'];
+    if (!validSubmitStates.includes(session.status)) {
+      return { success: false, error: 'Session is not in a state that allows submitting responses', code: 'INVALID_STATE' };
     }
 
     if (session.recordedAudioUrl) {
@@ -213,7 +214,8 @@ export async function confirmRoleplayResponse(rawInput: ConfirmResponseInput) {
         },
       });
 
-      if (!session || session.status !== 'PENDING' || session.recordedAudioUrl) {
+      const validSubmitStates = ['INVITED', 'STARTED', 'IN_PROGRESS', 'PENDING'];
+      if (!session || !validSubmitStates.includes(session.status) || session.recordedAudioUrl) {
         throw new Error('Session not available for submission');
       }
 
@@ -296,13 +298,16 @@ export async function validateInviteToken(rawInput: ValidateInviteTokenInput) {
       return { success: false, error: 'Invitation expired', code: 'TOKEN_EXPIRED' };
     }
 
-    if (access.session.status !== 'PENDING') {
+    const validInviteStates = ['DRAFT', 'INVITED', 'PENDING'];
+    if (!validInviteStates.includes(access.session.status)) {
       return { success: false, error: 'Session no longer available', code: 'INVALID_STATE' };
     }
 
+    // Validate only - do NOT consume token
+    // Token will be consumed when user actually starts the roleplay
     await db.roleplayAccess.update({
       where: { id: access.id },
-      data: { usedAt: new Date() },
+      data: { validatedAt: new Date() },
     });
 
     const cookieStore = await cookies();

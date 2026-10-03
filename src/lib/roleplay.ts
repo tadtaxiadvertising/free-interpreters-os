@@ -116,7 +116,43 @@ export async function createSignedUploadUrl(
 export async function confirmUpload(path: string): Promise<string> {
   const { data, error } = await supabaseAdmin.storage
     .from(BUCKET)
-    .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 days
+    .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 days - for base audio / admin review
+
+  if (error) {
+    throw new Error(`Failed to create signed URL: ${error.message}`);
+  }
+
+  return data.signedUrl;
+}
+
+export async function getPlaybackUrl(path: string): Promise<string> {
+  const { data, error } = await supabaseAdmin.storage
+    .from(BUCKET)
+    .createSignedUrl(path, 60 * 60); // 1 hour - for candidate playback during roleplay
+
+  if (error) {
+    throw new Error(`Failed to create signed URL: ${error.message}`);
+  }
+
+  return data.signedUrl;
+}
+
+export async function getValidationUrl(path: string): Promise<string> {
+  const { data, error } = await supabaseAdmin.storage
+    .from(BUCKET)
+    .createSignedUrl(path, 15 * 60); // 15 minutes - for invite validation
+
+  if (error) {
+    throw new Error(`Failed to create signed URL: ${error.message}`);
+  }
+
+  return data.signedUrl;
+}
+
+export async function getAdminReviewUrl(path: string): Promise<string> {
+  const { data, error } = await supabaseAdmin.storage
+    .from(BUCKET)
+    .createSignedUrl(path, 60 * 60 * 24); // 24 hours - for QA review
 
   if (error) {
     throw new Error(`Failed to create signed URL: ${error.message}`);

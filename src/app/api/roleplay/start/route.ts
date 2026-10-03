@@ -1,24 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { createHash } from 'crypto';
-import { applyRateLimit, createRateLimitHeaders, RATE_LIMITS } from '@/lib/security/rate-limit';
+import { cookies } from 'next/headers';
 
 const db = prisma;
 
 export async function POST(req: NextRequest) {
-  // Apply rate limiting
-  const rateLimitResult = applyRateLimit(req, RATE_LIMITS.inviteValidation);
-  
-  if (!rateLimitResult.success) {
-    return NextResponse.json(
-      { success: false, error: 'Too many requests. Please try again later.' },
-      { 
-        status: 429,
-        headers: createRateLimitHeaders(rateLimitResult)
-      }
-    );
-  }
-
   try {
     const { token } = await req.json();
     
@@ -50,26 +37,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Session no longer available' }, { status: 400 });
     }
 
-    // Validate only - do NOT consume token
-    // Token will be consumed when user actually starts the roleplay
+    // Mark as started (not consumed yet)
     await db.roleplayAccess.update({
       where: { id: access.id },
-      data: { validatedAt: new Date() },
+      data: { startedAt: new Date() },
     });
 
-    return NextResponse.json(
-      { 
-        success: true, 
-        data: { 
-          sessionId: access.session.id,
-          baseAudioUrl: access.session.baseAudioUrl,
-        } 
-      },
-      { headers: createRateLimitHeaders(rateLimitResult) }
-    );
+    // Update session status to STARTED
+    await db.roleplaySession.update({
+      where: { id: access.sessionId },
+      data: { status: 'STARTED' },
+    });
+
+    // Set session cookie for continued access
+    const cookieStore = await cookies();
+    cookieStore.set('roleplay_session', access.session.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24, // 24 hours
+      path: '/',
+    });
+
+    return NextResponse.json({ 
+      success: true, 
+      data: { 
+        sessionId: access.session.id,
+        baseAudioUrl: access.session.baseAudioUrl,
+      } 
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Validate Invite Error:', message);
+    console.error('Start Roleplay Error:', message);
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

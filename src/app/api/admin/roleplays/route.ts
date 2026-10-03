@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
         interpreterId: participantType === 'interpreter' ? parseInt(participantId) : null,
         recruitmentCandidateId: participantType === 'candidate' ? parseInt(participantId) : null,
         baseAudioUrl: '', // placeholder
-        status: 'PENDING',
+        status: 'DRAFT',
       },
       select: { id: true },
     });

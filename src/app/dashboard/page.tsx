@@ -10,13 +10,12 @@ import { CallTimer } from '@/components/CallTimer';
 import { CallHistory } from '@/components/CallHistory';
 import { GoalProgressWidget } from '@/components/interpreters/GoalProgressWidget';
 import { AccessActionsRail } from '@/components/AccessActionsRail';
-import { OnboardingGate } from '@/components/OnboardingGate';
 import { getCurrentProfile } from '@/app/actions/auth';
 import prismaClient from '@/lib/prisma';
 import { getDayBounds, getMonthBounds, sumEffectiveLogMinutes } from '@/lib/interpreter-metrics';
 const prisma = prismaClient;
 
-// ── Santo Domingo working-days helper ──
+// Santo Domingo working-days helper
 function getSdWorkingDayCount() {
   const now = new Date();
   const sd = new Intl.DateTimeFormat('en-CA', {
@@ -30,7 +29,6 @@ function getSdWorkingDayCount() {
   let total = 0, passed = 0;
 
   for (let day = 1; day <= daysInMonth; day++) {
-    // Noon UTC so the UTC day-of-week matches the Santo Domingo day-of-week
     const dow = new Date(Date.UTC(y, m - 1, day, 12, 0, 0)).getUTCDay();
     const isWorkingDay = dow !== 0 && dow !== 6;
     if (isWorkingDay) total++;
@@ -47,6 +45,7 @@ export default async function InterpreterDashboard() {
 
   const profile = await getCurrentProfile();
 
+  // Entry router handles admin redirect, but keep as safety
   if (profile && profile.role === 'admin') {
     redirect('/admin');
   }
@@ -106,14 +105,12 @@ export default async function InterpreterDashboard() {
 
   const globalGoalHours = parseFloat(await getSystemConfig('standard_monthly_goal_hours', '120'));
 
-  // Fetch full data if we have an interpreter link
+  // Fetch interpreter data
   let interpreter: any = null;
   let activeCall: any = null;
   let recentCalls: any[] = [];
   let monthLogs: any[] = [];
   let todayLogs: any[] = [];
-  let rankings: any[] = [];
-  let myRankIdx = -1;
 
   if (profile?.interpreter_id) {
     try {
@@ -142,7 +139,7 @@ export default async function InterpreterDashboard() {
       } as any);
 
       if (interpreter) {
-        const [activeCallRes, recentCallsRes, monthLogsRes, todayLogsRes, allInterpreters] = await Promise.all([
+        const [activeCallRes, recentCallsRes, monthLogsRes, todayLogsRes] = await Promise.all([
           prisma.callSession.findFirst({
             where: { interpreterId: interpreter.id, endedAt: null },
             orderBy: { startedAt: 'desc' }
@@ -166,68 +163,24 @@ export default async function InterpreterDashboard() {
             },
             select: { date: true, interpretedMinutes: true, verifiedMinutes: true }
           }),
-          prisma.interpreter.findMany({
-            select: {
-              id: true,
-              name: true,
-              campaign: true,
-              monthlyGoal: true,
-              productionLogs: {
-                where: { date: { gte: startOfMonth, lte: endOfMonth } },
-                select: { interpretedMinutes: true, verifiedMinutes: true },
-              },
-              qaScores: {
-                orderBy: { createdAt: 'desc' },
-                take: 1,
-                select: { totalScore: true },
-              },
-            },
-          } as any)
         ]);
 
         activeCall = activeCallRes;
         recentCalls = recentCallsRes;
         monthLogs = monthLogsRes;
         todayLogs = todayLogsRes;
-
-        // Process rankings
-        rankings = allInterpreters
-          .map((interp: any) => {
-            const totalMinutes = sumEffectiveLogMinutes(interp.productionLogs);
-            const qaScore = interp.qaScores?.[0]?.totalScore ? Number(interp.qaScores[0].totalScore) : 0;
-            const monthlyGoalVal = interp.monthlyGoal ?? (globalGoalHours * 60);
-            const goalProgress = Math.min((totalMinutes / monthlyGoalVal) * 100, 100);
-
-            return {
-              id: interp.id,
-              name: interp.name,
-              campaign: interp.campaign,
-              totalMinutes,
-              qaScore,
-              monthlyGoal: monthlyGoalVal,
-              goalProgress,
-            };
-          })
-          .sort((a: any, b: any) => {
-            if (b.totalMinutes !== a.totalMinutes) return b.totalMinutes - a.totalMinutes;
-            return b.qaScore - a.qaScore;
-          });
-
-        myRankIdx = rankings.findIndex((r: any) => r.id === interpreter.id);
       }
     } catch (error) {
       console.error('❌ DASHBOARD: Data fetch failed:', error);
     }
   }
 
-  // ── 📊 METRICS CALCULATION ──
-  // Production logs are the source of truth — do NOT add activeCallMinutes
-  // to avoid double-counting when calls are later saved to production logs.
+  // METRICS CALCULATION
   const todayMinutes = sumEffectiveLogMinutes(todayLogs);
   const mtdMinutes = sumEffectiveLogMinutes(monthLogs);
   const monthlyGoal = interpreter?.monthlyGoal || (globalGoalHours * 60);
 
-  // ── Enhanced goal tracking (working days in Santo Domingo) ──
+  // Enhanced goal tracking (working days in Santo Domingo)
   const wd = getSdWorkingDayCount();
   const mtdRemaining = Math.max(0, monthlyGoal - mtdMinutes);
   const currentPace = wd.passed > 0 ? Math.round(mtdMinutes / wd.passed) : 0;
@@ -244,7 +197,7 @@ export default async function InterpreterDashboard() {
   const latestQaScore = interpreter?.qaScores?.[0]?.totalScore ? Number(interpreter.qaScores[0].totalScore) : 0;
   const isQaExcellent = latestQaScore >= 95;
 
-  // ── Q1 / Q2 Goal Progress ──
+  // Q1 / Q2 Goal Progress
   const now = new Date();
   const isQ1 = now.getDate() < 16;
   const currentYear = now.getFullYear();
@@ -259,7 +212,6 @@ export default async function InterpreterDashboard() {
   const baseTariff = interpreter?.tariffPerMinute ? Number(interpreter.tariffPerMinute) : 5;
 
   const mtdEarnings = mtdMinutes * Number(interpreter?.tariffPerMinute || 0);
-  const onboardingComplete = profile?.onboarding_complete || false;
 
   if (!profile || !interpreter) {
     return (
@@ -313,12 +265,6 @@ export default async function InterpreterDashboard() {
 
   return (
     <>
-      {/* Onboarding gate — shows wizard if not completed */}
-      <OnboardingGate
-        isComplete={onboardingComplete}
-        interpreterName={interpreter.name}
-      />
-
       <div className="space-y-8 animate-in fade-in duration-700">
         {/* Hero Section & Gamification */}
         <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-indigo-900/50 to-slate-900 border border-indigo-500/20 p-8 shadow-2xl">
@@ -367,7 +313,7 @@ export default async function InterpreterDashboard() {
                 </div>
               </div>
 
-              {/* ── Enhanced meta / avances tracking ── */}
+              {/* Enhanced meta / avances tracking */}
               <div className="mt-4 space-y-2.5 text-sm" suppressHydrationWarning>
                 <div className="flex justify-between text-slate-300">
                   <span>Faltan</span>

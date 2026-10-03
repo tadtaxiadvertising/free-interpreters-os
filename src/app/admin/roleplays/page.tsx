@@ -147,7 +147,7 @@ export default async function AdminRoleplaysPage() {
                       >
                         <Eye size={16} />
                       </Link>
-                      {session.status === 'PENDING' && session.recruitmentCandidateId && (
+                      {['DRAFT', 'INVITED'].includes(session.status) && session.recruitmentCandidateId && (
                         <button 
                           className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors"
                           title="Copy Invite Link"
