@@ -54,6 +54,7 @@ model Interpreter {
   roleplaySessions   RoleplaySession[]
   userProfile        UserProfile?
   statusLogs         InterpreterStatusLog[]
+  monthlyMetrics     InterpreterMonthlyMetrics[]
 
   @@index([createdAt], map: "idx_interpreters_created_at")
   @@index([pais], map: "idx_interpreters_pais")
@@ -77,6 +78,25 @@ model InterpreterStatusLog {
   @@index([interpreterId, createdAt(sort: Desc)], map: "idx_status_logs_interpreter_time")
   @@index([createdAt], map: "idx_status_logs_created_at")
   @@map("interpreter_status_logs")
+  @@schema("public")
+}
+
+model InterpreterMonthlyMetrics {
+  id                 Int       @id @default(autoincrement())
+  interpreterId      Int       @map("interpreter_id")
+  period             String    @map("period") // YYYY-MM format
+  interpretedMinutes Int       @default(0) @map("interpreted_minutes")
+  qaScore            Decimal?  @db.Decimal(5, 2) @map("qa_score")
+  rankingPosition    Int?      @map("ranking_position")
+  totalInterpreters  Int?      @map("total_interpreters")
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  interpreter        Interpreter @relation(fields: [interpreterId], references: [id], onDelete: Cascade)
+
+  @@unique([interpreterId, period], map: "unique_interpreter_monthly_metrics")
+  @@index([period], map: "idx_monthly_metrics_period")
+  @@index([rankingPosition], map: "idx_monthly_metrics_ranking")
+  @@map("interpreter_monthly_metrics")
   @@schema("public")
 }
 
@@ -436,7 +456,7 @@ model RoleplaySession {
   recruitmentCandidateId  Int?      @map("recruitment_candidate_id")
   baseAudioUrl            String    @map("base_audio_url")
   recordedAudioUrl        String?   @map("recorded_audio_url")
-  status                  RoleplayStatus @default(PENDING)
+  status                  RoleplayStatus @default(DRAFT)
   evaluatorId             String?   @map("evaluator_id")
   qaScoreId               Int?      @unique @map("qa_score_id")
   submittedAt             DateTime? @map("submitted_at")
@@ -445,6 +465,8 @@ model RoleplaySession {
   completedAt             DateTime? @map("completed_at")
   currentScenarioIndex    Int       @default(0) @map("current_scenario_index")
   updatedAt               DateTime  @updatedAt @map("updated_at")
+  reviewStartedAt         DateTime? @map("review_started_at")
+  reviewPriority          Int?      @default(0) @map("review_priority")
 
   interpreter             Interpreter?         @relation(fields: [interpreterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   recruitmentCandidate    RecruitmentCandidate? @relation(fields: [recruitmentCandidateId], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -456,19 +478,22 @@ model RoleplaySession {
   @@index([recruitmentCandidateId, status], map: "idx_roleplay_candidate_status")
   @@index([status, createdAt], map: "idx_roleplay_status_created")
   @@index([status, submittedAt], map: "idx_roleplay_status_submitted")
+  @@index([reviewPriority], map: "idx_roleplay_review_priority")
   @@map("roleplay_sessions")
   @@schema("public")
 }
 
 model RoleplayAccess {
-  id        String   @id @default(cuid())
-  sessionId String   @map("session_id")
-  tokenHash String   @unique @map("token_hash")
-  expiresAt DateTime @map("expires_at")
-  usedAt    DateTime? @map("used_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  id            String   @id @default(cuid())
+  sessionId     String   @map("session_id")
+  tokenHash     String   @unique @map("token_hash")
+  expiresAt     DateTime @map("expires_at")
+  usedAt        DateTime? @map("used_at")
+  validatedAt   DateTime? @map("validated_at")
+  startedAt     DateTime? @map("started_at")
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  session   RoleplaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session       RoleplaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId], map: "roleplay_access_session_id_key")
   @@index([tokenHash], map: "idx_roleplay_access_token_hash")
@@ -498,24 +523,47 @@ model RoleplayScenario {
 }
 
 model RoleplayResponse {
-  id               String   @id @default(cuid())
-  scenarioId       String   @map("scenario_id")
-  recordedAudioUrl String?  @map("recorded_audio_url")
-  durationSec      Int?     @map("duration_sec")
-  selfScore        Json?
-  selfNotes        String?  @map("self_notes")
-  submittedAt      DateTime? @map("submitted_at")
-  createdAt        DateTime @default(now()) @map("created_at")
+  id                 String         @id @default(cuid())
+  scenarioId         String         @map("scenario_id")
+  sourceAudioUrl     String?        @map("source_audio_url")
+  sourceAudioPath    String?        @map("source_audio_path")
+  processedAudioUrl  String?        @map("processed_audio_url")
+  processedAudioPath String?        @map("processed_audio_path")
+  audioStatus        AudioStatus    @default(UPLOADED) @map("audio_status")
+  processingError    String?        @map("processing_error")
+  durationSec        Int?           @map("duration_sec")
+  selfScore          Json?
+  selfNotes          String?        @map("self_notes")
+  submittedAt        DateTime?      @map("submitted_at")
+  createdAt          DateTime       @default(now()) @map("created_at")
 
-  scenario         RoleplayScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  scenario           RoleplayScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
 
   @@map("roleplay_responses")
   @@schema("public")
 }
 
+enum AudioStatus {
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+
+  @@schema("public")
+}
+
 enum RoleplayStatus {
-  PENDING
+  DRAFT
+  INVITED
+  STARTED
+  IN_PROGRESS
+  SUBMITTED
+  UNDER_REVIEW
   EVALUATED
+  PASSED
+  FAILED
+  EXPIRED
+  CANCELLED
 
   @@schema("public")
 }
