@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { updateInterpreterMetrics, recalculateRankings, refreshAllMetrics, getInterpreterMetrics, getLeaderboard } from '@/services/metrics/metrics-service';
+import type { MetricUpdateResult } from '@/services/metrics/metrics-service';
 
 vi.mock('@/lib/prisma', () => ({
   default: {
@@ -54,6 +55,9 @@ describe('Metrics Service', () => {
 
       const result = await updateInterpreterMetrics(1, '2026-10');
 
+      if ('error' in result) {
+        throw new Error('Expected success but got error');
+      }
       expect(result).toEqual({
         interpreterId: 1,
         period: '2026-10',
@@ -77,11 +81,14 @@ describe('Metrics Service', () => {
         interpretedMinutes: 0,
         qaScore: null,
         rankingPosition: null,
-        totalInterpreters: null,
+        totalInterpreters: 0,
       });
 
       const result = await updateInterpreterMetrics(2, '2026-10');
 
+      if ('error' in result) {
+        throw new Error('Expected success but got error');
+      }
       expect(result.interpretedMinutes).toBe(0);
       expect(result.qaScore).toBeNull();
     });

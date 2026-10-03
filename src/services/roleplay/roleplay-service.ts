@@ -104,6 +104,7 @@ export class RoleplayService {
     const validation = validateAudioFile(new File([], 'test', { type: validated.baseAudioMimeType }));
     if (!validation.valid || !validation.extension) {
       return { 
+        success: false,
         sessionId: '', 
         status: 'CANCELLED', 
         error: validation.error, 

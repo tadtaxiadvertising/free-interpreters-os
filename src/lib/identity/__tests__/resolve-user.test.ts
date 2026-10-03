@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import { resolveCurrentIdentity } from '@/lib/identity/resolve-user';
 
 // Mock all external dependencies BEFORE importing the module under test

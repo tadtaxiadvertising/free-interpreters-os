@@ -42,6 +42,10 @@
     "Documentation",
     "interpreters",
     "administrador",
-    "titular"
+    "titular",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/**",
+    "tests"
   ]
 }
