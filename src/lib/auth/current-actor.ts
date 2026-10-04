@@ -74,6 +74,7 @@ async function resolveActorFromAuthJs(): Promise<CurrentActor | null> {
     const userId = session.user.id;
     const email = session.user.email?.toLowerCase().trim() || null;
     const role = normalizeRbacRole((session.user as any).role);
+    const sessionInterpreterId = (session.user as any).interpreterId;
 
     if (!email) return null;
 
@@ -86,7 +87,10 @@ async function resolveActorFromAuthJs(): Promise<CurrentActor | null> {
       select: { id: true, interpreterId: true },
     });
 
-    let interpreterId = profile?.interpreterId ?? null;
+    // Preserve the interpreter identity already established by Auth.js when
+    // the legacy UserProfile bridge has no matching record. This is the
+    // server-created session value, not request input.
+    let interpreterId = profile?.interpreterId ?? (typeof sessionInterpreterId === 'number' ? sessionInterpreterId : null);
     if (role !== 'admin' && !interpreterId) {
       const interpreter = await prisma.interpreter.findFirst({
         where: { emailCorporativo: email },
