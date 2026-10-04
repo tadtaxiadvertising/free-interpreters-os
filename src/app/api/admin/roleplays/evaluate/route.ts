@@ -23,39 +23,31 @@ export async function POST(req: NextRequest) {
       comentarios,
     } = body;
 
-    // Validate required fields
     if (!sessionId || protocolScore === undefined || interpretationScore === undefined ||
         languageScore === undefined || serviceScore === undefined || technicalScore === undefined) {
       return NextResponse.json({ success: false, error: 'Missing required scores' }, { status: 400 });
     }
 
-    // Validate score ranges
     const scores = { protocolScore, interpretationScore, languageScore, serviceScore, technicalScore };
     for (const [key, value] of Object.entries(scores)) {
-      if (typeof value !== 'number' || value < 0 || value > 10) {
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 10) {
         return NextResponse.json({ success: false, error: `Invalid score for ${key}: must be 0-10` }, { status: 400 });
       }
     }
 
-    // Calculate weighted score
-    let totalScore = 0;
-    if (criticalError) {
-      totalScore = 0;
-    } else {
-      totalScore =
-        (protocolScore * 0.35) +
-        (interpretationScore * 0.40) +
-        (languageScore * 0.15) +
-        (serviceScore * 0.05) +
-        (technicalScore * 0.05);
-    }
+    const totalScore = criticalError
+      ? 0
+      : ((protocolScore * 0.35) +
+         (interpretationScore * 0.40) +
+         (languageScore * 0.15) +
+         (serviceScore * 0.05) +
+         (technicalScore * 0.05)) * 10;
 
-    let actionRequired = 'Ninguna';
-    if (criticalError || totalScore < 70) {
-      actionRequired = 'Advertencia / Coaching';
-    } else if (totalScore < 85) {
-      actionRequired = 'Feedback Requerido';
-    }
+    const actionRequired = criticalError || totalScore < 70
+      ? 'Advertencia / Coaching'
+      : totalScore < 85
+        ? 'Feedback Requerido'
+        : 'Ninguna';
 
     const result = await db.$transaction(async (tx) => {
       const session = await tx.roleplaySession.findUnique({
@@ -76,7 +68,6 @@ export async function POST(req: NextRequest) {
       if (!session.recordedAudioUrl) throw new Error('No response submitted yet');
       if (session.evaluatorId !== auth.user.userId) throw new Error('Not authorized to evaluate this session');
 
-      // Update session status and evaluator
       await tx.roleplaySession.update({
         where: { id: sessionId },
         data: {
@@ -86,7 +77,6 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Create QA Score
       const qaScore = await tx.qAScore.create({
         data: {
           interpreterId: session.interpreterId ?? null,
@@ -97,20 +87,19 @@ export async function POST(req: NextRequest) {
           languageScore,
           serviceScore,
           technicalScore,
-          criticalError,
+          totalScore,
+          criticalError: Boolean(criticalError),
           comentarios: comentarios || '',
           accionRequerida: actionRequired,
         },
         select: { id: true, totalScore: true },
       });
 
-      // Link QA Score to session
       await tx.roleplaySession.update({
         where: { id: sessionId },
         data: { qaScoreId: qaScore.id },
       });
 
-      // Update candidate if applicable
       if (session.recruitmentCandidateId) {
         await tx.recruitmentCandidate.update({
           where: { id: session.recruitmentCandidateId },
@@ -126,7 +115,6 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // Send notification to interpreter if applicable
     if (result.interpreterId) {
       try {
         const interpreter = await db.interpreter.findUnique({
