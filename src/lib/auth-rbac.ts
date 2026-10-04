@@ -41,8 +41,11 @@ if (typeof window === 'undefined' && typeof (globalThis as any).EdgeRuntime === 
 
 process.env.AUTH_TRUST_HOST = "true";
 
-// AUTH_SECRET must be stable in production. Never silently generate a secret
-// that invalidates every session on restart.
+// AUTH_SECRET must be stable in production. Do not generate a production
+// secret during module evaluation: Next.js imports route modules while
+// collecting page data during `next build`, before deployment secrets are
+// necessarily injected. Runtime auth remains fail-closed when no secret is
+// configured because Auth.js receives no usable secret.
 if (!process.env.AUTH_SECRET) {
   if (process.env.ENCRYPTION_KEY) {
     process.env.AUTH_SECRET = crypto
@@ -54,11 +57,11 @@ if (!process.env.AUTH_SECRET) {
       '[AUTH-RBAC] AUTH_SECRET derived from ENCRYPTION_KEY. ' +
       'Set AUTH_SECRET explicitly for stable, independently managed sessions.'
     );
-  } else if (process.env.NODE_ENV === 'production') {
-    throw new Error('[AUTH-RBAC] AUTH_SECRET must be set in production.');
-  } else {
+  } else if (process.env.NODE_ENV !== 'production') {
     process.env.AUTH_SECRET = crypto.randomBytes(32).toString('hex');
     console.warn('[AUTH-RBAC] AUTH_SECRET not set — using a development-only random secret.');
+  } else {
+    console.error('[AUTH-RBAC] AUTH_SECRET is not configured; production authentication will fail closed.');
   }
 }
 
