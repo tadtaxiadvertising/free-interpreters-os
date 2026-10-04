@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { validateAction } from '@/lib/auth/actions';
-import { createRoleplaySession } from '@/app/actions/roleplay';
 
 const db = prisma;
+const MAX_AUDIO_SIZE = 15 * 1024 * 1024;
+const ALLOWED_AUDIO_TYPES = new Set([
+  'audio/webm',
+  'audio/webm;codecs=opus',
+  'audio/mp4',
+  'audio/ogg',
+  'audio/mpeg',
+]);
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,33 +18,58 @@ export async function POST(req: NextRequest) {
     if ('error' in auth) return NextResponse.json({ success: false, error: auth.error }, { status: 403 });
 
     const formData = await req.formData();
-    const baseAudio = formData.get('baseAudio') as File;
-    const participantType = formData.get('participantType') as string;
-    const participantId = formData.get('participantId') as string;
+    const baseAudio = formData.get('baseAudio');
+    const participantType = formData.get('participantType');
+    const participantId = formData.get('participantId');
 
-    if (!baseAudio || !participantType || !participantId) {
+    if (!(baseAudio instanceof File) || typeof participantType !== 'string' || typeof participantId !== 'string') {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Upload base audio to Supabase first
+    if (participantType !== 'interpreter' && participantType !== 'candidate') {
+      return NextResponse.json({ success: false, error: 'Invalid participant type' }, { status: 400 });
+    }
+
+    const parsedParticipantId = Number.parseInt(participantId, 10);
+    if (!Number.isSafeInteger(parsedParticipantId) || parsedParticipantId <= 0) {
+      return NextResponse.json({ success: false, error: 'Invalid participant ID' }, { status: 400 });
+    }
+
+    if (baseAudio.size <= 0 || baseAudio.size > MAX_AUDIO_SIZE) {
+      return NextResponse.json({ success: false, error: 'Audio must be between 1 byte and 15 MB' }, { status: 400 });
+    }
+    if (!ALLOWED_AUDIO_TYPES.has(baseAudio.type)) {
+      return NextResponse.json({ success: false, error: `Audio type ${baseAudio.type || 'unknown'} not allowed` }, { status: 400 });
+    }
+
+    if (participantType === 'interpreter') {
+      const interpreter = await db.interpreter.findUnique({ where: { id: parsedParticipantId }, select: { id: true } });
+      if (!interpreter) return NextResponse.json({ success: false, error: 'Interpreter not found' }, { status: 404 });
+    } else {
+      const candidate = await db.recruitmentCandidate.findUnique({ where: { id: parsedParticipantId }, select: { id: true } });
+      if (!candidate) return NextResponse.json({ success: false, error: 'Candidate not found' }, { status: 404 });
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json({ success: false, error: 'Storage is not configured' }, { status: 503 });
+    }
+
     const { createClient } = await import('@supabase/supabase-js');
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    );
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
     const session = await db.roleplaySession.create({
       data: {
-        interpreterId: participantType === 'interpreter' ? parseInt(participantId) : null,
-        recruitmentCandidateId: participantType === 'candidate' ? parseInt(participantId) : null,
-        baseAudioUrl: '', // placeholder
+        interpreterId: participantType === 'interpreter' ? parsedParticipantId : null,
+        recruitmentCandidateId: participantType === 'candidate' ? parsedParticipantId : null,
+        baseAudioUrl: '',
         status: 'DRAFT',
       },
       select: { id: true },
     });
 
-    const extension = baseAudio.name.split('.').pop() || 'webm';
+    const extension = baseAudio.name.split('.').pop()?.toLowerCase() || 'webm';
     const basePath = `base/${session.id}.${extension}`;
 
     const { error: uploadError } = await supabaseAdmin.storage
@@ -58,7 +90,8 @@ export async function POST(req: NextRequest) {
       data: { baseAudioUrl: publicUrl },
     });
 
-    let inviteLink = `${process.env.FRONTEND_ORIGIN || 'https://freeinterpreters.com'}/roleplays/${session.id}`;
+    const origin = process.env.FRONTEND_ORIGIN || 'https://freeinterpreters.com';
+    let inviteLink = `${origin}/roleplays/${session.id}`;
 
     if (participantType === 'candidate') {
       const { randomBytes, createHash } = await import('crypto');
@@ -67,22 +100,15 @@ export async function POST(req: NextRequest) {
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
       await db.roleplayAccess.create({
-        data: {
-          sessionId: session.id,
-          tokenHash,
-          expiresAt,
-        },
+        data: { sessionId: session.id, tokenHash, expiresAt },
       });
 
-      inviteLink = `${process.env.FRONTEND_ORIGIN || 'https://freeinterpreters.com'}/roleplays/invite/${rawToken}`;
+      inviteLink = `${origin}/roleplays/invite/${rawToken}`;
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      data: { 
-        sessionId: session.id,
-        inviteLink,
-      } 
+    return NextResponse.json({
+      success: true,
+      data: { sessionId: session.id, inviteLink },
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
