@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Lock, Mail, AlertCircle, Loader2, Users, ShieldAlert } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Loader2, Users, ShieldAlert, UserPlus, Briefcase } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { login } from '@/app/actions/auth';
 import { signIn } from 'next-auth/react';
 
-type LoginRole = 'interpreter' | 'admin';
+type LoginRole = 'interpreter' | 'admin' | 'candidate';
 
 export default function LoginPage() {
   const [role, setRole] = useState<LoginRole>('interpreter');
@@ -60,9 +60,9 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md px-6">
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
-            Free Interpreters OS
+            Interpretes RD
           </h1>
-          <p className="text-gray-500 text-sm mt-2 uppercase tracking-widest">Enterprise Platform</p>
+          <p className="text-gray-500 text-sm mt-2 uppercase tracking-widest">Plataforma de Intérpretes</p>
         </div>
 
         <div className="glass rounded-3xl p-8 border border-white/10">
@@ -76,7 +76,18 @@ export default function LoginPage() {
                 }`}
             >
               <Users size={16} />
-              Interpreter
+              Intérprete
+            </button>
+            <button
+              type="button"
+              onClick={() => setRole('candidate')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${role === 'candidate'
+                ? 'bg-emerald-500/20 text-emerald-400 shadow-sm'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                }`}
+            >
+              <UserPlus size={16} />
+              Postulante
             </button>
             <button
               type="button"
@@ -87,12 +98,12 @@ export default function LoginPage() {
                 }`}
             >
               <ShieldAlert size={16} />
-              Administrator
+              Administrador
             </button>
           </div>
 
           <h2 className="text-xl font-bold text-white mb-6">
-            {role === 'admin' ? 'Admin Portal' : 'Interpreter Portal'}
+            {role === 'admin' ? 'Portal de Administración' : role === 'candidate' ? 'Portal de Postulante' : 'Portal de Intérprete'}
           </h2>
 
           {error && (
@@ -115,7 +126,7 @@ export default function LoginPage() {
                   name="email"
                   type="email"
                   required
-                  placeholder={role === 'admin' ? "admin@freeinterpreters.com" : "user@freeinterpreters.com"}
+                  placeholder={role === 'admin' ? "admin@interpretesrd.com" : role === 'candidate' ? "postulante@email.com" : "interprete@interpretesrd.com"}
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                 />
               </div>
@@ -148,32 +159,45 @@ export default function LoginPage() {
               disabled={isLoading}
               className={`w-full py-3 text-white font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${role === 'admin'
                 ? 'bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400'
+                : role === 'candidate'
+                ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400'
                 : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400'
                 }`}
             >
               {isLoading ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  Signing in...
+                  {role === 'candidate' ? 'Iniciando postulación...' : 'Signing in...'}
                 </>
               ) : (
-                'Sign In'
+                role === 'candidate' ? 'Iniciar Postulación' : 'Sign In'
               )}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-gray-500 text-sm">
-              Don&apos;t have an account?{' '}
-              <Link href="/register" className="text-blue-400 hover:text-blue-300 font-medium">
-                Create Account
-              </Link>
+              {role === 'candidate' ? (
+                <>
+                  ¿Primera vez postulando?{' '}
+                  <Link href="/register" className="text-emerald-400 hover:text-emerald-300 font-medium">
+                    Crear cuenta de postulante
+                  </Link>
+                </>
+              ) : (
+                <>
+                  Don&apos;t have an account?{' '}
+                  <Link href="/register" className="text-blue-400 hover:text-blue-300 font-medium">
+                    Create Account
+                  </Link>
+                </>
+              )}
             </p>
           </div>
         </div>
 
         <p className="text-center text-gray-600 text-xs mt-8">
-          © 2026 Free Interpreters. Secure Enterprise Access.
+          © 2026 Interpretes RD. Plataforma Segura de Intérpretes.
         </p>
       </div>
     </div>
