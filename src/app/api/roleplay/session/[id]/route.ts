@@ -10,7 +10,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Apply rate limiting
     const rateLimitResult = applyRateLimit(req, RATE_LIMITS.sessionAccess);
     if (!rateLimitResult.success) {
       return NextResponse.json(
@@ -20,8 +19,6 @@ export async function GET(
     }
 
     const { id } = await params;
-
-    // Resolve current identity
     const identity = await resolveCurrentIdentity();
     if (!identity) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
@@ -44,13 +41,12 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Session not found' }, { status: 404 });
     }
 
-    // Ownership check
-    const hasAccess = await checkSessionAccess(identity, session);
+    const sessionCookie = req.cookies.get('roleplay_session')?.value ?? null;
+    const hasAccess = checkSessionAccess(identity, session, sessionCookie);
     if (!hasAccess) {
       return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 });
     }
 
-    // For candidates, only return base audio if token is validated
     let baseAudioUrl: string | null = session.baseAudioUrl;
     let recordedAudioUrl: string | null = session.recordedAudioUrl;
 
@@ -63,14 +59,14 @@ export async function GET(
     }
 
     return NextResponse.json(
-      { 
-        success: true, 
+      {
+        success: true,
         data: {
           id: session.id,
           baseAudioUrl,
           recordedAudioUrl,
           status: session.status,
-        }
+        },
       },
       { headers: createRateLimitHeaders(rateLimitResult) }
     );
@@ -81,24 +77,26 @@ export async function GET(
   }
 }
 
-async function checkSessionAccess(identity: Awaited<ReturnType<typeof resolveCurrentIdentity>> | null, session: {
-  interpreterId: number | null;
-  recruitmentCandidateId: number | null;
-  status: string;
-}): Promise<boolean> {
+function checkSessionAccess(
+  identity: Awaited<ReturnType<typeof resolveCurrentIdentity>> | null,
+  session: {
+    id?: string;
+    interpreterId: number | null;
+    recruitmentCandidateId: number | null;
+    status: string;
+  },
+  sessionCookie: string | null
+): boolean {
   if (!identity) return false;
-  // Admin has access to all sessions
   if (identity.role === 'admin') return true;
 
-  // Check interpreter ownership
+  // Interpreter sessions are strictly bound to the resolved interpreter id.
   if (session.interpreterId && identity.interpreterId === session.interpreterId) return true;
 
-  // Check candidate access via valid token
+  // Candidate sessions require the opaque server-issued session cookie created
+  // by the invite/start flow. An authenticated user alone is not sufficient.
   if (session.recruitmentCandidateId) {
-    // For candidates, they must have a valid session cookie/token
-    // The token validation happens in the invite/start flow
-    // Here we just verify the session is in a valid state for candidate access
-    return ['STARTED', 'IN_PROGRESS'].includes(session.status);
+    return sessionCookie === session.id && ['STARTED', 'IN_PROGRESS'].includes(session.status);
   }
 
   return false;
