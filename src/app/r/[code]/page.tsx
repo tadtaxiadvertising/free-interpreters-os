@@ -55,7 +55,7 @@ export default async function ShortInviteRedirect({ params }: PageProps) {
     );
   }
 
-  if (access.session.status !== 'PENDING') {
+  if (!['DRAFT', 'INVITED', 'STARTED', 'IN_PROGRESS'].includes(access.session.status)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
         <div className="glass p-12 rounded-3xl border border-white/5 text-center max-w-md">
