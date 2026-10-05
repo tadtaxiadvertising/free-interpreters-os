@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Lock, Mail, AlertCircle, Loader2, Users, ShieldAlert, UserPlus, Briefcase } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Loader2, Users, ShieldAlert } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { login } from '@/app/actions/auth';
 import { signIn } from 'next-auth/react';
 
-type LoginRole = 'interpreter' | 'admin' | 'candidate';
+type LoginRole = 'interpreter' | 'admin';
 
 export default function LoginPage() {
   const [role, setRole] = useState<LoginRole>('interpreter');
@@ -80,17 +80,6 @@ export default function LoginPage() {
             </button>
             <button
               type="button"
-              onClick={() => setRole('candidate')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${role === 'candidate'
-                ? 'bg-emerald-500/20 text-emerald-400 shadow-sm'
-                : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-                }`}
-            >
-              <UserPlus size={16} />
-              Postulante
-            </button>
-            <button
-              type="button"
               onClick={() => setRole('admin')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all ${role === 'admin'
                 ? 'bg-purple-500/20 text-purple-400 shadow-sm'
@@ -103,7 +92,7 @@ export default function LoginPage() {
           </div>
 
           <h2 className="text-xl font-bold text-white mb-6">
-            {role === 'admin' ? 'Portal de Administración' : role === 'candidate' ? 'Portal de Postulante' : 'Portal de Intérprete'}
+            {role === 'admin' ? 'Portal de Administración' : 'Portal de Intérprete'}
           </h2>
 
           {error && (
@@ -126,7 +115,7 @@ export default function LoginPage() {
                   name="email"
                   type="email"
                   required
-                  placeholder={role === 'admin' ? "admin@interpretesrd.com" : role === 'candidate' ? "postulante@email.com" : "interprete@interpretesrd.com"}
+                  placeholder={role === 'admin' ? "admin@interpretesrd.com" : "interprete@interpretesrd.com"}
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                 />
               </div>
@@ -159,39 +148,26 @@ export default function LoginPage() {
               disabled={isLoading}
               className={`w-full py-3 text-white font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${role === 'admin'
                 ? 'bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400'
-                : role === 'candidate'
-                ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400'
                 : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400'
                 }`}
             >
               {isLoading ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  {role === 'candidate' ? 'Iniciando postulación...' : 'Signing in...'}
+                  Signing in...
                 </>
               ) : (
-                role === 'candidate' ? 'Iniciar Postulación' : 'Sign In'
+                'Sign In'
               )}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-gray-500 text-sm">
-              {role === 'candidate' ? (
-                <>
-                  ¿Primera vez postulando?{' '}
-                  <Link href="/register" className="text-emerald-400 hover:text-emerald-300 font-medium">
-                    Crear cuenta de postulante
-                  </Link>
-                </>
-              ) : (
-                <>
-                  Don&apos;t have an account?{' '}
-                  <Link href="/register" className="text-blue-400 hover:text-blue-300 font-medium">
-                    Create Account
-                  </Link>
-                </>
-              )}
+              Don&apos;t have an account?{' '}
+              <Link href="/register" className="text-blue-400 hover:text-blue-300 font-medium">
+                Create Account
+              </Link>
             </p>
           </div>
         </div>
