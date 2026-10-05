@@ -99,11 +99,15 @@ export async function POST(req: NextRequest) {
       const tokenHash = createHash('sha256').update(rawToken).digest('hex');
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
+      // Generate short invite code (8 chars alphanumeric)
+      const inviteCode = randomBytes(4).toString('base64url').slice(0, 8).toUpperCase();
+
       await db.roleplayAccess.create({
-        data: { sessionId: session.id, tokenHash, expiresAt },
+        data: { sessionId: session.id, tokenHash, inviteCode, expiresAt },
       });
 
-      inviteLink = `${origin}/roleplays/invite/${rawToken}`;
+      const origin = process.env.FRONTEND_ORIGIN || 'https://freeinterpreters.com';
+      inviteLink = `${origin}/r/${inviteCode}`;
     }
 
     return NextResponse.json({
