@@ -4,8 +4,50 @@ import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { ActionResult } from '@/lib/types';
 import { validateAction } from '@/lib/auth/actions';
+import { ApplicantSchema, ApplicantData } from '@/lib/validators/recruitment';
 
 const db = prisma;
+
+/**
+ * ACTION: Submit Application (Public - no auth required)
+ * Inserts a new candidate into the recruitment funnel with status "Aplicante"
+ */
+export async function submitApplicationAction(data: ApplicantData) {
+  try {
+    // 1. Strict Zod validation
+    const parsed = ApplicantSchema.parse(data);
+
+    // 2. Database operation using Singleton (Transaction Pooler - port 6543)
+    // Insert into funnel as "Aplicante" initial status
+    const candidate = await db.recruitmentCandidate.create({
+      data: {
+        name: parsed.name,
+        email: parsed.email,
+        telefono: parsed.phone,
+        // Store EFSET link and CV URL in a JSON field or extend schema
+        // For now, we store in notas as JSON
+        notas: JSON.stringify({
+          efsetLink: parsed.efsetLink,
+          cvUrl: parsed.cvUrl,
+        }),
+        status: 'Aplicante',
+        fuente: 'Web Portal',
+      },
+      select: { id: true },
+    });
+
+    // Standardized success return
+    return { success: true, candidateId: candidate.id };
+    
+  } catch (error) {
+    console.error('[Recruitment Action Error]:', error);
+    // Graceful degradation: never crash container with raw 500
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error interno al procesar tu aplicación. Por favor, intenta de nuevo.' 
+    };
+  }
+}
 
 /**
  * ACTION: Delete Candidate
