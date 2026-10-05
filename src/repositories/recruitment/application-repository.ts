@@ -180,9 +180,17 @@ export const applicationRepository = {
       db.recruitmentApplication.findMany({
         where,
         include: {
-          candidate: { select: { id: true, name: true, email: true, telefono: true, pais: true } },
-          access: { select: { inviteCode: true, expiresAt: true, usedAt: true } },
-          roleplaySession: { select: { id: true, status: true, qaScoreId: true } },
+          candidate: { 
+            select: { 
+              id: true, 
+              name: true, 
+              email: true, 
+              telefono: true, 
+              pais: true,
+              roleplaySessions: { select: { id: true, status: true, qaScoreId: true } }
+            } 
+          },
+          access: { select: { inviteCode: true, expiresAt: true, lastUsedAt: true } },
         },
         orderBy: { lastActivityAt: 'desc' },
         skip: (page - 1) * pageSize,

@@ -208,10 +208,24 @@ export async function createOrResumeRoleplay(
       });
 
       if (existing) {
-        // Generate access if needed
+        // Generate access if needed - use roleplay access directly
         let access;
-        if (!existing.access) {
-          access = await accessRepository.getOrCreate(existing.id);
+        if (!(existing as any).access) {
+          // Create roleplay access for the session
+          const { randomBytes, createHash } = await import('crypto');
+          const rawToken = randomBytes(32).toString('hex');
+          const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+          const inviteCode = randomBytes(4).toString('base64url').slice(0, 8).toUpperCase();
+          const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+          access = await tx.roleplayAccess.create({
+            data: {
+              sessionId: existing.id,
+              tokenHash,
+              inviteCode,
+              expiresAt,
+            },
+          });
         }
 
         return {
@@ -352,6 +366,7 @@ export async function evaluateRoleplay(
         data: {
           interpreterId: null, // Will be filled based on candidate/interpreter
           auditor: auditorId,
+          auditDate: new Date(), // Required field
           protocolScore: scores.protocolScore,
           interpretationScore: scores.interpretationScore,
           languageScore: scores.languageScore,
@@ -391,7 +406,7 @@ export async function hireCandidate(
   actorType: 'admin' | 'system'
 ): Promise<HiringResult> {
   try {
-    const application = await applicationRepository.findById(applicationId);
+    const application = (await applicationRepository.findById(applicationId)) as any;
     if (!application) {
       return { success: false, error: 'Aplicación no encontrada', code: 'NOT_FOUND' };
     }
@@ -405,7 +420,7 @@ export async function hireCandidate(
     const result = await db.$transaction(async (tx) => {
       // 1. Verificar si ya existe un intérprete con esta identidad
       const existingInterpreter = await tx.interpreter.findFirst({
-        where: { emailCorporativo: application.application.candidate.email },
+        where: { emailCorporativo: application.candidate.email },
       });
 
       let interpreterId: number;
@@ -415,24 +430,24 @@ export async function hireCandidate(
         interpreterId = existingInterpreter.id;
         // Link to existing interpreter
         await tx.userProfile.upsert({
-          where: { id: application.applicationId || application.id }, // Need to fix this
+          where: { id: application.id },
           update: { interpreterId: existingInterpreter.id },
           create: {
-            id: application.id, // Need to fix the ID mapping
-            email: application.application.candidate.email,
-            displayName: application.application.candidate.name,
+            id: application.id,
+            email: application.candidate.email,
+            displayName: application.candidate.name,
             role: 'interpreter',
             interpreterId: existingInterpreter.id,
           },
         });
-        userProfileId = application.id; // Need to fix
+        userProfileId = application.id;
       } else {
         // Create new interpreter
         const newInterpreter = await tx.interpreter.create({
           data: {
             externalId: `cand-${application.id}`,
-            name: application.application.candidate.name,
-            emailCorporativo: application.application.candidate.email,
+            name: application.candidate.name,
+            emailCorporativo: application.candidate.email,
             status: 'Activo',
             realtimeStatus: 'Offline',
             tariffPerMinute: 0,
@@ -444,12 +459,12 @@ export async function hireCandidate(
         interpreterId = newInterpreter.id;
 
         // Create user profile
-        userProfileId = application.id; // This needs fixing - use proper UUID
+        userProfileId = application.id;
         await tx.userProfile.create({
           data: {
-            id: application.id, // Need proper UUID
-            email: application.application.candidate.email,
-            displayName: application.application.candidate.name,
+            id: application.id,
+            email: application.candidate.email,
+            displayName: application.candidate.name,
             role: 'interpreter',
             interpreterId,
           },
