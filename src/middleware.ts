@@ -29,6 +29,8 @@ import type { NextRequest } from 'next/server';
 
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://freeinterpreters.com";
 
+// Production CORS allowlist — never include .easypanel.host or arbitrary origins
+const isProduction = process.env.NODE_ENV === "production";
 const AUTH_SESSION_COOKIE_NAMES = [
   'authjs.session-token',
   '__Secure-authjs.session-token',
@@ -74,10 +76,10 @@ export async function middleware(req: NextRequest) {
   }
 
   // ── 1. CORS PREFLIGHT ─────────────────────────────────────
-  const isTrustedOrigin = !origin ||
-    origin === FRONTEND_ORIGIN ||
-    origin.endsWith('.easypanel.host') ||
-    origin.includes('localhost');
+  const isLocalhostOrigin = origin?.includes('localhost') || origin?.includes('127.0.0.1');
+  const isTrustedOrigin = !isProduction
+    ? origin === FRONTEND_ORIGIN || isLocalhostOrigin
+    : origin === FRONTEND_ORIGIN;
 
   const corsOrigin = isTrustedOrigin && origin ? origin : FRONTEND_ORIGIN;
 
@@ -88,7 +90,7 @@ export async function middleware(req: NextRequest) {
         'Access-Control-Allow-Origin': corsOrigin,
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With',
-        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Credentials': isTrustedOrigin ? 'true' : 'false',
         'Access-Control-Max-Age': '86400',
       },
     });
@@ -153,7 +155,7 @@ export async function middleware(req: NextRequest) {
   // ── 4. API CORS HEADERS ───────────────────────────────────
   if (pathname.startsWith('/api/')) {
     response.headers.set('Access-Control-Allow-Origin', corsOrigin);
-    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Access-Control-Allow-Credentials', isTrustedOrigin ? 'true' : 'false');
     response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
   }
