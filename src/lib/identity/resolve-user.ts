@@ -421,3 +421,68 @@ export function requireOwnership(
   }
   return i;
 }
+
+export function resolveOnboardingState(identity: ResolvedIdentity): {
+  status: OnboardingStatus;
+  step: 'legal' | 'banking' | 'tutorial' | 'complete' | null;
+  version: number;
+  completedAt: Date | null;
+} {
+  // Use the onboardingStatus directly from the resolved identity,
+  // as it was computed by resolveActorFromSupabase or resolveActorFromAuthJs
+  const status = identity.onboardingStatus as OnboardingStatus;
+  const step = identity.onboardingStep as 'legal' | 'banking' | 'tutorial' | 'complete' | null;
+  const version = identity.onboardingVersion;
+  const completedAt = identity.onboardingCompletedAt;
+  return { status, step, version, completedAt };
+}
+
+export function resolveDestination(identity: ResolvedIdentity): string {
+  // Admin always goes to admin panel
+  if (identity.role === 'admin') {
+    return '/admin';
+  }
+
+  // Check onboarding state
+  const onboarding = resolveOnboardingState(identity);
+
+  if (onboarding.status !== 'COMPLETED') {
+    // User needs to complete or resume onboarding
+    const resumeParam = onboarding.status === 'IN_PROGRESS' ? '?resume=true' : '';
+    return `/onboarding${resumeParam}`;
+  }
+
+  // Onboarding complete - check roleplay state
+  switch (identity.roleplayState) {
+    case 'INVITED':
+    case 'STARTED':
+    case 'IN_PROGRESS':
+      // User has an active roleplay session - go to roleplay
+      if (identity.roleplaySessionId) {
+        return `/roleplays/${identity.roleplaySessionId}`;
+      }
+      // Fallback if no session ID
+      return '/dashboard/roleplays';
+
+    case 'SUBMITTED':
+    case 'UNDER_REVIEW':
+    case 'EVALUATED':
+      // Roleplay submitted or under review - show dashboard with status
+      return '/dashboard';
+
+    case 'PASSED':
+    case 'FAILED':
+      // Roleplay completed with result - show dashboard
+      return '/dashboard';
+
+    case 'EXPIRED':
+    case 'CANCELLED':
+      // Roleplay expired/cancelled - show dashboard
+      return '/dashboard';
+
+    case 'NO_ROLEPLAY':
+    default:
+      // No roleplay - go to dashboard
+      return '/dashboard';
+  }
+}
