@@ -14,6 +14,7 @@ import type { NextConfig } from "next";
 
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://app.freeinterpreters.com";
 const CUSTOM_DOMAIN = process.env.CUSTOM_DOMAIN || "https://freeinterpreters.com";
+const CUSTOM_DOMAIN_API = process.env.CUSTOM_DOMAIN_API || "https://freeinterpreters.com";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -79,11 +80,11 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               "font-src 'self'",
-              "connect-src 'self' https://kzbkygppplknynrwmtmf.supabase.co wss://kzbkygppplknynrwmtmf.supabase.co https://freeinterpreters.com https://app.freeinterpreters.com ${CUSTOM_DOMAIN}",
+              "connect-src 'self' https://kzbkygppplknynrwmtmf.supabase.co wss://kzbkygppplknynrwmtmf.supabase.co https://freeinterpreters.com https://app.freeinterpreters.com ${CUSTOM_DOMAIN} ${CUSTOM_DOMAIN_API}",
               "media-src 'self' https://kzbkygppplknynrwmtmf.supabase.co blob:",
               "frame-ancestors 'none'",
               "base-uri 'self'",
-              "form-action 'self' https://app.freeinterpreters.com https://freeinterpreters.com ${CUSTOM_DOMAIN}",
+              "form-action 'self' https://app.freeinterpreters.com https://freeinterpreters.com ${CUSTOM_DOMAIN} ${CUSTOM_DOMAIN_API}",
             ].join('; '),
           },
         ],
