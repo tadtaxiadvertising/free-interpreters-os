@@ -12,24 +12,7 @@ import type { NextConfig } from "next";
  * ============================================================
  */
 
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://freeinterpreters.com";
-const NEW_DOMAIN = "https://interpretes.rd.ibusiness.com.do";
-
-const cspConnectSrc = [
-  "'self'",
-  "https://kzbkygppplknynrwmtmf.supabase.co",
-  "wss://kzbkygppplknynrwmtmf.supabase.co",
-  "https://freeinterpreters.com",
-  "https://app.freeinterpreters.com",
-  NEW_DOMAIN,
-].join(" ");
-
-const cspFormAction = [
-  "'self'",
-  "https://app.freeinterpreters.com",
-  "https://freeinterpreters.com",
-  NEW_DOMAIN,
-].join(" ");
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://app.freeinterpreters.com";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -87,21 +70,21 @@ const nextConfig: NextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(self), geolocation=()',
           },
-{
-                key: 'Content-Security-Policy',
-                value: [
-                  "default-src 'self'",
-                  "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-                  "style-src 'self' 'unsafe-inline'",
-                  "img-src 'self' data: blob:",
-                  "font-src 'self'",
-                  `connect-src ${cspConnectSrc}`,
-                  "media-src 'self' https://kzbkygppplknynrwmtmf.supabase.co blob:",
-                  "frame-ancestors 'none'",
-                  "base-uri 'self'",
-                  `form-action ${cspFormAction}`,
-                ].join('; '),
-              },
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob:",
+              "font-src 'self'",
+              "connect-src 'self' https://kzbkygppplknynrwmtmf.supabase.co wss://kzbkygppplknynrwmtmf.supabase.co https://freeinterpreters.com https://app.freeinterpreters.com",
+              "media-src 'self' https://kzbkygppplknynrwmtmf.supabase.co blob:",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self' https://app.freeinterpreters.com https://freeinterpreters.com",
+            ].join('; '),
+          },
         ],
       },
     ];
