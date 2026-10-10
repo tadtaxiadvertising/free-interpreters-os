@@ -16,7 +16,7 @@ export default async function OnboardingPage() {
   }
 
   const profile = await getCurrentProfile();
-  const interpreterName = profile?.interpreter?.name || user.name || 'Intérprete';
+  const interpreterName = user.name || 'Intérprete';
 
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
 
