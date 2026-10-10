@@ -3,39 +3,47 @@
 import React, { useEffect, useState } from 'react';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
 import { getOnboardingStatus } from '@/app/actions/onboarding';
-import { getCurrentProfile } from '@/app/actions/auth';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-export default async function OnboardingPage() {
-  const { userId, user } = await auth();
-  if (!userId || !user) {
-    redirect('/login');
-  }
-
-  const profile = await getCurrentProfile();
-  const interpreterName = user.name || 'Intérprete';
-
+export default function OnboardingPage() {
+  const [userId, setUserId] = useState<number | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [interpreterName, setInterpreterName] = useState<string>('Intérprete');
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
+  const [didAuthCheck, setDidAuthCheck] = useState(false);
 
+  // Auth check on mount
   useEffect(() => {
-    async function verify() {
-      try {
+    async function checkAuth() {
+      const authResult = await auth();
+      if (authResult.userId && authResult.user) {
+        setUserId(authResult.userId);
+        setUser(authResult.user);
+        setInterpreterName(authResult.user.name || 'Intérprete');
+      }
+      setDidAuthCheck(true);
+    }
+    checkAuth();
+  }, []);
+
+  // Load onboarding status after auth check
+  useEffect(() => {
+    if (didAuthCheck) {
+      async function loadOnboardingStatus() {
         const result = await getOnboardingStatus();
         if (result.success && result.data) {
           setOnboardingComplete(result.data.onboardingComplete);
         }
-      } catch {
-        // Fall back - keep current state
       }
+      loadOnboardingStatus();
     }
-    verify();
-  }, [interpreterName]);
+  }, [didAuthCheck]);
 
   // If onboarding already complete, redirect to dashboard
-  if (onboardingComplete === true) {
+  if (didAuthCheck && onboardingComplete === true) {
     redirect('/dashboard');
   }
 
